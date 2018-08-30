@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+import itertools as itt
 import nems.epoch as ne
 import ast
 
@@ -12,6 +13,8 @@ So far the substim events have equal duration, and their number, order and ident
 This takes advantages of this facts to generate corresponding subepochs. 
 '''
 
+
+# base functions
 
 def _set_subepochs(epochs):
     '''
@@ -78,6 +81,58 @@ def _set_subepochs(epochs):
     return new_epochs
 
 
+def _set_subepochs_pairs(epochs):
+    '''
+    adds a set of epoch names containing both the context and probe identity in the format Cx_Py, where x is the id number
+    of the contex, and y that of the probe. by convention, x = 0 corresponds to silence as context.
+    :param epochs: a signal epochs DF
+    :return: a new signal epochs with the aditional CPP epochs.
+    
+    '''
+
+    new_epochs = _set_subepochs(epochs)
+
+    # finds the names of all signle vocalizations
+    single_vocs = {voc for voc in new_epochs.name.unique() if voc[0:3] == 'voc'}
+
+    # selects only epochs of single vocalization or prestim silence
+    ff_vocs = new_epochs.name.isin(single_vocs)
+    ff_silence = new_epochs.name == 'PreStimSilence'
+    working_epochs = new_epochs.loc[ff_vocs | ff_silence]
+
+    # shortens the names of the epochs for later on: vocalizations are positive integers and silence is 0
+    replace_dict = {voc: voc[4:] for voc in single_vocs}
+    replace_dict['PreStimSilence'] = '0'
+    name_arr = working_epochs.name.replace(replace_dict).values
+
+    # makes name consiteing of the contex and format of consecutive sounds
+    pair_names = ['C{}_P{}'.format(context, probe) for context, probe in zip(name_arr, name_arr[1:])]
+    pair_names.insert(0, '')
+
+    # puts back in the filtered epochs DF
+    working_epochs['newname'] = pair_names
+
+    # only takes the vocalizations as probes (excludes the silence)
+    ff_vocs = working_epochs.name.isin(single_vocs)
+    working_epochs = working_epochs.loc[ff_vocs, :]
+    working_epochs['name'] = working_epochs.newname
+    working_epochs.drop(columns='newname', inplace=True)
+
+    new_epochs = new_epochs.append(working_epochs)
+
+    # formats by sorting, index and column order
+    new_epochs.sort_values(by=['start', 'end'], ascending=[True, False], inplace=True)
+    new_epochs.reset_index(drop=True, inplace=True)
+    new_epochs = new_epochs[['start', 'end', 'name']]
+
+
+    return new_epochs
+
+
+
+
+# signal and recording wrappers
+
 def set_signal_subepochs(signal):
     new_epochs = _set_subepochs(signal.epochs)
     new_signal = signal._modified_copy(signal._data, epochs=new_epochs)
@@ -90,3 +145,6 @@ def set_recording_subepochs(recording):
         new_signal = set_signal_subepochs(signal)
         new_recording[name] = new_signal
     return new_recording
+
+
+
