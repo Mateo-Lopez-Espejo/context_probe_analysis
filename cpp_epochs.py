@@ -129,20 +129,29 @@ def _set_subepochs_pairs(epochs):
     return new_epochs
 
 
+def _get_subepochs_pairs(signal):
+
+    e
 
 
 # signal and recording wrappers
 
-def set_signal_subepochs(signal):
+def set_signal_subepochs(signal, set_pairs=True):
     new_epochs = _set_subepochs(signal.epochs)
+    if set_pairs == True:
+        new_epochs = _set_subepochs_pairs(new_epochs)
+    elif set_pairs == False:
+        pass
+    else:
+        raise ValueError("keyword argument 'set_pairs' must be a boolean")
     new_signal = signal._modified_copy(signal._data, epochs=new_epochs)
     return new_signal
 
 
-def set_recording_subepochs(recording):
+def set_recording_subepochs(recording, **kwargs):
     new_recording = recording.copy()
     for name, signal in recording.signals.items():
-        new_signal = set_signal_subepochs(signal)
+        new_signal = set_signal_subepochs(signal, **kwargs)
         new_recording[name] = new_signal
     return new_recording
 
