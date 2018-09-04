@@ -3,9 +3,25 @@ import pandas as pd
 import numpy as np
 import nems.signal as signal
 import seaborn as sns
+import nems.epoch as nep
 
 
 def _PSTH(matrix, onset=None, offset=None, ax=None, fs=None, ci=False, y_offset='auto', plt_kws=None):
+
+    '''
+    Base function for plotting a PSTH from a 3d matix with dimentions R x C x T where R is the repetitions,
+    C is the channel and T is time. This matrix usually comes from "extract_epochs"
+    :param matrix: a 3d numpy array
+    :param onset: the time of the sound onset in seconds
+    :param offset: the time of the stimulus offset in seconds
+    :param ax: a plt axis
+    :param fs: int, the sampling frequncy asociated with the data, used to plot with real time on the x axis
+    :param ci: bool, wheter or not to plot athe bootstrap confidence itnernval
+    :param y_offset: 'auto' or a number. when plotting multiple channels, the vertical offset between the PSTH of each
+                      channel.
+    :param plt_kws: adittional keyword parameters for pyplot.plot()
+    :return: the ax used for the plotting
+    '''
 
     # the dimentions of the matrix are repetitions, channels, and time in that order
     # defiens in what axis to plot
@@ -37,7 +53,7 @@ def _PSTH(matrix, onset=None, offset=None, ax=None, fs=None, ci=False, y_offset=
     # iterates over every channel
     for channel in range(psth.shape[0]):
         # offsets each channle for better readability
-        toplot = psth[channel, :] + y_offset * channel
+        toplot = psth[channel, :] - y_offset * channel
         ax.plot(t, toplot, **plt_kws)
 
 
@@ -60,17 +76,68 @@ def _PSTH(matrix, onset=None, offset=None, ax=None, fs=None, ci=False, y_offset=
     # todo handle legend?
     #ax.legend(loc='upper left', fontsize='xx-small')
 
+    return ax
 
 
-def ndim_resp_PSTH(rec, signal='all', dims='all'):
+def epochs_PSTH(recording, epoch_names='single', signal_names ='all'):
     '''
-    genenates a PSTH for each inncreased
-    :param rec:
-    :param signal:
-    :param dims:
-    :return:
+    plots PSTHs for a CPP recording. Generates a figure with m * n axes where m is the epochs and n is the signals ploted
+
+    :param recording: a recording object with CPP formated epochs (see cpp_epochs)
+    :param epoch_names: 'single', 'pair', regex, list.
+                        'single' plots the PSTH of each CPP vocalization independent of its context
+                        'pair' plots idependent PSTHs for each contex probe pair
+                        a regular expression, or a list of epoch names (str)
+    :param signal_names: 'all', list of str. 'all' uses all epochs. otherwise only the epochs specified as a list
+    :return: fig, axes
     '''
-    return None
+
+    if signal_names == 'all':
+        signal_names = recording.signals.keys()
+
+    # defines general versions of
+    if epoch_names == 'single':
+        reg_ex = r'\Avoc_\d'
+        epoch_names = nep.epoch_names_matching(recording.epochs, (reg_ex))
+    elif epoch_names == 'pair':
+        reg_ex = r'\AC\d_P\d'
+        epoch_names = nep.epoch_names_matching(recording.epochs, (reg_ex))
+    elif isinstance(epoch_names, str):
+        reg_ex = epoch_names
+        epoch_names = nep.epoch_names_matching(recording.epochs, (reg_ex))
+    elif isinstance(epoch_names, list):
+        ep_intersection = set(epoch_names).intersection(set(recording.epochs.name.unique()))
+        if len(ep_intersection) == 0:
+            raise AttributeError("specified epochs are not contained in recording")
+        pass
+
+    if len(epoch_names) == 0:
+        raise AttributeError("no epochs match regex '{}'".format(reg_ex))
+
+    # creates a figure with apropiate number of row/cols of axes
+    fig, axes = plt.subplots(len(signal_names), len(epoch_names))
+    if len(signal_names) == 1 and len(epoch_names) == 1:   # if single ax
+        axes = np.array(axes, ndmin=2)                 # orders in a 2 dim array
+    elif len(signal_names) ==1:                        # if 1 dim array
+        axes = np.expand_dims(axes, 0)                 # adds one empty dimention
+    elif len(epoch_names) == 1:                        # if 1 dim array
+       axes = np.expand_dims(axes, 1)                  # adds one empty dimention
+
+        # iterate over each signal in the recording
+    for ss, sig_key in enumerate(signal_names):
+        signal = recording[sig_key]
+        signal = signal.rasterize()
+
+        # extract the specified epochs
+        epochs_dic = signal.extract_epochs(epoch_names)
+
+        for ee, (epoch_name, matrix) in enumerate(epochs_dic.items()):
+            ax = axes[ss, ee]
+
+            ax = _PSTH(matrix, ax=ax)
+            ax.set_title("Signal: {}, Epoch: {}".format(sig_key, epoch_name))
+
+    return fig, axes
 
 
 

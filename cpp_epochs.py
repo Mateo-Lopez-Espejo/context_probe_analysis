@@ -76,7 +76,7 @@ def _set_subepochs(epochs):
     # formats by sorting, index and column order
     new_epochs.sort_values(by=['start', 'end'], ascending=[True, False], inplace=True)
     new_epochs.reset_index(drop=True, inplace=True)
-    new_epochs = new_epochs[['start', 'end', 'name']]
+    new_epochs = new_epochs.loc[:,['start', 'end', 'name']]
 
     return new_epochs
 
@@ -84,12 +84,12 @@ def _set_subepochs(epochs):
 def _set_subepochs_pairs(epochs):
     '''
     adds a set of epoch names containing both the context and probe identity in the format Cx_Py, where x is the id number
-    of the contex, and y that of the probe. by convention, x = 0 corresponds to silence as context.
+    of the contex, and y that of the probe. by convention, x = 0 corresponds to silence as context. The epoch point only
+    to the response to the probe, this only adds the information of what preceded the probe i.e. the context.
     :param epochs: a signal epochs DF
     :return: a new signal epochs with the aditional CPP epochs.
     
     '''
-
     new_epochs = _set_subepochs(epochs)
 
     # finds the names of all signle vocalizations
@@ -98,7 +98,7 @@ def _set_subepochs_pairs(epochs):
     # selects only epochs of single vocalization or prestim silence
     ff_vocs = new_epochs.name.isin(single_vocs)
     ff_silence = new_epochs.name == 'PreStimSilence'
-    working_epochs = new_epochs.loc[ff_vocs | ff_silence]
+    working_epochs = new_epochs.loc[ff_vocs | ff_silence, :].copy()
 
     # shortens the names of the epochs for later on: vocalizations are positive integers and silence is 0
     replace_dict = {voc: voc[4:] for voc in single_vocs}
@@ -110,12 +110,12 @@ def _set_subepochs_pairs(epochs):
     pair_names.insert(0, '')
 
     # puts back in the filtered epochs DF
-    working_epochs['newname'] = pair_names
+    working_epochs.loc[:, 'newname'] = pair_names
 
     # only takes the vocalizations as probes (excludes the silence)
     ff_vocs = working_epochs.name.isin(single_vocs)
     working_epochs = working_epochs.loc[ff_vocs, :]
-    working_epochs['name'] = working_epochs.newname
+    working_epochs.loc[:,'name'] = working_epochs.newname
     working_epochs.drop(columns='newname', inplace=True)
 
     new_epochs = new_epochs.append(working_epochs)
@@ -131,17 +131,17 @@ def _set_subepochs_pairs(epochs):
 
 def _get_subepochs_pairs(signal):
 
-    e
+    raise NotImplemented
 
 
 # signal and recording wrappers
 
 def set_signal_subepochs(signal, set_pairs=True):
-    new_epochs = _set_subepochs(signal.epochs)
-    if set_pairs == True:
-        new_epochs = _set_subepochs_pairs(new_epochs)
-    elif set_pairs == False:
-        pass
+
+    if set_pairs == False:
+        new_epochs = _set_subepochs(signal.epochs)
+    elif set_pairs == True:
+        new_epochs = _set_subepochs_pairs(signal.epochs)
     else:
         raise ValueError("keyword argument 'set_pairs' must be a boolean")
     new_signal = signal._modified_copy(signal._data, epochs=new_epochs)

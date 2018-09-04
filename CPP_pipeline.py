@@ -1,8 +1,9 @@
 import nems_db.baphy as nb
 import nems.recording as recording
-import cpp_epochs as cep
+import cpp_epochs as cpe
 import joblib as jl
 import os
+import cpp_plots as cplt
 
 # multi electode array loading options
 options = {'batch': 310,
@@ -29,7 +30,9 @@ else:
 
 
 # sets epochs correpsondign to individual sounds as well as context probe pairs
-formated_rec = cep.set_recording_subepochs(loaded_rec, set_pairs=False)
+rec = cpe.set_recording_subepochs(loaded_rec, set_pairs=True)
+sig = rec['resp']
+eps = sig.epochs
 
 # extracts individual sounds and plots for data quality checking
 
