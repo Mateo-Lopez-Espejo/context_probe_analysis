@@ -76,7 +76,7 @@ def _set_subepochs(epochs):
     # formats by sorting, index and column order
     new_epochs.sort_values(by=['start', 'end'], ascending=[True, False], inplace=True)
     new_epochs.reset_index(drop=True, inplace=True)
-    new_epochs = new_epochs.loc[:,['start', 'end', 'name']]
+    new_epochs = new_epochs.loc[:, ['start', 'end', 'name']]
 
     return new_epochs
 
@@ -115,7 +115,7 @@ def _set_subepochs_pairs(epochs):
     # only takes the vocalizations as probes (excludes the silence)
     ff_vocs = working_epochs.name.isin(single_vocs)
     working_epochs = working_epochs.loc[ff_vocs, :]
-    working_epochs.loc[:,'name'] = working_epochs.newname
+    working_epochs.loc[:, 'name'] = working_epochs.newname
     working_epochs.drop(columns='newname', inplace=True)
 
     new_epochs = new_epochs.append(working_epochs)
@@ -125,19 +125,16 @@ def _set_subepochs_pairs(epochs):
     new_epochs.reset_index(drop=True, inplace=True)
     new_epochs = new_epochs[['start', 'end', 'name']]
 
-
     return new_epochs
 
 
 def _get_subepochs_pairs(signal):
-
     raise NotImplemented
 
 
 # signal and recording wrappers
 
 def set_signal_subepochs(signal, set_pairs=True):
-
     if set_pairs == False:
         new_epochs = _set_subepochs(signal.epochs)
     elif set_pairs == True:
@@ -154,6 +151,3 @@ def set_recording_subepochs(recording, **kwargs):
         new_signal = set_signal_subepochs(signal, **kwargs)
         new_recording[name] = new_signal
     return new_recording
-
-
-

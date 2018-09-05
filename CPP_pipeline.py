@@ -4,6 +4,8 @@ import cpp_epochs as cpe
 import joblib as jl
 import os
 import cpp_plots as cplt
+import cpp_PCA as cpca
+import matplot
 
 # multi electode array loading options
 options = {'batch': 310,
@@ -20,7 +22,6 @@ if Test == True:
     pickle_path = '{}/pickles'.format(this_script_dir)
     test_rec_path = os.path.normcase('{}/BRT037b'.format(pickle_path))
     # test_rec_path = '/home/mateo/context_probe_analysis/pickles/BRT037b'
-
     loaded_rec = jl.load(test_rec_path)
 
 
@@ -34,14 +35,42 @@ rec = cpe.set_recording_subepochs(loaded_rec, set_pairs=True)
 sig = rec['resp']
 eps = sig.epochs
 
-# extracts individual sounds and plots for data quality checking
+# plots full reference i.e. include pre and post stim silence and 5 sounds
+psth_kws = {'fs':100, 'start':3, 'end':18,
+             'ax':None, 'ci':False, 'y_offset':'auto',
+             'plt_kws':None }
+cplt.recording_PSTH(rec, epoch_names=r'REFERENCE', signal_names=['resp'], psth_kws=psth_kws)
 
+# plot inividual sounds independent of the context
+psth_kws = {'fs':100, 'start':None, 'end':None,
+             'ax':None, 'ci':False, 'y_offset':'auto',
+             'plt_kws':None }
+cplt.recording_PSTH(rec, epoch_names='single', signal_names=['resp'], psth_kws=psth_kws)
 
-
+# plots individual sound dependent on context
+psth_kws = {'fs':100, 'start':None, 'end':None,
+             'ax':None, 'ci':False, 'y_offset':'auto',
+             'plt_kws':None }
+cplt.recording_PSTH(rec, epoch_names='pair', signal_names=['resp'], psth_kws=psth_kws)
 
 # transforms the recording into its PCA equivalent
 
-# Now for each individual sounds
+rec_pca = cpca.recording_PCA(rec, inplace=False)
+
+
+# plots PCs for each single sound
+
+psth_kws = {'fs':100, 'start':None, 'end':None,
+             'ax':None, 'ci':False, 'y_offset':'auto',
+             'plt_kws':None }
+cplt.recording_PSTH(rec_pca, epoch_names='single', signal_names='all', psth_kws=psth_kws)
+
+
+# plots the variance explained
+
+sig_pca, PCA_dict = cpca.charlie_PCA(sig)
+cum_var = PCA_dict['step']
+
 
 
 
