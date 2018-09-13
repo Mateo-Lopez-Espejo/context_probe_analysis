@@ -46,7 +46,7 @@ eps = sig.epochs
 
 
 # plot inividual sounds independent of the context
-psth_kws = {'fs':100, 'start':None, 'end':None,
+psth_kws = {'fs':10, 'start':None, 'end':None,
              'ax':None, 'ci':False, 'y_offset':'auto',
              'plt_kws':None }
 cplt.recording_PSTH(rec, epoch_names='single', signal_names=['resp'], psth_kws=psth_kws)
@@ -61,29 +61,52 @@ cplt.recording_PSTH(rec, epoch_names='single', signal_names=['resp'], psth_kws=p
 
 
 # transforms the recording into its PCA equivalent
-rec_pca, pca_stats = cpca.recording_PCA(rec, inplace=False, method='sklearn', center=True)
+rec_pca, pca_stats = cpca.recording_PCA(rec, inplace=False, center=True)
 
 
 # plots PCs for each single sound
 
-psth_kws = {'fs':100, 'start':None, 'end':None,
+psth_kws = {'fs':10, 'start':None, 'end':None,
              'ax':None, 'ci':False, 'y_offset':'auto',
+            'channels': 3,
              'plt_kws':None }
 cplt.recording_PSTH(rec_pca, epoch_names='single', signal_names='all', psth_kws=psth_kws)
 
 
-# plots the variance explained
-var = pca_stats['resp_PCs']['step']
-cum_var = np.cumsum(var)
-fig, ax = plt.subplots()
-ax.bar(range(len(var)), var)
-ax.set_ylabel('cumulative variance explained')
-ax.set_xlabel('Principal component')
-ax.set_title('Principal Componets analisis')
+# plots the variance explained for each
+for sig_name, pca in pca_stats.items():
+    fig, ax = plt.subplots()
+    toplot = np.cumsum(pca.explained_variance_ratio_)
+    ax.plot(toplot, '.-')
+    ax.set_xlabel('number of components')
+    ax.set_ylabel('cumulative explained variance');
+    ax.set_title()
+
+# plots neuronal trajectory for an example probe within all different contexts
+
+traj_kws = {'smoothing': 1,
+            'rep_scat': False,
+            'rep_line': True,
+            'mean_scat': False,
+            'mean_line': True}
+cplt.recording_trajectory(rec_pca, dims=3, epoch_names=r'\AC\d_P1', signal_names='PCA', _trajectory_kws=traj_kws)
+cplt.recording_trajectory(rec_pca, dims=2, epoch_names=['PreStimSilence'], signal_names='PCA', _trajectory_kws=traj_kws)
 
 
-# plots neuronal trajectory for an example probe whitin a context
+# looks at single cell and signle PCA raters for a single probe given multiple contexts
 
-cplt.
+
+
+# calcualtes the dispersion between
+
+
+
+
+
+
+
+
+
+
 
 

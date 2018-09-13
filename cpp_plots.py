@@ -4,11 +4,12 @@ import matplotlib.pyplot as plt
 import numpy as np
 import nems.epoch as nep
 import warnings
+import scipy.ndimage.filters as sf
+
 
 ### helper functions
 
 def _epoch_name_handler(rec_or_sig, epoch_names):
-
     if epoch_names == 'single':  # get eps matching 'voc_x' where x is a positive integer
         reg_ex = r'\Avoc_\d'
         epoch_names = nep.epoch_names_matching(rec_or_sig.epochs, (reg_ex))
@@ -24,15 +25,22 @@ def _epoch_name_handler(rec_or_sig, epoch_names):
             raise AttributeError("specified eps are not contained in sig")
         pass
 
+    if len(epoch_names) == 0:
+        raise AttributeError("no eps match regex '{}'".format(reg_ex))
+
     return epoch_names
 
 
 ### base functions
 
-def _PSTH(matrix, start=None, end=None, ax=None, fs=None, ci=False, y_offset='auto', plt_kws=None):
+
+### base plotting functions
+
+
+def _PSTH(matrix, start=None, end=None, ax=None, fs=None, ci=False, y_offset='auto', channels='all', plt_kws=None):
     '''
     Base function for plotting a PSTH from a 3d matix with dimentions R x C x T where R is the repetitions,
-    C is the channel and T is time. This matrix usually comes from "extract_epochs"
+    C is the cell and T is time. This matrix usually comes from "extract_epochs"
     :param matrix: a 3d numpy array
     :param start: the time of the sound onset in seconds
     :param end: the time of the stimulus offset in seconds
@@ -40,13 +48,13 @@ def _PSTH(matrix, start=None, end=None, ax=None, fs=None, ci=False, y_offset='au
     :param fs: int, the sampling frequncy asociated with the data, used to plot with real time on the x axis
     :param ci: bool, wheter or not to plot athe bootstrap confidence itnernval
     :param y_offset: 'auto' or a number. when plotting multiple channels, the vertical offset between the PSTH of each
-                      channel.
+                      cell.
     :param plt_kws: adittional keyword parameters for pyplot.plot()
     :return: the ax used for the plotting
     '''
 
     # the dimentions of the matrix are repetitions, channels, and time in that order
-    # defiens in what axis to plot
+    # defines in what axis to plot
     if ax == None:
         # creates a figure and plot
         fig, ax = plt.subplots()
@@ -70,8 +78,23 @@ def _PSTH(matrix, start=None, end=None, ax=None, fs=None, ci=False, y_offset='au
     # Determine keyword arguments for pyplot.plot
     plt_kws = {} if plt_kws is None else plt_kws
 
-    # iterates over every channel
-    for channel in range(psth.shape[0]):
+    # defines which channels to plot
+    if channels == 'all':
+        plot_chans = range(psth.shape[0])
+    elif isinstance(channels, int):
+        if channels > psth.shape[0]:
+            raise ValueError('recording only has {} channels, but channels value {} was given'.
+                             format(psth.shape[0]), channels)
+        plot_chans = range(channels)
+    elif isinstance(channels, list):
+        for ii in channels:
+            if channels > psth.shape[0]:
+                raise ValueError('recording only has {} channels, but channels value {} was given'.
+                                 format(psth.shape[0]), channels)
+        plot_chans = channels
+
+    # iterates over every cell
+    for channel in plot_chans:
         # offsets each channle for better readability
         toplot = psth[channel, :] - y_offset * channel
         ax.plot(t, toplot, **plt_kws)
@@ -97,11 +120,11 @@ def _PSTH(matrix, start=None, end=None, ax=None, fs=None, ci=False, y_offset='au
     return ax
 
 
-def _neural_trajectory(matrix, dims=2, plt_kws=None,):
-
-    # TODO documentations
+def _neural_trajectory(matrix, dims=2, smoothing=0, rep_scat=True, rep_line=False,
+                       mean_scat=False, mean_line=True):
+    # TODO documentation
     # Base function for plotting a neuronal trajectory from a 3d matix with dimentions R x C x T where R is the repetitions,
-    #     C is the channel and T is time. This matrix usually comes from "extract_epochs"
+    #     C is the cell and T is time. This matrix usually comes from "extract_epochs"
 
     # parses dimensions
     if dims == 3:  # default, first 3 dimentions
@@ -116,59 +139,91 @@ def _neural_trajectory(matrix, dims=2, plt_kws=None,):
 
     matrix_mean = np.expand_dims(np.mean(matrix, axis=0), axis=0)
 
-    # todo define the plotting for 2d
+    # smooths the matrixes  with a gaussian filter along the time dimention
+    matrix = sf.gaussian_filter(matrix, [0, 0, smoothing])
+    matrix_mean = sf.gaussian_filter(matrix_mean, [0, 0, smoothing])
 
     # temporal axis (N) and colormap based on time.
     N = matrix.shape[2]
     cmap = plt.cm.jet(np.linspace(0, 1, N))
 
+    ## 2D plotting
     if matrix.shape[1] == 2:
         fig, ax = plt.subplots()
 
-
         # plots the repetitions
-        for rr in range(matrix.shape[0]):
-            x = matrix[rr, 0, :]
-            y = matrix[rr, 1, :]
+        if rep_scat or rep_line:
+            for rr in range(matrix.shape[0]):
+                x = matrix[rr, 0, :]
+                y = matrix[rr, 1, :]
 
-            ax.scatter(x, y, c=plt.cm.jet(np.linspace(0, 1, N)), alpha=0.3)
-            # for ii in range(N-1):
-            #     # ax.plot(x[ii:ii + 2], y[ii:ii + 2], color=plt.cm.jet(255 * ii / N), alpha=0.5)
-            #     ax.plot(x[ii:ii + 2], y[ii:ii + 2], color=cmap[ii, :], alpha=0.3)
+                # scatter
+                if rep_scat == True:
+                    ax.scatter(x, y, c=cmap, alpha=0.1)
+
+                # line
+                if rep_line == True:
+                    for ii in range(N - 1):
+                        ax.plot(x[ii:ii + 2], y[ii:ii + 2], color=cmap[ii, :], alpha=0.1)
 
         # plots the mean
-        # ax.scatter(x, y, c=plt.cm.jet(np.linspace(0, 1, N)))
-        for ii in range(N - 1):
-            ax.plot(x[ii:ii + 2], y[ii:ii + 2], color=cmap[ii, :], alpha=0.3)
+        x_mean = matrix_mean[0, 0, :]
+        y_mean = matrix_mean[0, 1, :]
 
+        # scatter
+        if mean_scat == True:
+            ax.scatter(x_mean, y_mean, c=cmap, alpha=0.1)
+
+        # line
+        if mean_line == True:
+            for ii in range(N - 1):
+                ax.plot(x_mean[ii:ii + 2], y_mean[ii:ii + 2], color=cmap[ii, :], alpha=1)
+
+        ax.set_xlabel('component 1')
+        ax.set_ylabel('component 2')
+
+
+    ## 3D plotting
     elif matrix.shape[1] == 3:
 
         fig = plt.figure()
         ax = fig.gca(projection='3d')
 
-        # iterates overe each repetition
+        # plots the repettions
+        if rep_scat or rep_line:
+            for rr in range(matrix.shape[0]):
+                x = matrix[rr, 0, :]
+                y = matrix[rr, 1, :]
+                z = matrix[rr, 2, :]
 
-        for rr in range(matrix.shape[0]):
+                # scatter
+                if rep_scat == True:
+                    ax.scatter(x, y, z, color=cmap, alpha=0.1)
 
-            x = matrix[rr, 0, :]
-            y = matrix[rr, 1, :]
-            z = matrix[rr, 2, :]
+                # line
+                if rep_line == True:
+                    for ii in range(N - 1):
+                        ax.plot(x[ii:ii + 2], y[ii:ii + 2], z[ii:ii + 2], color=cmap[ii, :], alpha=0.1)
 
-            ax.scatter(x, y, z, c=plt.cm.jet(np.linspace(0, 1, N)), alpha=0.5)
-            # for ii in range(N - 1):
-            #     ax.plot(x[ii:ii + 2], y[ii:ii + 2], z[ii:ii + 2], color=cmap[ii, :], alpha=0.5)
-
-        # plot the mean trajectory
-
+        # plot the mean
         x = matrix_mean[0, 0, :]
         y = matrix_mean[0, 1, :]
         z = matrix_mean[0, 2, :]
 
-        # ax.scatter(x, y, z, c=plt.cm.jet(np.linspace(0, 1, N)), alpha=0.5)
-        for ii in range(N - 1):
-            ax.plot(x[ii:ii + 2], y[ii:ii + 2], z[ii:ii + 2], color=cmap[ii, :], alpha=1)
+        # scatter
+        if mean_scat == True:
+            ax.scatter(x, y, z, color=cmap, alpha=0.5)
+        # line
+        if mean_line == True:
+            for ii in range(N - 1):
+                ax.plot(x[ii:ii + 2], y[ii:ii + 2], z[ii:ii + 2], color=cmap[ii, :], alpha=1)
+
+        ax.set_xlabel('component 1')
+        ax.set_ylabel('component 2')
+        ax.set_zlabel('component 3')
 
     return fig, ax
+
 
 ##### sig and recording wrapers
 
@@ -187,22 +242,6 @@ def signal_PSTH(signal, epoch_names='single', psth_kws=None):
 
     # Determine keyword arguments for psth
     psth_kws = {} if psth_kws is None else psth_kws
-
-    # # hanfles what to do whith epoch_names
-    # if epoch_names == 'single':  # get eps matching 'voc_x' where x is a positive integer
-    #     reg_ex = r'\Avoc_\d'
-    #     epoch_names = nep.epoch_names_matching(PCs.epochs, (reg_ex))
-    # elif epoch_names == 'pair':  # get eps matching 'Cx_Py' where x and y are positive integers
-    #     reg_ex = r'\AC\d_P\d'
-    #     epoch_names = nep.epoch_names_matching(PCs.epochs, (reg_ex))
-    # elif isinstance(epoch_names, str):  # get eps matching the specified regexp
-    #     reg_ex = epoch_names
-    #     epoch_names = nep.epoch_names_matching(PCs.epochs, (reg_ex))
-    # elif isinstance(epoch_names, list):  # uses epoch_names as a list of epoch names.
-    #     ep_intersection = set(epoch_names).intersection(set(PCs.epochs.name.unique()))
-    #     if len(ep_intersection) == 0:
-    #         raise AttributeError("specified eps are not contained in sig")
-    #     pass
 
     epoch_names = _epoch_name_handler(signal, epoch_names)
 
@@ -243,26 +282,7 @@ def recording_PSTH(recording, epoch_names='single', signal_names='all', psth_kws
     # Determine keyword arguments for psth
     psth_kws = {} if psth_kws is None else psth_kws
 
-    # # hanfles what to do whith epoch_names
-    # if epoch_names == 'single':  # get eps matching 'voc_x' where x is a positive integer
-    #     reg_ex = r'\Avoc_\d'
-    #     epoch_names = nep.epoch_names_matching(recording.epochs, (reg_ex))
-    # elif epoch_names == 'pair':  # get eps matching 'Cx_Py' where x and y are positive integers
-    #     reg_ex = r'\AC\d_P\d'
-    #     epoch_names = nep.epoch_names_matching(recording.epochs, (reg_ex))
-    # elif isinstance(epoch_names, str):  # get eps matching the specified regexp
-    #     reg_ex = epoch_names
-    #     epoch_names = nep.epoch_names_matching(recording.epochs, (reg_ex))
-    # elif isinstance(epoch_names, list):  # uses epoch_names as a list of epoch names.
-    #     ep_intersection = set(epoch_names).intersection(set(recording.epochs.name.unique()))
-    #     if len(ep_intersection) == 0:
-    #         raise AttributeError("specified eps are not contained in recording")
-    #     pass
-
     epoch_names = _epoch_name_handler(recording, epoch_names)
-
-    if len(epoch_names) == 0:
-        raise AttributeError("no eps match regex '{}'".format(reg_ex))
 
     # creates a figure with apropiate number of row/cols of axes
     fig, axes = plt.subplots(len(signal_names), len(epoch_names))
@@ -290,12 +310,15 @@ def recording_PSTH(recording, epoch_names='single', signal_names='all', psth_kws
     return fig, axes
 
 
-def signal_trajectory(signal, dims=2, epoch_names='single', plt_kws=None):
+def signal_trajectory(signal, dims=2, epoch_names='single', _trajectory_kws=None):
+    # handles _neural_trajectory kwargs
+    _trajectory_kws = {} if _trajectory_kws == None else _trajectory_kws
+    _trajectory_kws.update({'dims': dims})
 
     sig_name = signal.name
     sufix = sig_name.split('_')[-1]
-    if sig_name != 'PCs':
-        warnings.warn('plotting neurla trajectory over raw dimentions, use principal U instead')
+    if sufix != 'PCs':
+        warnings.warn('plotting neural trajectory over raw dimentions, use principal components instead')
 
     # handles epochs names
     epoch_names = _epoch_name_handler(signal, epoch_names)
@@ -303,35 +326,23 @@ def signal_trajectory(signal, dims=2, epoch_names='single', plt_kws=None):
     matrix_dict = signal.rasterize().extract_epochs(epoch_names)
 
     for epoch_key, matrix in matrix_dict.items():
-        matrix = signal.rasterize().as_continuous()
+        fig, ax = _neural_trajectory(matrix, **_trajectory_kws)
+        ax.set_title(epoch_key)
 
-        fig, ax = _neural_trajectory(matrix, dims=dims, plt_kws=plt_kws)
-
-    return None # todo, should i return something better??
-
+    return fig, ax  # todo, should i return something better??
 
 
+def recording_trajectory(recording, dims=2, epoch_names='single', signal_names='PCA', _trajectory_kws=None):
+    if signal_names == 'all':
+        signal_names = recording.signals.keys()
+    elif signal_names == 'PCA':
+        signal_names = [name for name in recording.signals.keys() if name.split('_')[-1] == 'PCs']
+    else:
+        signal_names = [signal_names]
 
+    for ii, sig_name in enumerate(signal_names):
+        signal = recording[sig_name]
+        fig, ax = signal_trajectory(signal, dims=dims, epoch_names=epoch_names, _trajectory_kws=_trajectory_kws)
+        fig.suptitle('sig_name')
 
-
-
-# fig = plt.figure()
-# ax = fig.gca(projection='3d')
-# theta = np.linspace(-4 * np.pi, 4 * np.pi, 100)
-# z = np.linspace(-2, 2, 100)
-# r = z**2 + 1
-# x = r * np.sin(theta)
-# y = r * np.cos(theta)
-#
-# #1 colored by value of `z`
-# # ax.scatter(x, y, z, c = plt.cm.jet(z/max(z)))
-#
-# # #2 colored by index (same in this example since z is a linspace too)
-# # N = len(z)
-# # ax.scatter(x, y, z, c = plt.cm.jet(np.linspace(0,1,N)))
-#
-#
-# for i in range(N-1):
-#     ax.plot(x[i:i+2], y[i:i+2], z[i:i+2], color=plt.cm.jet(255*i/N))
-#
-# plt.show()
+    return None
