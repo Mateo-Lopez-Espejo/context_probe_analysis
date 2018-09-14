@@ -1,3 +1,4 @@
+
 import nems_db.baphy as nb
 import nems.recording as recording
 import cpp_epochs as cpe
@@ -38,62 +39,43 @@ rec = cpe.set_recording_subepochs(loaded_rec, set_pairs=True)
 sig = rec['resp']
 eps = sig.epochs
 
-# plots full reference i.e. include pre and post stim silence and 5 sounds
-# psth_kws = {'fs':100, 'start':3, 'end':18,
-#              'ax':None, 'ci':False, 'y_offset':'auto',
-#              'plt_kws':None }
-# cplt.recording_PSTH(rec, epoch_names=r'REFERENCE', signal_names=['resp'], psth_kws=psth_kws)
-
-
-# plot inividual sounds independent of the context
-psth_kws = {'fs':10, 'start':None, 'end':None,
-             'ax':None, 'ci':False, 'y_offset':'auto',
-             'plt_kws':None }
-cplt.recording_PSTH(rec, epoch_names='single', signal_names=['resp'], psth_kws=psth_kws)
-
-
-# plots individual sound dependent on context
-# psth_kws = {'fs':100, 'start':None, 'end':None,
-#              'ax':None, 'ci':False, 'y_offset':'auto',
-#              'plt_kws':None }
-# cplt.recording_PSTH(rec, epoch_names='pair', signal_names=['resp'], psth_kws=psth_kws)
-
-
-
 # transforms the recording into its PCA equivalent
 rec_pca, pca_stats = cpca.recording_PCA(rec, inplace=False, center=True)
 
+plot = False
 
-# plots PCs for each single sound
-
-psth_kws = {'fs':10, 'start':None, 'end':None,
-             'ax':None, 'ci':False, 'y_offset':'auto',
-            'channels': 3,
-             'plt_kws':None }
-cplt.recording_PSTH(rec_pca, epoch_names='single', signal_names='all', psth_kws=psth_kws)
-
-
-# plots the variance explained for each
-for sig_name, pca in pca_stats.items():
-    fig, ax = plt.subplots()
-    toplot = np.cumsum(pca.explained_variance_ratio_)
-    ax.plot(toplot, '.-')
-    ax.set_xlabel('number of components')
-    ax.set_ylabel('cumulative explained variance');
-    ax.set_title()
-
-# plots neuronal trajectory for an example probe within all different contexts
-
-traj_kws = {'smoothing': 1,
-            'rep_scat': False,
-            'rep_line': True,
-            'mean_scat': False,
-            'mean_line': True}
-cplt.recording_trajectory(rec_pca, dims=3, epoch_names=r'\AC\d_P1', signal_names='PCA', _trajectory_kws=traj_kws)
-cplt.recording_trajectory(rec_pca, dims=2, epoch_names=['PreStimSilence'], signal_names='PCA', _trajectory_kws=traj_kws)
+if plot == True:
+# plots PSTH for cells and  PCs
+    psth_kws = {'fs':10, 'start':None, 'end':None,
+                 'ax':None, 'ci':False, 'y_offset':'auto',
+                'channels': 3,
+                 'plt_kws':None }
+    cplt.recording_PSTH(rec_pca, epoch_names='single', signal_names='all', psth_kws=psth_kws)
 
 
-# looks at single cell and signle PCA raters for a single probe given multiple contexts
+    # plots the variance explained for each
+    for sig_name, pca in pca_stats.items():
+        fig, ax = plt.subplots()
+        toplot = np.cumsum(pca.explained_variance_ratio_)
+        ax.plot(toplot, '.-')
+        ax.set_xlabel('number of components')
+        ax.set_ylabel('cumulative explained variance');
+        ax.set_title()
+
+    # plots neuronal trajectory for an example probe within all different contexts
+
+    traj_kws = {'smoothing': 1,
+                'rep_scat': False,
+                'rep_line': True,
+                'mean_scat': False,
+                'mean_line': True}
+    cplt.recording_trajectory(rec_pca, dims=3, epoch_names=r'\AC\d_P1', signal_names='PCA', _trajectory_kws=traj_kws)
+    cplt.recording_trajectory(rec_pca, dims=2, epoch_names=['PreStimSilence'], signal_names='PCA', _trajectory_kws=traj_kws)
+
+
+# looks at single cell and single PCA rasters for a single probe given multiple contexts
+
+cplt.signal_raster(sig.rasterize(), epoch_names=r'\AC\d_P1', channels=0)
 
 
 

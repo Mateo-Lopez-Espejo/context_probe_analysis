@@ -31,10 +31,54 @@ def _epoch_name_handler(rec_or_sig, epoch_names):
     return epoch_names
 
 
-### base functions
-
-
 ### base plotting functions
+
+
+def _raster(times, values, xlabel='Time', ylabel='Trial',
+            y_offset=None, ax=None, scatter_kwargs=None):
+    '''
+    Plots a raster with one line for each pair of
+    time and value vectors.
+    Lines will be auto-colored according to matplotlib defaults.
+
+    times : list of vectors -> this is false it must be an array
+    values : list of vectors    -> I asume this is also false
+    xlabel : str
+    ylabel : str
+    label : list of strings
+    linestyle, linewidth : pass-through options to plt.plot()
+
+    TODO: expand this doc  -jacob 2-17-18
+    '''
+
+    if ax == None:
+        fig, ax = plt.subplots()
+    else:
+        fig = ax.figure
+
+    x = values.copy()
+    x = x[np.isfinite(x[:, 0]), :]  # checks for channels with finite values on first time bin
+
+    i, j = np.where(x > 0)
+    i += y_offset
+
+    if times is not None:
+        t = times[j]
+    else:
+        t = j
+
+    # updates kwargs
+    scatter_kwargs = {} if scatter_kwargs is None else scatter_kwargs
+    defaults = {'s': 1, 'color': 'black', 'marker': '.'}
+    for key, arg in defaults.items(): scatter_kwargs.setdefault(key, arg)
+
+    # plots
+    ax.scatter(t, i, **scatter_kwargs)
+    ax.plot(t, np.mean(i))
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel(ylabel)
+
+    return fig, ax
 
 
 def _PSTH(matrix, start=None, end=None, ax=None, fs=None, ci=False, y_offset='auto', channels='all', plt_kws=None):
@@ -225,7 +269,7 @@ def _neural_trajectory(matrix, dims=2, smoothing=0, rep_scat=True, rep_line=Fals
     return fig, ax
 
 
-##### sig and recording wrapers
+##### signal and recording wrapers
 
 
 def signal_PSTH(signal, epoch_names='single', psth_kws=None):
@@ -340,9 +384,52 @@ def recording_trajectory(recording, dims=2, epoch_names='single', signal_names='
     else:
         signal_names = [signal_names]
 
+    figs = list()
+
     for ii, sig_name in enumerate(signal_names):
         signal = recording[sig_name]
         fig, ax = signal_trajectory(signal, dims=dims, epoch_names=epoch_names, _trajectory_kws=_trajectory_kws)
         fig.suptitle('sig_name')
+        figs.append(fig)
 
-    return None
+    return figs
+
+
+## wrappers for NEMS default raster plots
+
+def signal_raster(signal, epoch_names='single', channels=0, scatter_kwargs=None):
+    epoch_names = _epoch_name_handler(signal, epoch_names)
+    matrixes = signal.rasterize().extract_epochs(epoch_names)
+
+    scatter_kwargs = {} if scatter_kwargs is None else scatter_kwargs
+
+    if isinstance(channels, int):
+        channels = [channels]
+    elif channels == 'all':
+        channels = range(signal.nchans)
+    elif isinstance(channels, list):
+        pass
+    else:
+        raise ValueError("channles should be an int, list of valid ints or 'all'")
+
+    for chan in channels:
+
+        fig, ax = plt.subplots()
+
+        for cc, (epoch, matrix) in enumerate(matrixes.items()):
+            color = 'C{}'.format(cc%10)
+            y_offset = matrix.shape[0] * cc  # offsets subsequent rasters by the number of repetitions
+
+            values = matrix[:, chan, :]  # holds all Repetitions, for a given Channel, acrossTime
+            times = np.arange(0, matrix.shape[2]) / signal.fs
+
+            scatter_kwargs.update({'color': color,
+                                   's':30,
+                                   'label': epoch})
+
+            _raster(times, values, xlabel='Time', ylabel='Trial', y_offset=y_offset,
+                              ax=ax, scatter_kwargs=scatter_kwargs)
+
+        ax.set_title(signal.name)
+        ax.legend()
+
