@@ -5,11 +5,25 @@ import numpy as np
 import nems.epoch as nep
 import warnings
 import scipy.ndimage.filters as sf
+from nems.signal import SignalBase
+import math
 
+
+# todo redo the distribution of axes in figures for psth, there is not purpose in plotig multiple signals as different
+# rows, rather the subplotse should correspond to individual cells, and elements within each axis should correspond to
+# responses to different stimuli ...
 
 ### helper functions
 
 def _epoch_name_handler(rec_or_sig, epoch_names):
+    '''
+    helper function to transform heterogeneous inputs of epochs names (epoch names, list of epochs names, keywords) into
+    the corresponding list of epoch names.
+    :param rec_or_sig: nems recording of signal object
+    :param epoch_names: epoch name (str), regexp, list of epoch names, 'signle', 'pair'. keywords 'single' and 'pair'
+    correspond to all signle vocalization, and pair of context probe vocalizations.
+    :return: a list with the apropiate epoch names as found in signal.epoch.name
+    '''
     if epoch_names == 'single':  # get eps matching 'voc_x' where x is a positive integer
         reg_ex = r'\Avoc_\d'
         epoch_names = nep.epoch_names_matching(rec_or_sig.epochs, (reg_ex))
@@ -31,24 +45,84 @@ def _epoch_name_handler(rec_or_sig, epoch_names):
     return epoch_names
 
 
+def _channel_handler(mat_or_sig, channels):
+    '''
+    Helper function to handle heterogeneous inputs to channel parameter (index, list of indexes or cell names, keywords)
+    and returns an homogeneous list of indexes.
+    :param mat_or_sig: 3d matrix with shape R x C x T (rep, chan, time), or signal object.
+    :param channels: Channel index (int) or list of index, cell name (str) or list of names, 'all'. keyword 'all' includes
+    all channels/cells in the signal/matrix.
+    :return: list of channels indexes.
+    '''
+    # chekcs the object type of the parameters
+    if isinstance(mat_or_sig, np.ndarray):
+        max_chan = mat_or_sig.shape[1]
+
+    elif isinstance(mat_or_sig, SignalBase):
+        is_sig = True
+        max_chan = mat_or_sig.nchans
+
+
+    # returns a different list of channles depending on the keywords or channels specified. add keywords here!
+    if channels == 'all':
+        plot_chans = range(max_chan)
+    elif isinstance(channels, int):
+        if channels >= max_chan:
+            raise ValueError('recording only has {} channels, but channels value {} was given'.
+                             format(max_chan, channels))
+        plot_chans = [channels]
+    elif isinstance(channels, list) :
+        item = channels[0]
+        # list of indexes
+        if isinstance(item, int):
+            for chan in channels:
+                if chan > max_chan:
+                    raise ValueError('recording only has {} channels, but channels value {} was given'.
+                                     format(max_chan, channels))
+            plot_chans = channels
+        # list of cell names
+        elif isinstance(item, str):
+            if is_sig != True:
+                raise ValueError('can only use cell names when indexing from a signal object')
+            plot_chans = [mat_or_sig.chans.index(channels)]
+
+    elif isinstance(channels, str):
+        # accepts the name of the unit as found in cellDB
+        if is_sig != True:
+            raise ValueError('can only use cell names when indexing from a signal object')
+        plot_chans = [mat_or_sig.chans.index(channels)]
+
+    return plot_chans
+
+
+def _subplot_handler(epoch_names, channels):
+    ax_num = len(channels)
+
+    rows = int(np.ceil(math.sqrt(ax_num)))
+    cols = int(np.floor(math.sqrt(ax_num)))
+
+    fig, axes = plt.subplots(rows, cols, sharex=True, sharey=True, squeeze=False)
+
+    axes = np.ravel(axes)
+
+    return fig, axes
+
+
 ### base plotting functions
 
 
-def _raster(times, values, xlabel='Time', ylabel='Trial',
-            y_offset=None, ax=None, scatter_kwargs=None):
+def _raster(times, values, y_offset=None, ax=None, scatter_kws=None):
     '''
     Plots a raster with one line for each pair of
     time and value vectors.
     Lines will be auto-colored according to matplotlib defaults.
 
-    times : list of vectors -> this is false it must be an array
-    values : list of vectors    -> I asume this is also false
+    times : Array with shape T where T is time bins in seconds
+    values : Array with shape R x T : where R is repetitions, and T is time. the dimention of T must agree with that of
+             T in times.
     xlabel : str
     ylabel : str
-    label : list of strings
-    linestyle, linewidth : pass-through options to plt.plot()
-
-    TODO: expand this doc  -jacob 2-17-18
+    scatter_kws : pass-through arguments for plt.scatter
     '''
 
     if ax == None:
@@ -57,10 +131,12 @@ def _raster(times, values, xlabel='Time', ylabel='Trial',
         fig = ax.figure
 
     x = values.copy()
-    x = x[np.isfinite(x[:, 0]), :]  # checks for channels with finite values on first time bin
+    x = x[np.isfinite(x[:, 0]), :]  # discards channels with non numeric values
 
-    i, j = np.where(x > 0)
-    i += y_offset
+    i, j = np.where(x > 0)  # finds "spikes"
+
+    if y_offset != None:
+        i += y_offset
 
     if times is not None:
         t = times[j]
@@ -68,80 +144,58 @@ def _raster(times, values, xlabel='Time', ylabel='Trial',
         t = j
 
     # updates kwargs
-    scatter_kwargs = {} if scatter_kwargs is None else scatter_kwargs
+    scatter_kws = {} if scatter_kws is None else scatter_kws
     defaults = {'s': 1, 'color': 'black', 'marker': '.'}
-    for key, arg in defaults.items(): scatter_kwargs.setdefault(key, arg)
+    for key, arg in defaults.items(): scatter_kws.setdefault(key, arg)
 
     # plots
-    ax.scatter(t, i, **scatter_kwargs)
-    ax.plot(t, np.mean(i))
-    ax.set_xlabel(xlabel)
-    ax.set_ylabel(ylabel)
+    ax.scatter(t, i, **scatter_kws)
 
     return fig, ax
 
 
-def _PSTH(matrix, start=None, end=None, ax=None, fs=None, ci=False, y_offset='auto', channels='all', plt_kws=None):
+def _PSTH2(times, values, start=None, end=None, ax=None, ci=False, y_offset=None, y_scaling=None, plot_kws=None):
     '''
-    Base function for plotting a PSTH from a 3d matix with dimentions R x C x T where R is the repetitions,
-    C is the cell and T is time. This matrix usually comes from "extract_epochs"
-    :param matrix: a 3d numpy array
-    :param start: the time of the sound onset in seconds
-    :param end: the time of the stimulus offset in seconds
-    :param ax: a plt axis
-    :param fs: int, the sampling frequncy asociated with the data, used to plot with real time on the x axis
-    :param ci: bool, wheter or not to plot athe bootstrap confidence itnernval
-    :param y_offset: 'auto' or a number. when plotting multiple channels, the vertical offset between the PSTH of each
-                      cell.
-    :param plt_kws: adittional keyword parameters for pyplot.plot()
-    :return: the ax used for the plotting
-    '''
+        Base function for plotting a PSTH from a 2d matix with dimentions R x T where R is the repetitions
+        and T is time. This matrix usually comes from "extract_epochs" afeter selecting a specific channel/cell
+        :times: Array with shape T where T is time bins in seconds
+        :values: Array with shape R x T : where R is repetitions, and T is time. the dimention of T must agree with that of T in times.
+        :param start: the time of the sound onset in seconds
+        :param end: the time of the stimulus offset in seconds
+        :param ax: a plt axis
+        :param fs: int, the sampling frequncy asociated with the data, used to plot with real time on the x axis
+        :param ci: bool, wheter or not to plot athe bootstrap confidence itnernval
+        :param y_offset: 'auto' or a number. when plotting multiple channels, the vertical offset between the PSTH of each
+                          cell.
+        :param plt_kws: adittional keyword parameters for pyplot.plot()
+        :return: the ax used for the plotting
+        '''
 
-    # the dimentions of the matrix are repetitions, channels, and time in that order
-    # defines in what axis to plot
+    # handles axis to plot on
     if ax == None:
-        # creates a figure and plot
         fig, ax = plt.subplots()
+    else:
+        fig = ax.figure
 
-    # defines wheter to use sampling frequency (and therefore time) in the x axis
-    if isinstance(fs, int):
-        period = 1 / fs
+    if times is not None:
+        t = times
+    else:
+        t = np.arange(0, values.shape[1], values.shape[1])
 
-    elif fs == None:
-        period = matrix.shape[2]  # uses time bins instead of time
-
-    t = np.arange(0, matrix.shape[2] * period, period)
-
-    # gets the mean across repetitions
-    psth = np.nanmean(matrix, axis=0)  # psth has dimentions: Channels x time
+    # gets the mean across repetitions i.e. dim 0
+    psth = np.nanmean(values, axis=0)
 
     # gets the overall max spike rate to use as vertical end between channels
-    if y_offset == 'auto':
-        y_offset = np.max(psth)
+    if y_scaling != None:
+        psth = psth * y_scaling
+
+    if y_offset != None:
+        psth += y_offset
 
     # Determine keyword arguments for pyplot.plot
-    plt_kws = {} if plt_kws is None else plt_kws
+    plt_kws = {} if plot_kws is None else plot_kws
 
-    # defines which channels to plot
-    if channels == 'all':
-        plot_chans = range(psth.shape[0])
-    elif isinstance(channels, int):
-        if channels > psth.shape[0]:
-            raise ValueError('recording only has {} channels, but channels value {} was given'.
-                             format(psth.shape[0]), channels)
-        plot_chans = range(channels)
-    elif isinstance(channels, list):
-        for ii in channels:
-            if channels > psth.shape[0]:
-                raise ValueError('recording only has {} channels, but channels value {} was given'.
-                                 format(psth.shape[0]), channels)
-        plot_chans = channels
-
-    # iterates over every cell
-    for channel in plot_chans:
-        # offsets each channle for better readability
-        toplot = psth[channel, :] - y_offset * channel
-        ax.plot(t, toplot, **plt_kws)
+    ax.plot(t, psth, **plt_kws)
 
     if ci == True:
         # todo inplement bootstarped confidence interval
@@ -158,10 +212,8 @@ def _PSTH(matrix, start=None, end=None, ax=None, fs=None, ci=False, y_offset='au
         ax.axvline(end, color='black')
 
     ax.set_ylabel('spike rate (Hz)')
-    # todo handle legend?
-    # ax.legend(loc='upper left', fontsize='xx-small')
 
-    return ax
+    return ax, fig
 
 
 def _neural_trajectory(matrix, dims=2, smoothing=0, rep_scat=True, rep_line=False,
@@ -272,7 +324,7 @@ def _neural_trajectory(matrix, dims=2, smoothing=0, rep_scat=True, rep_line=Fals
 ##### signal and recording wrapers
 
 
-def signal_PSTH(signal, epoch_names='single', psth_kws=None):
+def signal_PSTH(signal, epoch_names='single', channels='all', psth_kws=None, plot_kws=None):
     '''
     plots PSTHs for a CPP sig. Generates a figure with m  axes where m is the eps ploted
 
@@ -284,30 +336,47 @@ def signal_PSTH(signal, epoch_names='single', psth_kws=None):
     :return: fig, axes
     '''
 
-    # Determine keyword arguments for psth
+    # Determine keyword arguments for PSTH and plot
     psth_kws = {} if psth_kws is None else psth_kws
+    plot_kws = {} if plot_kws is None else plot_kws
 
+    # handles epochs and channel values/keywords
     epoch_names = _epoch_name_handler(signal, epoch_names)
+    channels = _channel_handler(signal, channels)
 
-    # creates a figure with apropiate number of row/cols of axes
-    fig, axes = plt.subplots(1, len(epoch_names))
-    axes = np.ravel(axes)
+    fig, axes = _subplot_handler(epoch_names, channels)
 
     signal = signal.rasterize()
 
     # extract the specified eps
-    epochs_dic = signal.extract_epochs(epoch_names)
+    matrix_dict = signal.extract_epochs(epoch_names)
 
-    for ee, (epoch_name, matrix) in enumerate(epochs_dic.items()):
-        ax = axes[ee]
-        psth_kws.update({'ax': ax})
-        ax = _PSTH(matrix, **psth_kws)
-        ax.set_title("Signal: {}, Epoch: {}".format(signal.name, epoch_name))
+    first = True
+    # iterates over each cell / subplot
+    for chan, ax in zip(channels, axes):
+        # iterates over each subepoch
+        for cc, (epoch_key, epoch_matrix) in enumerate(matrix_dict.items()):
+            color = 'C{}'.format(cc % 10)
+            y_offset = len(epoch_names) * cc  # offsets subsequent psths
+
+            values = epoch_matrix[:, chan, :]  # holds all Repetitions, for a given Channel, acrossTime
+            times = np.arange(0, epoch_matrix.shape[2]) / signal.fs
+
+            plot_kws.update({'color': color,
+                             'label': epoch_key})
+
+            _PSTH2(times, values, ax=ax, y_offset=y_offset, **psth_kws, plot_kws=plot_kws)
+
+        ax.set_title('{}: {}'.format(chan, signal.chans[chan]))
+        if first:
+            first = False
+            ax.legend()
+    fig.suptitle(signal.name)
 
     return fig, axes
 
 
-def recording_PSTH(recording, epoch_names='single', signal_names='all', psth_kws=None):
+def recording_PSTH(recording, epoch_names='single', signal_names='all', channels='all', psth_kws=None):
     '''
     plots PSTHs for a CPP recording. Generates a figure with m * n axes where m is the eps and n is the signals ploted
 
@@ -320,11 +389,14 @@ def recording_PSTH(recording, epoch_names='single', signal_names='all', psth_kws
     :return: fig, axes
     '''
 
+    # todo make this use the signal_PSTH instead., no need to  plot different signals in the same figure.
+
     if signal_names == 'all':
         signal_names = recording.signals.keys()
 
     # Determine keyword arguments for psth
     psth_kws = {} if psth_kws is None else psth_kws
+    psth_kws.update({'channels': channels})
 
     epoch_names = _epoch_name_handler(recording, epoch_names)
 
@@ -391,45 +463,162 @@ def recording_trajectory(recording, dims=2, epoch_names='single', signal_names='
         fig, ax = signal_trajectory(signal, dims=dims, epoch_names=epoch_names, _trajectory_kws=_trajectory_kws)
         fig.suptitle('sig_name')
         figs.append(fig)
+        return figs
 
-    return figs
 
-
-## wrappers for NEMS default raster plots
-
-def signal_raster(signal, epoch_names='single', channels=0, scatter_kwargs=None):
+def signal_raster(signal, epoch_names='single', channels='all', scatter_kws=None):
+    # todo documentation
     epoch_names = _epoch_name_handler(signal, epoch_names)
     matrixes = signal.rasterize().extract_epochs(epoch_names)
 
-    scatter_kwargs = {} if scatter_kwargs is None else scatter_kwargs
+    # handles scatter_kws
+    scatter_kws = {} if scatter_kws is None else scatter_kws
 
-    if isinstance(channels, int):
-        channels = [channels]
-    elif channels == 'all':
-        channels = range(signal.nchans)
-    elif isinstance(channels, list):
-        pass
-    else:
-        raise ValueError("channles should be an int, list of valid ints or 'all'")
+    channels = _channel_handler(signal, channels=channels)
 
-    for chan in channels:
+    # defines the number and distribution of subplots in the figure
+    fig, axes = _subplot_handler(epoch_names, channels)
 
-        fig, ax = plt.subplots()
+    # iterates over each cell... plot
+    first = True
+    for chan, ax in zip(channels, axes):
 
         for cc, (epoch, matrix) in enumerate(matrixes.items()):
-            color = 'C{}'.format(cc%10)
-            y_offset = matrix.shape[0] * cc  # offsets subsequent rasters by the number of repetitions
+            color = 'C{}'.format(cc % 10)
+            y_offset = matrix.shape[0] * cc  # offsets subsequent rasters by the number of repetitiond
 
             values = matrix[:, chan, :]  # holds all Repetitions, for a given Channel, acrossTime
             times = np.arange(0, matrix.shape[2]) / signal.fs
 
-            scatter_kwargs.update({'color': color,
-                                   's':30,
-                                   'label': epoch})
+            scatter_kws.update({'color': color,
+                                'label': epoch})
 
-            _raster(times, values, xlabel='Time', ylabel='Trial', y_offset=y_offset,
-                              ax=ax, scatter_kwargs=scatter_kwargs)
+            _raster(times, values, y_offset=y_offset,
+                    ax=ax, scatter_kws=scatter_kws)
 
-        ax.set_title(signal.name)
-        ax.legend()
+        ax.set_title('{}: {}'.format(chan, signal.chans[chan]))
+        if first:
+            first = False
+            ax.legend()
+    fig.suptitle(signal.name)
 
+    return fig, matrixes
+
+
+def hybrid(signal, epoch_names='single', channels='all', start=None, end=None, scatter_kws=None, plot_kws=None):
+    epoch_names = _epoch_name_handler(signal, epoch_names)
+    matrixes = signal.rasterize().extract_epochs(epoch_names)
+
+    # handles scatter_kws
+    scatter_kws = {} if scatter_kws is None else scatter_kws
+    plot_kws = {} if plot_kws is None else plot_kws
+
+    channels = _channel_handler(signal, channels=channels)
+
+    # defines the number and distribution of subplots in the figure
+    fig, axes = _subplot_handler(epoch_names, channels)
+
+    # scales the PSTH to entirely overlap with the raster
+    max_val = np.max([np.max(np.mean(epoch_matrix, axis=0)) for epoch_matrix in matrixes.values()])
+    max_Reps = np.max([epoch_matrix.shape[0] for epoch_matrix in matrixes.values()])
+    y_scaling = max_Reps / max_val  # normalizes by max val and scales to max reps
+
+    # iterates over each cell... plot
+    first = True
+    for chan, ax in zip(channels, axes):
+
+        for cc, (epoch_key, epoch_matrix) in enumerate(matrixes.items()):
+            color = 'C{}'.format(cc % 10)
+            y_offset = epoch_matrix.shape[0] * cc  # offsets subsequent rasters by the number of repetitions
+
+            values = epoch_matrix[:, chan, :]  # holds all Repetitions, for a given Channel, acrossTime
+            times = np.arange(0, epoch_matrix.shape[2]) / signal.fs
+
+            scatter_kws.update({'color': color})
+
+            _raster(times, values, y_offset=y_offset,
+                    ax=ax, scatter_kws=scatter_kws)
+
+            plot_kws.update({'color': color,
+                             'label': epoch_key})
+
+            _PSTH2(times, values, start=start, end=end, ax=ax, ci=False, y_offset=y_offset, y_scaling=y_scaling,
+                   plot_kws=plot_kws)
+
+        ax.set_title('{}: {}'.format(chan, signal.chans[chan]))
+        if first:
+            first = False
+            ax.legend()
+    fig.suptitle(signal.name)
+
+    return fig, matrixes
+
+
+# do deprecate
+
+def _PSTH(matrix, start=None, end=None, ax=None, fs=None, ci=False, y_offset='auto', channels='all', plt_kws=None):
+    '''
+    Base function for plotting a PSTH from a 3d matix with dimentions R x C x T where R is the repetitions,
+    C is the cell and T is time. This matrix usually comes from "extract_epochs"
+    :param matrix: a 3d numpy array
+    :param start: the time of the sound onset in seconds
+    :param end: the time of the stimulus offset in seconds
+    :param ax: a plt axis
+    :param fs: int, the sampling frequncy asociated with the data, used to plot with real time on the x axis
+    :param ci: bool, wheter or not to plot athe bootstrap confidence itnernval
+    :param y_offset: 'auto' or a number. when plotting multiple channels, the vertical offset between the PSTH of each
+                      cell.
+    :param plt_kws: adittional keyword parameters for pyplot.plot()
+    :return: the ax used for the plotting
+    '''
+
+    # the dimentions of the matrix are repetitions, channels, and time in that order
+    # defines in what axis to plot
+    if ax == None:
+        # creates a figure and plot
+        fig, ax = plt.subplots()
+
+    # defines wheter to use sampling frequency (and therefore time) in the x axis
+    if isinstance(fs, int):
+        period = 1 / fs
+
+    elif fs == None:
+        period = matrix.shape[2]  # uses time bins instead of time
+
+    t = np.arange(0, matrix.shape[2] * period, period)
+
+    # gets the mean across repetitions
+    psth = np.nanmean(matrix, axis=0)  # psth has dimentions: Channels x time
+
+    # gets the overall max spike rate to use as vertical end between channels
+    if y_offset == 'auto':
+        y_offset = np.max(psth)
+
+    # Determine keyword arguments for pyplot.plot
+    plt_kws = {} if plt_kws is None else plt_kws
+
+    plot_chans = _channel_handler(matrix, channels)
+
+    # iterates over every cell
+    for channel in plot_chans:
+        # offsets each channle for better readability
+        toplot = psth[channel, :] - y_offset * channel
+        ax.plot(t, toplot, **plt_kws)
+
+    if ci == True:
+        # todo inplement bootstarped confidence interval
+        raise NotImplemented('implement it slacker!')
+        ax.fill_between(t, conf_int[:, 0], conf_int[:, 1], color=color, alpha=0.2)
+
+    # defiens the start and end of the sound
+    if start != None:
+        start = start
+        ax.axvline(start, color='black')
+
+    if end != None:
+        end = end
+        ax.axvline(end, color='black')
+
+    ax.set_ylabel('spike rate (Hz)')
+
+    return ax

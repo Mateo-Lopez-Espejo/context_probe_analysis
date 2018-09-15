@@ -88,7 +88,6 @@ def _set_subepochs_pairs(epochs):
     to the response to the probe, this only adds the information of what preceded the probe i.e. the context.
     :param epochs: a sig eps DF
     :return: a new sig eps with the aditional CPP eps.
-    
     '''
     new_epochs = _set_subepochs(epochs)
 

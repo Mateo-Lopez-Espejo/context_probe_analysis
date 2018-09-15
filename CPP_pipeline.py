@@ -13,7 +13,7 @@ import numpy as np
 # multi electode array loading options
 options = {'batch': 310,
            'site': 'BRT037b',
-           'rasterfs': 10}
+           'rasterfs': 100}
 
 # todo this is creating a cache in charlies directory, move somewhere else!
 # gives the uri to a cached recording. if the cached data does not exists, creates it and saves it.
@@ -45,14 +45,6 @@ rec_pca, pca_stats = cpca.recording_PCA(rec, inplace=False, center=True)
 plot = False
 
 if plot == True:
-# plots PSTH for cells and  PCs
-    psth_kws = {'fs':10, 'start':None, 'end':None,
-                 'ax':None, 'ci':False, 'y_offset':'auto',
-                'channels': 3,
-                 'plt_kws':None }
-    cplt.recording_PSTH(rec_pca, epoch_names='single', signal_names='all', psth_kws=psth_kws)
-
-
     # plots the variance explained for each
     for sig_name, pca in pca_stats.items():
         fig, ax = plt.subplots()
@@ -73,13 +65,26 @@ if plot == True:
     cplt.recording_trajectory(rec_pca, dims=2, epoch_names=['PreStimSilence'], signal_names='PCA', _trajectory_kws=traj_kws)
 
 
-# looks at single cell and single PCA rasters for a single probe given multiple contexts
+# selects most responsive celll
+scat_key = {'s':5, 'alpha':0.8}
+cplt.hybrid(sig, epoch_names='REFERENCE', channels='all', start=3, end=18, scatter_kws=scat_key,)
 
-cplt.signal_raster(sig.rasterize(), epoch_names=r'\AC\d_P1', channels=0)
+good_cells = [8, 10, 11, 14, 17]
 
 
+# selects the stimulus generating the highest response
+cplt.hybrid(sig, epoch_names='single', channels=good_cells, start=0, end=3, scatter_kws=scat_key)
 
-# calcualtes the dispersion between
+# so far the best cell is 11, and is most responsive to voc_3: probe 3
+# for the following plot, it corresponds to the upper right subplot,
+cplt.hybrid(sig, epoch_names=r'\AC\d_P3', channels=good_cells, start=0, end=3, scatter_kws=scat_key)
+
+
+# Initially plots PCs for this combination:
+
+cplt.signal_trajectory(sig, dims=[11, 14], epoch_names=r'\AC\d_P3')
+
+
 
 
 
