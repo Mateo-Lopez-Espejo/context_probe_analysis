@@ -41,48 +41,53 @@ eps = sig.epochs
 
 # transforms the recording into its PCA equivalent
 rec_pca, pca_stats = cpca.recording_PCA(rec, inplace=False, center=True)
+sig_pca = rec_pca['resp_PCs']
 
 plot = False
 
 if plot == True:
-    # plots the variance explained for each
+
+    # variance explained by PCs
+
     for sig_name, pca in pca_stats.items():
         fig, ax = plt.subplots()
         toplot = np.cumsum(pca.explained_variance_ratio_)
         ax.plot(toplot, '.-')
         ax.set_xlabel('number of components')
         ax.set_ylabel('cumulative explained variance');
-        ax.set_title()
+        ax.set_title('PCA: fraction of variance explained')
 
-    # plots neuronal trajectory for an example probe within all different contexts
 
-    traj_kws = {'smoothing': 1,
+    # selects most responsive celll
+    scat_key = {'s':5, 'alpha':0.5}
+    cplt.hybrid(sig, epoch_names='REFERENCE', channels='all', start=3, end=18, scatter_kws=scat_key,)
+
+    good_cells = [8, 10, 11, 14, 17]
+    best_cells = [11, 14]
+
+    # selects the stimulus generating the highest response
+    cplt.hybrid(sig, epoch_names='single', channels=good_cells, start=0, end=3, scatter_kws=scat_key)
+
+    # so far the best cell is 11, and is most responsive to voc_3: probe 3
+    # for the following plot, it corresponds to the upper right subplot,
+    cplt.hybrid(sig, epoch_names=r'\AC\d_P0', channels=11, start=3, end=3.5, scatter_kws=scat_key)
+
+
+    # Initially plots statespace considering the most responsive units and then the PCs:
+
+    traj_kws = {'smoothing': 2, # some mild smoothing
+                'downsample': None, # from 100 to 10 hz
                 'rep_scat': False,
                 'rep_line': True,
                 'mean_scat': False,
                 'mean_line': True}
-    cplt.recording_trajectory(rec_pca, dims=3, epoch_names=r'\AC\d_P1', signal_names='PCA', _trajectory_kws=traj_kws)
-    cplt.recording_trajectory(rec_pca, dims=2, epoch_names=['PreStimSilence'], signal_names='PCA', _trajectory_kws=traj_kws)
+
+    cplt.signal_trajectory(sig, dims=best_cells, epoch_names=r'\AC\d_P3', _trajectory_kws=traj_kws)
+    cplt.signal_trajectory(sig_pca, dims=3, epoch_names=r'\AC\d_P3',_trajectory_kws=traj_kws)
+
+    cplt.signal_trajectory(sig_pca, dims=3, epoch_names='C0_P3',_trajectory_kws=traj_kws)
 
 
-# selects most responsive celll
-scat_key = {'s':5, 'alpha':0.8}
-cplt.hybrid(sig, epoch_names='REFERENCE', channels='all', start=3, end=18, scatter_kws=scat_key,)
-
-good_cells = [8, 10, 11, 14, 17]
-
-
-# selects the stimulus generating the highest response
-cplt.hybrid(sig, epoch_names='single', channels=good_cells, start=0, end=3, scatter_kws=scat_key)
-
-# so far the best cell is 11, and is most responsive to voc_3: probe 3
-# for the following plot, it corresponds to the upper right subplot,
-cplt.hybrid(sig, epoch_names=r'\AC\d_P3', channels=good_cells, start=0, end=3, scatter_kws=scat_key)
-
-
-# Initially plots PCs for this combination:
-
-cplt.signal_trajectory(sig, dims=[11, 14], epoch_names=r'\AC\d_P3')
 
 
 

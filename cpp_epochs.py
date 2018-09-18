@@ -19,8 +19,8 @@ This takes advantages of this facts to generate corresponding subepochs.
 def _set_subepochs(epochs):
     '''
 
-    :param epochs: printine CPP recording eps
-    :return: eps including subepochs
+    :param epochs: original Context Probe Pair (CPP) signal/recording epochs
+    :return: epochs including subepochs
     '''
 
     # selects the subset of eps corresponding to sound sequences
@@ -81,7 +81,7 @@ def _set_subepochs(epochs):
     return new_epochs
 
 
-def _set_subepochs_pairs(epochs):
+def _set_subepochs_context(epochs):
     '''
     adds a set of epoch names containing both the context and probe identity in the format Cx_Py, where x is the id number
     of the contex, and y that of the probe. by convention, x = 0 corresponds to silence as context. The epoch point only
@@ -104,7 +104,7 @@ def _set_subepochs_pairs(epochs):
     replace_dict['PreStimSilence'] = '0'
     name_arr = working_epochs.name.replace(replace_dict).values
 
-    # makes name consiteing of the contex and format of consecutive sounds
+    # makes name consisting of the contex and format of consecutive sounds
     pair_names = ['C{}_P{}'.format(context, probe) for context, probe in zip(name_arr, name_arr[1:])]
     pair_names.insert(0, '')
 
@@ -127,6 +127,109 @@ def _set_subepochs_pairs(epochs):
     return new_epochs
 
 
+def _set_subepoch_pairs(epochs):
+    '''
+
+       :param epochs: original Context Probe Pair (CPP) signal/recording epochs
+       :return: epochs including subepochs
+       '''
+
+    # selects the subset of eps corresponding to sound sequences
+    seq_names = [ep_name for ep_name in epochs.name.unique() if ep_name[0:4] == 'STIM']
+    if len(seq_names) == 0:
+        raise ValueError("no eps starting with 'STIM'")
+
+    ff_ep_name = epochs.name.isin(seq_names)
+    relevant_eps = epochs.loc[ff_ep_name, :]
+
+    # finds the duration of the prestim and poststim silences
+    PreStimSilence = epochs.loc[epochs.name == 'PreStimSilence', ['start', 'end']].values
+    PreStimSilence = PreStimSilence[0, 1] - PreStimSilence[0, 0]
+    PostStimSilence = epochs.loc[epochs.name == 'PostStimSilence', ['start', 'end']].values
+    PostStimSilence = PostStimSilence[0, 1] - PostStimSilence[0, 0]
+
+    # organizes the subepochs in an array with shape E x S where E is the number of initial eps, and S is the number
+    # of subepochs
+
+    sub_epochs = relevant_eps.name.values
+    sub_epochs = [ast.literal_eval(ep_name[18:]) for ep_name in sub_epochs]
+    sub_epochs = np.asarray(sub_epochs)
+
+    # calculates the start and end of each subepochs based on the start and end of its mother epoch
+    original_times = relevant_eps.loc[:, ['start', 'end']].values
+
+    # initializes a matrix with shape SP x DF where SP is the number of subepochs including both singles and pairs
+    # and DF is the DF columns to be: start and end
+
+    total_subepochs = (sub_epochs.size * 2) + sub_epochs.shape[0] # first terms includes bot signle and pair vocs
+                                                                  # second term is for PostStimSilence as probe in pairs
+    splited_times = np.zeros([total_subepochs, 2])
+    new_names = np.empty([total_subepochs, 1], dtype='object')
+
+    # determines the duration of an individual vocalization
+    step = (original_times[0, 1] - original_times[0, 0] - PreStimSilence - PostStimSilence) / sub_epochs.shape[1]
+
+
+    cc = 0
+    # iterates over the original epochs
+    for ee, (epoch, this_ep_sub_eps) in enumerate(zip(original_times, sub_epochs)):
+
+        # iterates over single subepochs
+        for ss, sub_ep in enumerate(this_ep_sub_eps):
+
+            # first add as a single
+            # start time
+            start = epoch[0] + PreStimSilence + (step * ss)
+            splited_times[cc, 0] = start
+            # end time
+            end = epoch[0] + PreStimSilence + (step * (ss + 1))
+            splited_times[cc, 1] = end
+            # name
+            new_names[cc, 0] = 'voc_{}'.format(sub_ep)
+
+            # second add as a pair
+            cc += 1
+            # context start time
+            if ss == 0: # special case for PreStimSilence as context
+                context = start - PreStimSilence
+                name = 'C0_P{}'.format(sub_ep)
+            else:
+                context = start - step
+                name = 'C{}_P{}'.format(this_ep_sub_eps[ss-1], sub_ep)
+
+            splited_times[cc, 0] = context
+            splited_times[cc, 1] = end
+            new_names[cc, 0] = name
+            cc += 1
+
+        # finally add the PostStimSilences as probe in a pair
+
+        start = end
+        end = start + PostStimSilence
+        name = 'C{}_P0'.format(sub_ep)
+
+        splited_times[cc, 0] = context
+        splited_times[cc, 1] = end
+        new_names[cc, 0] = name
+
+        cc += 1
+
+    # Concatenate data array and names array and organizes in an epoch dataframe
+    new_data = np.concatenate([splited_times, new_names], axis= 1 )
+    sub_epochs = pd.DataFrame(data=new_data, columns=['start', 'end', 'name'])
+
+    # adds the new eps to the old ones
+    new_epochs = epochs.copy()
+    new_epochs = new_epochs.append(sub_epochs)
+
+    # formats by sorting, index and column order
+    new_epochs.sort_values(by=['start', 'end'], ascending=[True, False], inplace=True)
+    new_epochs.reset_index(drop=True, inplace=True)
+    new_epochs = new_epochs.loc[:, ['start', 'end', 'name']]
+
+    return new_epochs
+
+
 def _get_subepochs_pairs(signal):
     raise NotImplemented
 
@@ -137,7 +240,7 @@ def set_signal_subepochs(signal, set_pairs=True):
     if set_pairs == False:
         new_epochs = _set_subepochs(signal.epochs)
     elif set_pairs == True:
-        new_epochs = _set_subepochs_pairs(signal.epochs)
+        new_epochs = _set_subepoch_pairs(signal.epochs)
     else:
         raise ValueError("keyword argument 'set_pairs' must be a boolean")
     new_signal = signal._modified_copy(signal._data, epochs=new_epochs)

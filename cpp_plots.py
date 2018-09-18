@@ -5,6 +5,7 @@ import numpy as np
 import nems.epoch as nep
 import warnings
 import scipy.ndimage.filters as sf
+import scipy.signal as ssig
 from nems.signal import SignalBase
 import math
 
@@ -216,7 +217,7 @@ def _PSTH2(times, values, start=None, end=None, ax=None, ci=False, y_offset=None
     return ax, fig
 
 
-def _neural_trajectory(matrix, dims=2, smoothing=0, rep_scat=True, rep_line=False,
+def _neural_trajectory(matrix, dims=2, downsample=None,  smoothing=0, rep_scat=True, rep_line=False,
                        mean_scat=False, mean_line=True):
     # TODO documentation
     # Base function for plotting a neuronal trajectory from a 3d matix with dimentions R x C x T where R is the repetitions,
@@ -234,6 +235,11 @@ def _neural_trajectory(matrix, dims=2, smoothing=0, rep_scat=True, rep_line=Fals
         matrix = np.take(matrix, dims, axis=1)
 
     matrix_mean = np.expand_dims(np.mean(matrix, axis=0), axis=0)
+
+    # downsamples across time by the factor specified
+    if downsample != None:
+        matrix = ssig.decimate(matrix, downsample, axis=2)
+
 
     # smooths the matrixes  with a gaussian filter along the time dimention
     matrix = sf.gaussian_filter(matrix, [0, 0, smoothing])
