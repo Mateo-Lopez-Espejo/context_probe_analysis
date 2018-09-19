@@ -1,13 +1,13 @@
-import matplotlib as mpl
-from mpl_toolkits.mplot3d import Axes3D
+import math
+import warnings
+
 import matplotlib.pyplot as plt
 import numpy as np
-import nems.epoch as nep
-import warnings
 import scipy.ndimage.filters as sf
 import scipy.signal as ssig
+
+import nems.epoch as nep
 from nems.signal import SignalBase
-import math
 
 
 # todo redo the distribution of axes in figures for psth, there is not purpose in plotig multiple signals as different
@@ -63,7 +63,6 @@ def _channel_handler(mat_or_sig, channels):
         is_sig = True
         max_chan = mat_or_sig.nchans
 
-
     # returns a different list of channles depending on the keywords or channels specified. add keywords here!
     if channels == 'all':
         plot_chans = range(max_chan)
@@ -72,7 +71,7 @@ def _channel_handler(mat_or_sig, channels):
             raise ValueError('recording only has {} channels, but channels value {} was given'.
                              format(max_chan, channels))
         plot_chans = [channels]
-    elif isinstance(channels, list) :
+    elif isinstance(channels, list):
         item = channels[0]
         # list of indexes
         if isinstance(item, int):
@@ -217,7 +216,7 @@ def _PSTH2(times, values, start=None, end=None, ax=None, ci=False, y_offset=None
     return ax, fig
 
 
-def _neural_trajectory(matrix, dims=2, downsample=None,  smoothing=0, rep_scat=True, rep_line=False,
+def _neural_trajectory(matrix, dims=2, downsample=None, smoothing=0, rep_scat=True, rep_line=False,
                        mean_scat=False, mean_line=True):
     # TODO documentation
     # Base function for plotting a neuronal trajectory from a 3d matix with dimentions R x C x T where R is the repetitions,
@@ -239,7 +238,6 @@ def _neural_trajectory(matrix, dims=2, downsample=None,  smoothing=0, rep_scat=T
     # downsamples across time by the factor specified
     if downsample != None:
         matrix = ssig.decimate(matrix, downsample, axis=2)
-
 
     # smooths the matrixes  with a gaussian filter along the time dimention
     matrix = sf.gaussian_filter(matrix, [0, 0, smoothing])

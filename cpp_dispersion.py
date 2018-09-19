@@ -2,6 +2,74 @@ import numpy as np
 from scipy.spatial import distance
 from sklearn.metrics.pairwise import pairwise_distances
 from math import factorial
+import joblib as jl
+import nems.epoch as nep
+import scipy.stats as sst
+from cpp_plots import _channel_handler as chan_hand
+import itertools as itt
+
+def _single_cell_dispersion(matrixes, cells='all'):
+    '''
+    given a dictionary of matrixes (from signal.extract_epochs), calculates the variance withing each vocalization pair
+    and then between vocalization pairs. these calculations are done over time i.e. for each time bin
+    :param matrix:
+    :cell:
+    :return:
+    '''
+    # stacks all matrixes (different vocalizations) across new axis, then selects the desired cell
+    full_mat = np.stack(matrixes.values(), axis=3)
+
+    # handles channel keywords
+    cells = chan_hand(full_mat[..., 0], cells)
+
+    # initializes result matrix with shape C x T where C is cell and T is time
+    shape = full_mat.shape
+    kruscal_over_time = np.zeros([shape[1], shape[2]]) #empty array of dimentions Cells x Time
+
+    # iterates over cell
+    for cell, time in itt.product(range(shape[1]), range(shape[2])):
+
+        working_slice =  full_mat[:, cell, time, :].T # the resulting array has dimentions Context x Repetition
+
+        try :
+            kruscal = sst.kruskal(*working_slice)
+            pval = kruscal.pvalue
+        except:
+            pval = np.nan
+        kruscal_over_time[cell, time] = pval
+
+    return kruscal_over_time
+
+
+
+def _significance_criterion(dispersion_vector, window, threshold=0.01 ):
+
+    #
+
+    '''
+    acording to Asari and sador, to determine significance of a contextual effect, and to avoid false possitive
+    due to multiple comparisons, significant differences are only acepted if there are streches of consecutive time bins
+    all with significance < 0.01
+    :param dispersion_vector:
+    :param window:
+    :param threshold:
+    :return:
+    '''
+
+    def rolling_window(a, window):
+        shape = a.shape[:-1] + (a.shape[-1] - window + 1, window)
+        strides = a.strides + (a.strides[-1],)
+        return np.lib.stride_tricks.as_strided(a, shape=shape, strides=strides)
+
+    windowed = rolling_window(dispersion_vector, window)
+
+    sign_bins = np.where(windowed<=threshold, True, False) # which individual time bins are significant
+
+    sign_wind =  np.all(sign_bins, axis=1) # which windows contain only significant bins
+
+    significant = np.any(sign_wind)
+
+    return significant, sign_wind
 
 
 def _pairwise_distance_within(matrix):

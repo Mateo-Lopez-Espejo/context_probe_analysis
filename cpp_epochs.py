@@ -161,14 +161,13 @@ def _set_subepoch_pairs(epochs):
     # initializes a matrix with shape SP x DF where SP is the number of subepochs including both singles and pairs
     # and DF is the DF columns to be: start and end
 
-    total_subepochs = (sub_epochs.size * 2) + sub_epochs.shape[0] # first terms includes bot signle and pair vocs
-                                                                  # second term is for PostStimSilence as probe in pairs
+    total_subepochs = (sub_epochs.size * 2) + sub_epochs.shape[0]  # first terms includes bot signle and pair vocs
+    # second term is for PostStimSilence as probe in pairs
     splited_times = np.zeros([total_subepochs, 2])
     new_names = np.empty([total_subepochs, 1], dtype='object')
 
     # determines the duration of an individual vocalization
     step = (original_times[0, 1] - original_times[0, 0] - PreStimSilence - PostStimSilence) / sub_epochs.shape[1]
-
 
     cc = 0
     # iterates over the original epochs
@@ -190,12 +189,12 @@ def _set_subepoch_pairs(epochs):
             # second add as a pair
             cc += 1
             # context start time
-            if ss == 0: # special case for PreStimSilence as context
+            if ss == 0:  # special case for PreStimSilence as context
                 context = start - PreStimSilence
                 name = 'C0_P{}'.format(sub_ep)
             else:
                 context = start - step
-                name = 'C{}_P{}'.format(this_ep_sub_eps[ss-1], sub_ep)
+                name = 'C{}_P{}'.format(this_ep_sub_eps[ss - 1], sub_ep)
 
             splited_times[cc, 0] = context
             splited_times[cc, 1] = end
@@ -204,8 +203,8 @@ def _set_subepoch_pairs(epochs):
 
         # finally add the PostStimSilences as probe in a pair
 
-        start = end
-        end = start + PostStimSilence
+        context = start
+        end = end + PostStimSilence
         name = 'C{}_P0'.format(sub_ep)
 
         splited_times[cc, 0] = context
@@ -215,7 +214,7 @@ def _set_subepoch_pairs(epochs):
         cc += 1
 
     # Concatenate data array and names array and organizes in an epoch dataframe
-    new_data = np.concatenate([splited_times, new_names], axis= 1 )
+    new_data = np.concatenate([splited_times, new_names], axis=1)
     sub_epochs = pd.DataFrame(data=new_data, columns=['start', 'end', 'name'])
 
     # adds the new eps to the old ones
@@ -228,10 +227,6 @@ def _set_subepoch_pairs(epochs):
     new_epochs = new_epochs.loc[:, ['start', 'end', 'name']]
 
     return new_epochs
-
-
-def _get_subepochs_pairs(signal):
-    raise NotImplemented
 
 
 # sig and recording wrappers

@@ -8,6 +8,8 @@ import cpp_plots as cplt
 import cpp_PCA as cpca
 import matplotlib.pyplot as plt
 import numpy as np
+import nems.epoch as nep
+import cpp_dispersion as disp
 
 
 # multi electode array loading options
@@ -60,34 +62,81 @@ if plot == True:
 
     # selects most responsive celll
     scat_key = {'s':5, 'alpha':0.5}
-    cplt.hybrid(sig, epoch_names='REFERENCE', channels='all', start=3, end=18, scatter_kws=scat_key,)
-
-    good_cells = [8, 10, 11, 14, 17]
-    best_cells = [11, 14]
+    cplt.hybrid(sig, epoch_names='single', channels='all', start=0, end=3, scatter_kws=scat_key,)
 
     # selects the stimulus generating the highest response
-    cplt.hybrid(sig, epoch_names='single', channels=good_cells, start=0, end=3, scatter_kws=scat_key)
+    cplt.hybrid(sig, epoch_names='single', channels=good_cells_index, start=0, end=3, scatter_kws=scat_key)
+    # vocalization 3 generates the clearest response
 
-    # so far the best cell is 11, and is most responsive to voc_3: probe 3
-    # for the following plot, it corresponds to the upper right subplot,
-    cplt.hybrid(sig, epoch_names=r'\AC\d_P0', channels=11, start=3, end=3.5, scatter_kws=scat_key)
+    # plot of the best cell stim combination
+    cplt.hybrid(sig, epoch_names=r'\AC\d_P3', channels=11, start=3, end=6, scatter_kws=scat_key)
 
+    # sanity check of Pre and Post StimSilence=
+    cplt.hybrid(sig, epoch_names=r'\AC0_P\d', channels=good_cells_index, start=3, end=6, scatter_kws=scat_key)
+    cplt.hybrid(sig, epoch_names=r'\AC\d_P0', channels=good_cells_index, start=3, end=3.5, scatter_kws=scat_key)
 
     # Initially plots statespace considering the most responsive units and then the PCs:
 
     traj_kws = {'smoothing': 2, # some mild smoothing
-                'downsample': None, # from 100 to 10 hz
+                'downsample': 10, # from 100 to 50 hz
                 'rep_scat': False,
                 'rep_line': True,
                 'mean_scat': False,
                 'mean_line': True}
 
-    cplt.signal_trajectory(sig, dims=best_cells, epoch_names=r'\AC\d_P3', _trajectory_kws=traj_kws)
-    cplt.signal_trajectory(sig_pca, dims=3, epoch_names=r'\AC\d_P3',_trajectory_kws=traj_kws)
 
+    # trajectory in neuron space of two good cells
+    cplt.signal_trajectory(sig, dims=[5, 11], epoch_names=r'\AC\d_P3', _trajectory_kws=traj_kws)
+
+    cplt.signal_trajectory(sig_pca, dims=3, epoch_names=r'\AC\d_P3',_trajectory_kws=traj_kws)
     cplt.signal_trajectory(sig_pca, dims=3, epoch_names='C0_P3',_trajectory_kws=traj_kws)
 
 
+    cplt.signal_trajectory(sig_pca, dims=3, epoch_names=r'\AC0_P\d',_trajectory_kws=traj_kws)
+    cplt.hybrid(sig, epoch_names=r'\AC0_P\d', channels='all', start=3, end=6, scatter_kws=scat_key)
+
+# the previous preliminary plots of state space show a lack of stereotipical trajectoryies, this and the
+# inspections of the raster plots show hign spont neurons lacking an stereotipical auditory response.
+# This lead me to believe that they might be "false" units from errors in the process of spike sorting.
+# all further analysis will be done with only good, reponsive cells.
+
+good_cells_index = [5, 7, 8, 10, 11, 14]
+good_cell_names = [chan_name for cc, chan_name in enumerate(sig.chans) if cc in good_cells_index]
+
+filt_sig = sig.extract_channels(good_cell_names)
+filt_pca, PCA = cpca.signal_PCA(filt_sig, center=True)
+
+
+if plot == True:
+
+    # variance explained by PCs
+    fig, ax = plt.subplots()
+    toplot = np.cumsum(PCA.explained_variance_ratio_)
+    ax.plot(toplot, '.-')
+    ax.set_xlabel('number of components')
+    ax.set_ylabel('cumulative explained variance');
+    ax.set_title('PCA: fraction of variance explained')
+
+    # ... so far not more encouragig
+
+    # full scatter pltot
+    scat_key = {'s':5, 'alpha':0.5}
+    cplt.hybrid(filt_sig, epoch_names='single', channels='all', start=0, end=3, scatter_kws=scat_key)
+    cplt.hybrid(filt_sig, epoch_names=r'\AC\d_P4', channels=4, start=3, end=6, scatter_kws=scat_key)
+
+    # trajectory plots
+    # 3 best units
+    traj_kws = {'smoothing': 2, # some mild smoothing
+                'downsample': 10, # from 100 to 50 hz
+                'rep_scat': False,
+                'rep_line': True,
+                'mean_scat': False,
+                'mean_line': True}
+    cplt.signal_trajectory(filt_sig, dims=[0, 3, 4], epoch_names=r'\AC0_P\d',_trajectory_kws=traj_kws)
+    cplt.signal_trajectory(filt_pca, dims=3, epoch_names=r'\AC0_P\d', _trajectory_kws=traj_kws)
+
+
+# try to calculate de dispersion between contexte for individual cells, adds one cell at a time
 
 
 
@@ -98,6 +147,31 @@ if plot == True:
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# test matrixes
+matrixes = sig.rasterize().extract_epochs(nep.epoch_names_matching(sig.epochs, r'\AC\d_P1'))
 
 
 
