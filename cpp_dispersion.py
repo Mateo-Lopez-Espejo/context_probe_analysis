@@ -5,10 +5,10 @@ from math import factorial
 import joblib as jl
 import nems.epoch as nep
 import scipy.stats as sst
-from cpp_plots import _channel_handler as chan_hand
+import cpp_parameter_handlers as hand
 import itertools as itt
 
-def _single_cell_dispersion(matrixes, cells='all'):
+def _single_cell_dispersion(matrixes, channels='all'):
     '''
     given a dictionary of matrixes (from signal.extract_epochs), calculates the variance withing each vocalization pair
     and then between vocalization pairs. these calculations are done over time i.e. for each time bin
@@ -20,14 +20,14 @@ def _single_cell_dispersion(matrixes, cells='all'):
     full_mat = np.stack(matrixes.values(), axis=3)
 
     # handles channel keywords
-    cells = chan_hand(full_mat[..., 0], cells)
+    channels = hand._channel_handler(full_mat[..., 0], channels)
 
     # initializes result matrix with shape C x T where C is cell and T is time
     shape = full_mat.shape
-    kruscal_over_time = np.zeros([shape[1], shape[2]]) #empty array of dimentions Cells x Time
+    kruscal_over_time = np.zeros([len(channels), shape[2]]) #empty array of dimentions Cells x Time
 
     # iterates over cell
-    for cell, time in itt.product(range(shape[1]), range(shape[2])):
+    for cell, time in itt.product(channels, range(shape[2])):
 
         working_slice =  full_mat[:, cell, time, :].T # the resulting array has dimentions Context x Repetition
 
@@ -130,7 +130,21 @@ def _pairwise_distance_between(matrixes):
 
     return dispersion
 
+### signal wrapers
 
+def signal_single_cell_dispersion(signal, epoch_names='single', channels='all'):
+
+    # handles epoch_names as standard
+    epoch_names = hand._epoch_name_handler(signal, epoch_names)
+
+    # handles channels/cells
+    channels = hand._channel_handler(signal, channels)
+
+    matrixes = signal.rasterize().extract_epochs(epoch_names)
+
+    disp = _single_cell_dispersion(matrixes, channels=channels)
+
+    return disp
 
 
 

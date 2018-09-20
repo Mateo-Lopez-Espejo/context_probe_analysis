@@ -9,7 +9,7 @@ import cpp_PCA as cpca
 import matplotlib.pyplot as plt
 import numpy as np
 import nems.epoch as nep
-import cpp_dispersion as disp
+import cpp_dispersion as cdisp
 
 
 # multi electode array loading options
@@ -63,6 +63,8 @@ if plot == True:
     # selects most responsive celll
     scat_key = {'s':5, 'alpha':0.5}
     cplt.hybrid(sig, epoch_names='single', channels='all', start=0, end=3, scatter_kws=scat_key,)
+
+    good_cells_index = [5, 7, 8, 10, 11, 14]
 
     # selects the stimulus generating the highest response
     cplt.hybrid(sig, epoch_names='single', channels=good_cells_index, start=0, end=3, scatter_kws=scat_key)
@@ -136,7 +138,10 @@ if plot == True:
     cplt.signal_trajectory(filt_pca, dims=3, epoch_names=r'\AC0_P\d', _trajectory_kws=traj_kws)
 
 
-# try to calculate de dispersion between contexte for individual cells, adds one cell at a time
+# try to calculate de dispersion between the response to individual pairs of context probe.
+# The calculation is done for each cell independently.
+
+disp = cdisp.signal_single_cell_dispersion(filt_sig, epoch_names=r'\AC\d_P3', channels='all')
 
 
 
