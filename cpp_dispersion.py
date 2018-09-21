@@ -10,11 +10,13 @@ import itertools as itt
 
 def _single_cell_dispersion(matrixes, channels='all'):
     '''
-    given a dictionary of matrixes (from signal.extract_epochs), calculates the variance withing each vocalization pair
-    and then between vocalization pairs. these calculations are done over time i.e. for each time bin
-    :param matrix:
-    :cell:
-    :return:
+    given a dictionary of matrices (from signal.extract_epochs), calculates pvalue for a Kruskal Wallis considering the response
+    to the different stimuli (different epochs, each of the keywords in the dictionary)
+    . these calculations are done over time i.e. for each time bin
+    :param matrix: a dictionary of matrices of dimensions Repetitions x Cells x Time.
+                   Each keywords corresponds to a different stimulus
+    :channels: the channels/cells to consider (second dimension of input matrices)
+    :return: an array of shape Cell x Time, of pvalues for each cell across time.
     '''
     # stacks all matrixes (different vocalizations) across new axis, then selects the desired cell
     full_mat = np.stack(matrixes.values(), axis=3)
@@ -27,22 +29,22 @@ def _single_cell_dispersion(matrixes, channels='all'):
     kruscal_over_time = np.zeros([len(channels), shape[2]]) #empty array of dimentions Cells x Time
 
     # iterates over cell
-    for cell, time in itt.product(channels, range(shape[2])):
+    for cc, cell in enumerate(channels):
+        for time in range(shape[2]):
+            working_slice =  full_mat[:, cell, time, :].T # the resulting array has dimentions Context x Repetition
 
-        working_slice =  full_mat[:, cell, time, :].T # the resulting array has dimentions Context x Repetition
-
-        try :
-            kruscal = sst.kruskal(*working_slice)
-            pval = kruscal.pvalue
-        except:
-            pval = np.nan
-        kruscal_over_time[cell, time] = pval
+            try :
+                kruscal = sst.kruskal(*working_slice)
+                pval = kruscal.pvalue
+            except:
+                pval = np.nan
+            kruscal_over_time[cc, time] = pval
 
     return kruscal_over_time
 
 
 
-def _significance_criterion(dispersion_vector, window, threshold=0.01 ):
+def _significance_criterion(dispersion, window=1, threshold=0.01 ):
 
     #
 
@@ -56,20 +58,44 @@ def _significance_criterion(dispersion_vector, window, threshold=0.01 ):
     :return:
     '''
 
-    def rolling_window(a, window):
-        shape = a.shape[:-1] + (a.shape[-1] - window + 1, window)
-        strides = a.strides + (a.strides[-1],)
-        return np.lib.stride_tricks.as_strided(a, shape=shape, strides=strides)
+    # def rolling_window(a, window):
+    #     shape = a.shape[:-1] + (a.shape[-1] - window + 1, window)
+    #     strides = a.strides + (a.strides[-1],)
+    #     return np.lib.stride_tricks.as_strided(a, shape=shape, strides=strides)
 
-    windowed = rolling_window(dispersion_vector, window)
+    # padds across time with nan
+    padded = np.empty([dispersion.shape[0], dispersion.shape[1]+window-1])
+    padded[:] = np.nan
+    padded[:dispersion.shape[0], :dispersion.shape[1]] = dispersion
 
-    sign_bins = np.where(windowed<=threshold, True, False) # which individual time bins are significant
+    windowed = np.empty([dispersion.shape[0], dispersion.shape[1], window])
 
-    sign_wind =  np.all(sign_bins, axis=1) # which windows contain only significant bins
+    for ii in range(dispersion.shape[1]):
+        windowed[:, ii, :] = padded[:, ii:ii+window]
 
-    significant = np.any(sign_wind)
+    sign_bin = np.where(windowed<=threshold, True, False) # which individual time bins are significant
 
-    return significant, sign_wind
+    sign_window =  np.all(sign_bin, axis=2) # which windows contain only significant bins
+
+    return sign_window
+
+def sig_bin_to_time(sign_window, window, fs):
+    # takes a boolean matrix of significance, the size of the window and the sampling frequency an transforms into a
+    # array of times describing the start and end of streches of significance
+
+    start_times = list()
+    end_times = list()
+
+    for cc in range (sign_window.shape[0]): # iterates over the channels/cells
+        bin_ind = np.where(sign_window[cc,:] == True)[0]
+        start = bin_ind / fs   # thise indexing takes out the array from the tupple
+        end = start + (window / fs)
+        start_times.append(start)
+        end_times.append(end)
+
+    return start_times, end_times
+
+
 
 
 def _pairwise_distance_within(matrix):

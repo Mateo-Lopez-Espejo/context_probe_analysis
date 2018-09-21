@@ -138,12 +138,19 @@ if plot == True:
     cplt.signal_trajectory(filt_pca, dims=3, epoch_names=r'\AC0_P\d', _trajectory_kws=traj_kws)
 
 
-# try to calculate de dispersion between the response to individual pairs of context probe.
-# The calculation is done for each cell independently.
 
-disp = cdisp.signal_single_cell_dispersion(filt_sig, epoch_names=r'\AC\d_P3', channels='all')
+# example of full population ploting for a set of all contexts to a probe
 
 
+epoch_names = r'\AC\d_P3'
+channels = 'all'
+
+disp_pval = cdisp.signal_single_cell_dispersion(sig, epoch_names=epoch_names, channels=channels)
+
+disp_sign = cdisp._significance_criterion(disp_pval, window=1, threshold=0.01)
+
+scat_key = {'s': 5, 'alpha': 0.5}
+cplt.hybrid(sig, epoch_names=epoch_names, channels=channels, start=3, end=6, scatter_kws=scat_key, significance=disp_sign)
 
 
 

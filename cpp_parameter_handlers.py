@@ -65,7 +65,7 @@ def _channel_handler(mat_or_sig, channels):
         if isinstance(item, int):
             for chan in channels:
                 if chan > max_chan:
-                    raise ValueError('recording only has {} channels, but channels value {} was given'.
+                    raise ValueError('signal only has {} channels, but channels value {} was given'.
                                      format(max_chan, channels))
             plot_chans = channels
         # list of cell names

@@ -6,6 +6,7 @@ import numpy as np
 import scipy.ndimage.filters as sf
 import scipy.signal as ssig
 
+from cpp_dispersion import sig_bin_to_time as btt
 from cpp_parameter_handlers import _epoch_name_handler, _channel_handler
 
 
@@ -74,7 +75,7 @@ def _raster(times, values, y_offset=None, ax=None, scatter_kws=None):
     return fig, ax
 
 
-def _PSTH2(times, values, start=None, end=None, ax=None, ci=False, y_offset=None, y_scaling=None, plot_kws=None):
+def _PSTH(times, values, start=None, end=None, ax=None, ci=False, y_offset=None, y_scaling=None, plot_kws=None):
     '''
         Base function for plotting a PSTH from a 2d matix with dimentions R x T where R is the repetitions
         and T is time. This matrix usually comes from "extract_epochs" afeter selecting a specific channel/cell
@@ -244,10 +245,37 @@ def _neural_trajectory(matrix, dims=2, downsample=None, smoothing=0, rep_scat=Tr
 
     return fig, ax
 
-def _dispersion(matrixes, smoothing=0, y_offset=None, ax= None, rep_line=None, mean_line=None, line_kws=None):
 
+def _significance_bars(start_times, end_times, y_range='auto', ax=None, fill_kws=None):
+    if ax == None:
+        fig, ax = plt.subplots()
+        y = (0, 1)
+    else:
+        fig = ax.figure
+
+        if y_range == 'auto':
+            y = ax.get_ylim()
+        else:
+            y = y_range
+
+    # updates kwargs
+    fill_kws = {} if fill_kws is None else fill_kws
+    defaults = {'color': 'gray', 'alpha': 0.5}
+    for key, arg in defaults.items(): fill_kws.setdefault(key, arg)
+
+    # plots
+    for start, end in zip(start_times, end_times):
+
+        # skips if no significant bins/times i.e. an empty array
+        if start.size != 0:
+            # not empty
+            ax.fill_betweenx(y, start, end, **fill_kws)
+
+    return fig, ax
+
+
+def dispersion(matrixes, smoothing=0, y_offset=0, ax=None, rep_line=None, mean_line=None, line_kws=None):
     # this is super temporary bad implementeation, again each subplot should be distintive of a single cell
-
 
     # matrixes is a dict of matrix each of which has dimentions C x T (cells x Time). each different matrix
     # corresponds to a different group of subepochs i.e. all conntexts for a given probe
@@ -257,30 +285,29 @@ def _dispersion(matrixes, smoothing=0, y_offset=None, ax= None, rep_line=None, m
     # stacks all matrixes by a new axis represetning epch
     matrix = np.stack(matrixes.values(), axis=2)
 
-    fig, axes = _subplot_handler(None, matrix.shape[0])
-
-    y_offset = 1
+    # this is such a cludge! better handling of channels and subplotting.
+    fig, axes = _subplot_handler(None, list(range(matrix.shape[0])))
 
     # iterates over subplots/cells
 
     for cell, ax in zip(range(matrix.shape[0]), axes):
 
+        offset_counter = 0
         # iterates over stimuli
         for stim, stim_name in enumerate(stimuli):
+            sliced = matrix[cell, :, stim] + (y_offset * offset_counter)
+            ax.plot(sliced.T, alpha=0.2, label=stim_name)
+            offset_counter += 1
 
-            sliced = matrix[cell, :, stim]
+        mean = np.nanmean(matrix[cell, :, :],
+                          axis=1) * offset_counter  # scales by the total amoutn of different stimuli
+        ax.plot(mean, color='black', label='mean')
 
-            mean = np
+        ax.set_title('channel {}'.format(cell))
+        if cell == 0:
+            ax.legend()
 
-
-
-
-
-
-
-    # acc
-
-
+    return fig, axes
 
 
 ##### signal and recording wrapers
@@ -327,7 +354,7 @@ def signal_PSTH(signal, epoch_names='single', channels='all', psth_kws=None, plo
             plot_kws.update({'color': color,
                              'label': epoch_key})
 
-            _PSTH2(times, values, ax=ax, y_offset=y_offset, **psth_kws, plot_kws=plot_kws)
+            _PSTH(times, values, ax=ax, y_offset=y_offset, **psth_kws, plot_kws=plot_kws)
 
         ax.set_title('{}: {}'.format(chan, signal.chans[chan]))
         if first:
@@ -467,9 +494,21 @@ def signal_raster(signal, epoch_names='single', channels='all', scatter_kws=None
     return fig, matrixes
 
 
-def hybrid(signal, epoch_names='single', channels='all', start=None, end=None, scatter_kws=None, plot_kws=None):
+def hybrid(signal, epoch_names='single', channels='all', start=None, end=None,
+           significance=None, sign_kws=None,
+           scatter_kws=None, plot_kws=None):
     epoch_names = _epoch_name_handler(signal, epoch_names)
-    matrixes = signal.rasterize().extract_epochs(epoch_names)
+    matrices = signal.rasterize().extract_epochs(epoch_names)
+
+    # preprocesing of significance array
+    if isinstance(significance, np.ndarray):
+        # handles significance keywords
+        sign_kws = {} if sign_kws is None else sign_kws
+
+        # some preprocesing of the significance matrix
+        defaults = {'window': 1}
+        for key, val in defaults.items(): sign_kws.setdefault(key, val)
+        start_times, end_times = btt(significance, fs=signal.fs, **sign_kws)
 
     # handles scatter_kws
     scatter_kws = {} if scatter_kws is None else scatter_kws
@@ -481,17 +520,21 @@ def hybrid(signal, epoch_names='single', channels='all', start=None, end=None, s
     fig, axes = _subplot_handler(epoch_names, channels)
 
     # scales the PSTH to entirely overlap with the raster
-    max_val = np.max([np.max(np.mean(epoch_matrix, axis=0)) for epoch_matrix in matrixes.values()])
-    max_Reps = np.max([epoch_matrix.shape[0] for epoch_matrix in matrixes.values()])
+    max_val = np.max([np.max(np.mean(epoch_matrix, axis=0)) for epoch_matrix in matrices.values()])
+    max_Reps = np.max([epoch_matrix.shape[0] for epoch_matrix in matrices.values()])
     y_scaling = max_Reps / max_val  # normalizes by max val and scales to max reps
+
+    # calculates the y_range of the significance areas based on the number of stimuli and repetitionse per stimuli
+    # in the second value, the first factor is the number of stimuli, the second is the number of repetitions
+    y_range = [-0.5, len(matrices) * matrices[epoch_names[0]].shape[0] + 0.5]
 
     # iterates over each cell... plot
     first = True
-    for chan, ax in zip(channels, axes):
+    for cc, (chan, ax) in enumerate(zip(channels, axes)):
 
-        for cc, (epoch_key, epoch_matrix) in enumerate(matrixes.items()):
-            color = 'C{}'.format(cc % 10)
-            y_offset = epoch_matrix.shape[0] * cc  # offsets subsequent rasters by the number of repetitions
+        for ss, (epoch_key, epoch_matrix) in enumerate(matrices.items()):
+            color = 'C{}'.format(ss % 10)
+            y_offset = epoch_matrix.shape[0] * ss  # offsets subsequent rasters by the number of repetitions
 
             values = epoch_matrix[:, chan, :]  # holds all Repetitions, for a given Channel, acrossTime
             times = np.arange(0, epoch_matrix.shape[2]) / signal.fs
@@ -504,8 +547,14 @@ def hybrid(signal, epoch_names='single', channels='all', start=None, end=None, s
             plot_kws.update({'color': color,
                              'label': epoch_key})
 
-            _PSTH2(times, values, start=start, end=end, ax=ax, ci=False, y_offset=y_offset, y_scaling=y_scaling,
-                   plot_kws=plot_kws)
+            _PSTH(times, values, start=start, end=end, ax=ax, ci=False, y_offset=y_offset, y_scaling=y_scaling,
+                  plot_kws=plot_kws)
+
+        # dispersion significance plotting
+
+        if isinstance(significance, np.ndarray):
+            # draws the dispersion significance across time
+            _significance_bars(start_times[cc], end_times[cc], y_range=y_range, ax=ax)
 
         ax.set_title('{}: {}'.format(chan, signal.chans[chan]))
         if first:
@@ -513,75 +562,4 @@ def hybrid(signal, epoch_names='single', channels='all', start=None, end=None, s
             ax.legend()
     fig.suptitle(signal.name)
 
-    return fig, matrixes
-
-
-
-# do deprecate
-
-def _PSTH(matrix, start=None, end=None, ax=None, fs=None, ci=False, y_offset='auto', channels='all', plt_kws=None):
-    '''
-    Base function for plotting a PSTH from a 3d matix with dimentions R x C x T where R is the repetitions,
-    C is the cell and T is time. This matrix usually comes from "extract_epochs"
-    :param matrix: a 3d numpy array
-    :param start: the time of the sound onset in seconds
-    :param end: the time of the stimulus offset in seconds
-    :param ax: a plt axis
-    :param fs: int, the sampling frequncy asociated with the data, used to plot with real time on the x axis
-    :param ci: bool, wheter or not to plot athe bootstrap confidence itnernval
-    :param y_offset: 'auto' or a number. when plotting multiple channels, the vertical offset between the PSTH of each
-                      cell.
-    :param plt_kws: adittional keyword parameters for pyplot.plot()
-    :return: the ax used for the plotting
-    '''
-
-    # the dimentions of the matrix are repetitions, channels, and time in that order
-    # defines in what axis to plot
-    if ax == None:
-        # creates a figure and plot
-        fig, ax = plt.subplots()
-
-    # defines wheter to use sampling frequency (and therefore time) in the x axis
-    if isinstance(fs, int):
-        period = 1 / fs
-
-    elif fs == None:
-        period = matrix.shape[2]  # uses time bins instead of time
-
-    t = np.arange(0, matrix.shape[2] * period, period)
-
-    # gets the mean across repetitions
-    psth = np.nanmean(matrix, axis=0)  # psth has dimentions: Channels x time
-
-    # gets the overall max spike rate to use as vertical end between channels
-    if y_offset == 'auto':
-        y_offset = np.max(psth)
-
-    # Determine keyword arguments for pyplot.plot
-    plt_kws = {} if plt_kws is None else plt_kws
-
-    plot_chans = _channel_handler(matrix, channels)
-
-    # iterates over every cell
-    for channel in plot_chans:
-        # offsets each channle for better readability
-        toplot = psth[channel, :] - y_offset * channel
-        ax.plot(t, toplot, **plt_kws)
-
-    if ci == True:
-        # todo inplement bootstarped confidence interval
-        raise NotImplemented('implement it slacker!')
-        ax.fill_between(t, conf_int[:, 0], conf_int[:, 1], color=color, alpha=0.2)
-
-    # defiens the start and end of the sound
-    if start != None:
-        start = start
-        ax.axvline(start, color='black')
-
-    if end != None:
-        end = end
-        ax.axvline(end, color='black')
-
-    ax.set_ylabel('spike rate (Hz)')
-
-    return ax
+    return fig, matrices
