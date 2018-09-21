@@ -44,17 +44,14 @@ def _single_cell_dispersion(matrixes, channels='all'):
 
 
 
-def _significance_criterion(dispersion, window=1, threshold=0.01 ):
-
-    #
-
+def _significance_criterion(pvalues, window=1, alpha=0.01):
     '''
     acording to Asari and sador, to determine significance of a contextual effect, and to avoid false possitive
     due to multiple comparisons, significant differences are only acepted if there are streches of consecutive time bins
     all with significance < 0.01
     :param dispersion_vector:
     :param window:
-    :param threshold:
+    :param alpha:
     :return:
     '''
 
@@ -64,16 +61,16 @@ def _significance_criterion(dispersion, window=1, threshold=0.01 ):
     #     return np.lib.stride_tricks.as_strided(a, shape=shape, strides=strides)
 
     # padds across time with nan
-    padded = np.empty([dispersion.shape[0], dispersion.shape[1]+window-1])
+    padded = np.empty([pvalues.shape[0], pvalues.shape[1] + window - 1])
     padded[:] = np.nan
-    padded[:dispersion.shape[0], :dispersion.shape[1]] = dispersion
+    padded[:pvalues.shape[0], :pvalues.shape[1]] = pvalues
 
-    windowed = np.empty([dispersion.shape[0], dispersion.shape[1], window])
+    windowed = np.empty([pvalues.shape[0], pvalues.shape[1], window])
 
-    for ii in range(dispersion.shape[1]):
+    for ii in range(pvalues.shape[1]):
         windowed[:, ii, :] = padded[:, ii:ii+window]
 
-    sign_bin = np.where(windowed<=threshold, True, False) # which individual time bins are significant
+    sign_bin = np.where(windowed <= alpha, True, False) # which individual time bins are significant
 
     sign_window =  np.all(sign_bin, axis=2) # which windows contain only significant bins
 

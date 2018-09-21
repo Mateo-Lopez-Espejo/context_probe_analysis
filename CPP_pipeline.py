@@ -140,51 +140,65 @@ if plot == True:
 
 
 # example of full population ploting for a set of all contexts to a probe
-
-
 epoch_names = r'\AC\d_P3'
 channels = 'all'
 
+# calculates kurskal wallis between different context across time
 disp_pval = cdisp.signal_single_cell_dispersion(sig, epoch_names=epoch_names, channels=channels)
+# defines significance, uses window size equal to time bin size
+time_window = 0.01 # 10 ms, this is actually the bin size,
+window = int(time_window * sig.fs)
+disp_sign = cdisp._significance_criterion(disp_pval, window=window, alpha=0.01) # array with shape
 
-disp_sign = cdisp._significance_criterion(disp_pval, window=1, threshold=0.01)
-
+# overlays significatn times on the raster and PSTH for the specified cells and context probe pairs
 scat_key = {'s': 5, 'alpha': 0.5}
 cplt.hybrid(sig, epoch_names=epoch_names, channels=channels, start=3, end=6, scatter_kws=scat_key, significance=disp_sign)
 
+# considers each combination of cell/probe as an independent recording (disregard cell identity)
 
+# 1 iterates over all relevant probes i.e. excludes silence
 
+all_probes = list()
 
+for pp in range(1,5):
+    this_probe = r'\AC\d_P{}'.format(pp)
+    all_probes.append(cdisp.signal_single_cell_dispersion(sig, epoch_names=this_probe, channels=channels))
 
+# concatenates across first dimention i.e. cell/channel
+pop_pval = np.concatenate(all_probes,axis=0)
 
+# defines significnce
+pop_sign = cdisp._significance_criterion(pop_pval, window=1, alpha=0.01)
+times = np.arange(0, pop_sign.shape[1]) / sig.fs
 
+# raster significance
+scat_kwargs = {'s':10}
+fig, ax = cplt._raster(times, pop_sign, scatter_kws=scat_kwargs)
 
+# organizes by last significant time for clarity
+def sort_by_last_significant_bin(unsorted):
+    last_True = list()
+    for cell in range(unsorted.shape[0]):
+        # find last significant point
+        idxs = np.where(unsorted[cell, :] == True)[0]
+        if idxs.size == 0:
+            idxs = 0
+        else:
+            idxs = np.max(idxs)
+        last_True.append(idxs)
+    sort_idx = np.argsort(np.asarray(last_True))
 
+    # initializes empty sorted array
+    sorted_sign = np.empty(shape=unsorted.shape)
+    for ii, ss in enumerate(sort_idx):
+        sorted_sign[ii,:] = pop_sign[ss,:]
 
+    return sorted_sign
 
+sorted_sign = sort_by_last_significant_bin(pop_sign)
 
+# rasters the sorted significances
 
+fig, ax = cplt._raster(times, sorted_sign, scatter_kws=scat_kwargs)
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-# test matrixes
-matrixes = sig.rasterize().extract_epochs(nep.epoch_names_matching(sig.epochs, r'\AC\d_P1'))
-
-
-
-
+# wtf is this shit!!
