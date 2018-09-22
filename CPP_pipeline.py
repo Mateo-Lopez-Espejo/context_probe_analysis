@@ -10,6 +10,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import nems.epoch as nep
 import cpp_dispersion as cdisp
+import cpp_parameter_handlers as hand
 
 
 # multi electode array loading options
@@ -64,18 +65,18 @@ if plot == True:
     scat_key = {'s':5, 'alpha':0.5}
     cplt.hybrid(sig, epoch_names='single', channels='all', start=0, end=3, scatter_kws=scat_key,)
 
-    good_cells_index = [5, 7, 8, 10, 11, 14]
+    good_cell_index = [5, 7, 8, 10, 11, 14]
 
     # selects the stimulus generating the highest response
-    cplt.hybrid(sig, epoch_names='single', channels=good_cells_index, start=0, end=3, scatter_kws=scat_key)
+    cplt.hybrid(sig, epoch_names='single', channels=good_cell_index, start=0, end=3, scatter_kws=scat_key)
     # vocalization 3 generates the clearest response
 
     # plot of the best cell stim combination
     cplt.hybrid(sig, epoch_names=r'\AC\d_P3', channels=11, start=3, end=6, scatter_kws=scat_key)
 
     # sanity check of Pre and Post StimSilence=
-    cplt.hybrid(sig, epoch_names=r'\AC0_P\d', channels=good_cells_index, start=3, end=6, scatter_kws=scat_key)
-    cplt.hybrid(sig, epoch_names=r'\AC\d_P0', channels=good_cells_index, start=3, end=3.5, scatter_kws=scat_key)
+    cplt.hybrid(sig, epoch_names=r'\AC0_P\d', channels=good_cell_index, start=3, end=6, scatter_kws=scat_key)
+    cplt.hybrid(sig, epoch_names=r'\AC\d_P0', channels=good_cell_index, start=3, end=3.5, scatter_kws=scat_key)
 
     # Initially plots statespace considering the most responsive units and then the PCs:
 
@@ -102,8 +103,8 @@ if plot == True:
 # This lead me to believe that they might be "false" units from errors in the process of spike sorting.
 # all further analysis will be done with only good, reponsive cells.
 
-good_cells_index = [5, 7, 8, 10, 11, 14]
-good_cell_names = [chan_name for cc, chan_name in enumerate(sig.chans) if cc in good_cells_index]
+good_cell_index = [5, 7, 8, 10, 11, 14]
+good_cell_names = [chan_name for cc, chan_name in enumerate(sig.chans) if cc in good_cell_index]
 
 filt_sig = sig.extract_channels(good_cell_names)
 filt_pca, PCA = cpca.signal_PCA(filt_sig, center=True)
@@ -154,51 +155,122 @@ disp_sign = cdisp._significance_criterion(disp_pval, window=window, alpha=0.01) 
 scat_key = {'s': 5, 'alpha': 0.5}
 cplt.hybrid(sig, epoch_names=epoch_names, channels=channels, start=3, end=6, scatter_kws=scat_key, significance=disp_sign)
 
+
+
 # considers each combination of cell/probe as an independent recording (disregard cell identity)
-
 # 1 iterates over all relevant probes i.e. excludes silence
+# todo clean this function
+def population_significance(signal, channels, probes=[1, 2, 3, 4], sort=True):
 
-all_probes = list()
+    all_probes = list()
+    compound_names = list()
 
-for pp in range(1,5):
-    this_probe = r'\AC\d_P{}'.format(pp)
-    all_probes.append(cdisp.signal_single_cell_dispersion(sig, epoch_names=this_probe, channels=channels))
+    for pp in probes:
+        this_probe = r'\AC\d_P{}'.format(pp)
+        disp_mat = cdisp.signal_single_cell_dispersion(signal, epoch_names=this_probe, channels=channels)
 
-# concatenates across first dimention i.e. cell/channel
-pop_pval = np.concatenate(all_probes,axis=0)
+        chan_idx = hand._channel_handler(signal, channels)
+        cell_names = [name for nn, name in enumerate(signal.chans) if nn in chan_idx]
+        comp_names = ['C*_P{}: {}'.format(pp, cell_name) for cell_name in cell_names]
 
-# defines significnce
-pop_sign = cdisp._significance_criterion(pop_pval, window=1, alpha=0.01)
-times = np.arange(0, pop_sign.shape[1]) / sig.fs
+        all_probes.append(disp_mat)
+        compound_names.extend(comp_names)
 
-# raster significance
-scat_kwargs = {'s':10}
-fig, ax = cplt._raster(times, pop_sign, scatter_kws=scat_kwargs)
+    compound_names = np.asarray(compound_names)
 
-# organizes by last significant time for clarity
-def sort_by_last_significant_bin(unsorted):
-    last_True = list()
-    for cell in range(unsorted.shape[0]):
-        # find last significant point
-        idxs = np.where(unsorted[cell, :] == True)[0]
-        if idxs.size == 0:
-            idxs = 0
-        else:
-            idxs = np.max(idxs)
-        last_True.append(idxs)
-    sort_idx = np.argsort(np.asarray(last_True))
+    # concatenates across first dimention i.e. cell/channel
+    pop_pval = np.concatenate(all_probes,axis=0)
 
-    # initializes empty sorted array
-    sorted_sign = np.empty(shape=unsorted.shape)
-    for ii, ss in enumerate(sort_idx):
-        sorted_sign[ii,:] = pop_sign[ss,:]
+    # defines significnce
+    pop_sign = cdisp._significance_criterion(pop_pval, window=1, alpha=0.01)
+    times = np.arange(0, pop_sign.shape[1]) / signal.fs
 
-    return sorted_sign
+    # set size of scatter markers
+    scat_kwargs = {'s': 10}
 
-sorted_sign = sort_by_last_significant_bin(pop_sign)
+    # raster significance, unsorted
+    if sort == False:
+        fig, ax = cplt._raster(times, pop_sign, scatter_kws=scat_kwargs)
+        ax.set_yticks(np.arange(0,pop_sign.shape[0],1))
+        ax.set_yticklabels(compound_names)
 
-# rasters the sorted significances
+    elif sort == True:
+        # organizes by last significant time for clarity
+        def sort_by_last_significant_bin(unsorted):
+            last_True = list()
+            for cell in range(unsorted.shape[0]):
+                # find last significant point
+                idxs = np.where(unsorted[cell, :] == True)[0]
+                if idxs.size == 0:
+                    idxs = 0
+                else:
+                    idxs = np.max(idxs)
+                last_True.append(idxs)
+            sort_idx = np.argsort(np.asarray(last_True))
 
-fig, ax = cplt._raster(times, sorted_sign, scatter_kws=scat_kwargs)
+            # initializes empty sorted array
+            sorted_sign = np.empty(shape=unsorted.shape)
+            for ii, ss in enumerate(sort_idx):
+                sorted_sign[ii,:] = pop_sign[ss,:]
 
-# wtf is this shit!!
+            return sorted_sign, sort_idx
+
+        sorted_sign, sort_idx = sort_by_last_significant_bin(pop_sign)
+
+        sorted_names = compound_names[sort_idx]
+
+        # rasters the sorted significances
+
+        fig, ax = cplt._raster(times, sorted_sign, scatter_kws=scat_kwargs)
+        ax.set_yticks(np.arange(0,sorted_sign.shape[0],1))
+        ax.set_yticklabels(sorted_names)
+        ax.set_title('sorted significane')
+
+    return fig, ax
+
+
+fig, ax = population_significance(sig, channels='all')
+
+# sanity check. a cell without any significant bins
+# todo clean this function
+def plot_single(channels, epochs):
+
+    # calculates kurskal wallis between different context across time
+    insig_pval = cdisp.signal_single_cell_dispersion(sig, epoch_names=epochs, channels=channels)
+    # defines significance, uses window size equal to time bin size
+    time_window = 0.01 # 10 ms, this is actually the bin size,
+    window = int(time_window * sig.fs)
+    insignificance = cdisp._significance_criterion(insig_pval, window=window, alpha=0.01) # array with shape
+
+    # overlays significatn times on the raster and PSTH for the specified cells and context probe pairs
+    scat_key = {'s': 5, 'alpha': 0.5}
+    fig, ax = cplt.hybrid(sig, epoch_names=epochs, channels=channels, start=3, end=6, scatter_kws=scat_key, significance=insignificance)
+
+    return fig, ax
+
+insig_eps = r'\AC\d_P4'
+insig_cell = 'BRT037b-39-1'
+plot_single(insig_cell, insig_eps)
+
+
+# sanity check 2. plots the cell with the latest significant bin
+sign_eps = r'\AC\d_P4'
+sign_cell = 'BRT037b-06-1'
+plot_single(sign_cell, sign_eps)
+
+
+# repeat the 'population sumary plots' but only keeping good cells.
+fig, ax = population_significance(sig, channels=good_cell_index, sort=True)
+ax.axvline(3)
+
+# plots worst and best
+best_cell = 'BRT037b-46-1'
+best_probe = r'\AC\d_P4'
+plot_single(best_cell, best_probe)
+
+worst_cell = 'BRT037b-31-1'
+worst_probe = r'\AC\d_P1'
+plot_single(worst_cell, worst_probe)
+
+
+

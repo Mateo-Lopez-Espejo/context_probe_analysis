@@ -6,7 +6,7 @@ import numpy as np
 import scipy.ndimage.filters as sf
 import scipy.signal as ssig
 
-from cpp_dispersion import sig_bin_to_time as btt
+from cpp_dispersion import _sig_bin_to_time as btt
 from cpp_parameter_handlers import _epoch_name_handler, _channel_handler
 
 
@@ -563,3 +563,37 @@ def hybrid(signal, epoch_names='single', channels='all', start=None, end=None,
     fig.suptitle(signal.name)
 
     return fig, matrices
+
+
+def population_significance(significance_matrix, signal, ):
+    # raster significance
+    raise NotImplementedError
+    # scat_kwargs = {'s': 10}
+    # fig, ax = cplt._raster(times, pop_sign, scatter_kws=scat_kwargs)
+    #
+    # # organizes by last significant time for clarity
+    # def sort_by_last_significant_bin(unsorted):
+    #     last_True = list()
+    #     for cell in range(unsorted.shape[0]):
+    #         # find last significant point
+    #         idxs = np.where(unsorted[cell, :] == True)[0]
+    #         if idxs.size == 0:
+    #             idxs = 0
+    #         else:
+    #             idxs = np.max(idxs)
+    #         last_True.append(idxs)
+    #     sort_idx = np.argsort(np.asarray(last_True))
+    #
+    #     # initializes empty sorted array
+    #     sorted_sign = np.empty(shape=unsorted.shape)
+    #     for ii, ss in enumerate(sort_idx):
+    #         sorted_sign[ii, :] = pop_sign[ss, :]
+    #
+    #     return sorted_sign
+    #
+    # sorted_sign = sort_by_last_significant_bin(pop_sign)
+    #
+    # # rasters the sorted significances
+    #
+    # fig, ax = cplt._raster(times, sorted_sign, scatter_kws=scat_kwargs)
+

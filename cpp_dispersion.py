@@ -1,12 +1,9 @@
 import numpy as np
-from scipy.spatial import distance
-from sklearn.metrics.pairwise import pairwise_distances
-from math import factorial
-import joblib as jl
-import nems.epoch as nep
 import scipy.stats as sst
+from sklearn.metrics.pairwise import pairwise_distances
+
 import cpp_parameter_handlers as hand
-import itertools as itt
+
 
 def _single_cell_dispersion(matrixes, channels='all'):
     '''
@@ -26,14 +23,14 @@ def _single_cell_dispersion(matrixes, channels='all'):
 
     # initializes result matrix with shape C x T where C is cell and T is time
     shape = full_mat.shape
-    kruscal_over_time = np.zeros([len(channels), shape[2]]) #empty array of dimentions Cells x Time
+    kruscal_over_time = np.zeros([len(channels), shape[2]])  # empty array of dimentions Cells x Time
 
     # iterates over cell
     for cc, cell in enumerate(channels):
         for time in range(shape[2]):
-            working_slice =  full_mat[:, cell, time, :].T # the resulting array has dimentions Context x Repetition
+            working_slice = full_mat[:, cell, time, :].T  # the resulting array has dimentions Context x Repetition
 
-            try :
+            try:
                 kruscal = sst.kruskal(*working_slice)
                 pval = kruscal.pvalue
             except:
@@ -43,16 +40,16 @@ def _single_cell_dispersion(matrixes, channels='all'):
     return kruscal_over_time
 
 
-
 def _significance_criterion(pvalues, window=1, alpha=0.01):
     '''
     acording to Asari and sador, to determine significance of a contextual effect, and to avoid false possitive
     due to multiple comparisons, significant differences are only acepted if there are streches of consecutive time bins
-    all with significance < 0.01
-    :param dispersion_vector:
-    :param window:
-    :param alpha:
-    :return:
+    all with significance < 0.01. takes an array of pvalues and returns a boolean vector of significance
+    acording to an alpha threshold an a window size
+    :param pvalues: 2d array of dimentions C x T where C are cells/channels and T are time bins
+    :param window: rolling window sizes in number of time bins, default 1 i.e time window = bin size
+    :param alpha: certainty threshold, by default 0.01
+    :return: boolean array of the same dimentions of pvalues array
     '''
 
     # def rolling_window(a, window):
@@ -68,24 +65,25 @@ def _significance_criterion(pvalues, window=1, alpha=0.01):
     windowed = np.empty([pvalues.shape[0], pvalues.shape[1], window])
 
     for ii in range(pvalues.shape[1]):
-        windowed[:, ii, :] = padded[:, ii:ii+window]
+        windowed[:, ii, :] = padded[:, ii:ii + window]
 
-    sign_bin = np.where(windowed <= alpha, True, False) # which individual time bins are significant
+    sign_bin = np.where(windowed <= alpha, True, False)  # which individual time bins are significant
 
-    sign_window =  np.all(sign_bin, axis=2) # which windows contain only significant bins
+    sign_window = np.all(sign_bin, axis=2)  # which windows contain only significant bins
 
     return sign_window
 
-def sig_bin_to_time(sign_window, window, fs):
+
+def _sig_bin_to_time(sign_window, window, fs):
     # takes a boolean matrix of significance, the size of the window and the sampling frequency an transforms into a
     # array of times describing the start and end of streches of significance
 
     start_times = list()
     end_times = list()
 
-    for cc in range (sign_window.shape[0]): # iterates over the channels/cells
-        bin_ind = np.where(sign_window[cc,:] == True)[0]
-        start = bin_ind / fs   # thise indexing takes out the array from the tupple
+    for cc in range(sign_window.shape[0]):  # iterates over the channels/cells
+        bin_ind = np.where(sign_window[cc, :] == True)[0]
+        start = bin_ind / fs  # thise indexing takes out the array from the tupple
         end = start + (window / fs)
         start_times.append(start)
         end_times.append(end)
@@ -93,19 +91,17 @@ def sig_bin_to_time(sign_window, window, fs):
     return start_times, end_times
 
 
-
-
 def _pairwise_distance_within(matrix):
-
     # matrix has shape R x C x T: Repetition, Channel/Cell, Time
 
     # iterates over time
 
-    dispersion = np.zeros([2, matrix.shape[2]]) # empty matrix with shape D x T where D is Dispersion metrics and T is time
+    dispersion = np.zeros(
+        [2, matrix.shape[2]])  # empty matrix with shape D x T where D is Dispersion metrics and T is time
 
     for tt in range(matrix.shape[2]):
-        time_slice = matrix[...,tt]
-        dist_mat = pairwise_distances(time_slice, metric='euclidean') # input [n_samples, n_features]
+        time_slice = matrix[..., tt]
+        dist_mat = pairwise_distances(time_slice, metric='euclidean')  # input [n_samples, n_features]
 
         # get the upper triangle of the distance matrix as a flat vector for further calculations
         triU = dist_mat[np.triu_indices(dist_mat.shape[0], 1)]
@@ -118,9 +114,8 @@ def _pairwise_distance_within(matrix):
 
 
 def _pairwise_distance_between(matrixes):
-
     # inputs a list of matrixes corresponding to different
-    if isinstance(matrixes, dict): #todo figure out how to keep identity
+    if isinstance(matrixes, dict):  # todo figure out how to keep identity
         epochs = matrixes.keys()
         matrixes = matrixes.values()
 
@@ -137,7 +132,8 @@ def _pairwise_distance_between(matrixes):
 
     c = meaned_mat.shape[0]
     pair_num = int(((c * c) - c) / 2)
-    dispersion = np.zeros([pair_num, meaned_mat.shape[2]])  # empty matrix with shape D x T where D is Dispersion metrics and T is time
+    dispersion = np.zeros(
+        [pair_num, meaned_mat.shape[2]])  # empty matrix with shape D x T where D is Dispersion metrics and T is time
 
     for tt in range(meaned_mat.shape[2]):
         time_slice = meaned_mat[..., tt]
@@ -149,14 +145,12 @@ def _pairwise_distance_between(matrixes):
         # organizes the mean distance and variance in its respective time bin
         dispersion[:, tt] = triU
 
-
-
     return dispersion
+
 
 ### signal wrapers
 
 def signal_single_cell_dispersion(signal, epoch_names='single', channels='all'):
-
     # handles epoch_names as standard
     epoch_names = hand._epoch_name_handler(signal, epoch_names)
 
@@ -170,13 +164,5 @@ def signal_single_cell_dispersion(signal, epoch_names='single', channels='all'):
     return disp
 
 
-
-
-
-
-
-
-
-
-
+### pipeline wrappers
 
