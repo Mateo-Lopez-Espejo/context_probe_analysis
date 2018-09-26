@@ -6,7 +6,6 @@ import numpy as np
 import scipy.ndimage.filters as sf
 import scipy.signal as ssig
 
-from cpp_dispersion import _sig_bin_to_time as btt
 from cpp_parameter_handlers import _epoch_name_handler, _channel_handler
 
 
@@ -15,7 +14,6 @@ from cpp_parameter_handlers import _epoch_name_handler, _channel_handler
 # responses to different stimuli ...
 
 ### helper functions
-
 
 def _subplot_handler(epoch_names, channels):
     ax_num = len(channels)
@@ -29,6 +27,22 @@ def _subplot_handler(epoch_names, channels):
 
     return fig, axes
 
+
+def _sig_bin_to_time(sign_window, window, fs):
+    # takes a boolean matrix of significance, the size of the window and the sampling frequency an transforms into a
+    # array of times describing the start and end of streches of significance
+
+    start_times = list()
+    end_times = list()
+
+    for cc in range(sign_window.shape[0]):  # iterates over the channels/cells
+        bin_ind = np.where(sign_window[cc, :] == True)[0]
+        start = bin_ind / fs  # thise indexing takes out the array from the tupple
+        end = start + (window / fs)
+        start_times.append(start)
+        end_times.append(end)
+
+    return start_times, end_times
 
 ### base plotting functions
 
@@ -508,7 +522,7 @@ def hybrid(signal, epoch_names='single', channels='all', start=None, end=None,
         # some preprocesing of the significance matrix
         defaults = {'window': 1}
         for key, val in defaults.items(): sign_kws.setdefault(key, val)
-        start_times, end_times = btt(significance, fs=signal.fs, **sign_kws)
+        start_times, end_times = _sig_bin_to_time(significance, fs=signal.fs, **sign_kws)
 
     # handles scatter_kws
     scatter_kws = {} if scatter_kws is None else scatter_kws
@@ -562,38 +576,4 @@ def hybrid(signal, epoch_names='single', channels='all', start=None, end=None,
             ax.legend()
     fig.suptitle(signal.name)
 
-    return fig, matrices
-
-
-def population_significance(significance_matrix, signal, ):
-    # raster significance
-    raise NotImplementedError
-    # scat_kwargs = {'s': 10}
-    # fig, ax = cplt._raster(times, pop_sign, scatter_kws=scat_kwargs)
-    #
-    # # organizes by last significant time for clarity
-    # def sort_by_last_significant_bin(unsorted):
-    #     last_True = list()
-    #     for cell in range(unsorted.shape[0]):
-    #         # find last significant point
-    #         idxs = np.where(unsorted[cell, :] == True)[0]
-    #         if idxs.size == 0:
-    #             idxs = 0
-    #         else:
-    #             idxs = np.max(idxs)
-    #         last_True.append(idxs)
-    #     sort_idx = np.argsort(np.asarray(last_True))
-    #
-    #     # initializes empty sorted array
-    #     sorted_sign = np.empty(shape=unsorted.shape)
-    #     for ii, ss in enumerate(sort_idx):
-    #         sorted_sign[ii, :] = pop_sign[ss, :]
-    #
-    #     return sorted_sign
-    #
-    # sorted_sign = sort_by_last_significant_bin(pop_sign)
-    #
-    # # rasters the sorted significances
-    #
-    # fig, ax = cplt._raster(times, sorted_sign, scatter_kws=scat_kwargs)
-
+    return fig, axes

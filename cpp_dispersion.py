@@ -1,12 +1,18 @@
+import itertools as itt
+import math
+
 import numpy as np
 import scipy.stats as sst
+from matplotlib import pyplot as plt
 from sklearn.metrics.pairwise import pairwise_distances
 
 import cpp_parameter_handlers as hand
-
 ### helper funtions
+import cpp_plots as cplt
 
-def _into_windows(array, window, axis = -1, rolling=True, padding=np.nan,):
+
+
+def _into_windows(array, window, axis=-1, rolling=True, padding=np.nan, ):
     '''
     I am so proud of this fucntion. Takes an nd array, of N dimensions and generates an array of N+1 of windows across
     the selected dimention. The selected dimention becomes window number, and the new last dimension becomes the original
@@ -43,117 +49,155 @@ def _into_windows(array, window, axis = -1, rolling=True, padding=np.nan,):
 
     if rolling == True:
         newshape = list(old_shape)
-        newshape.append(window) # just add a new dimention of window length and the end
+        newshape.append(window)  # just add a new dimention of window length and the end
         windowed = np.empty(newshape)
 
         for ii in range(old_shape[-1]):
             windowed[..., ii, :] = padded[..., ii:ii + window]
 
     elif rolling == False:
-        old_ax_len = int(pad_shape[-1]/window) # windowed dimention divided by window len
+        old_ax_len = int(pad_shape[-1] / window)  # windowed dimention divided by window len
         newshape = pad_shape
-        newshape[-1] = old_ax_len # modifies old dimention
-        newshape.append(window) # add new dimention i.e. elements along window.
-        windowed = padded.reshape(newshape, order='C') # C order, changes las index the fastest.
-
+        newshape[-1] = old_ax_len  # modifies old dimention
+        newshape.append(window)  # add new dimention i.e. elements along window.
+        windowed = padded.reshape(newshape, order='C')  # C order, changes las index the fastest.
 
     # returs to the "original" dimention order, where the windowed dimention becomes the window dimention i.e. window number
     # and the last dimension becomes the values corresponding to the selected dimnesion, along each window.
-    windowed = windowed.swapaxes(axis, -2) # swaps the original last dimension(-2) back in place
+    windowed = windowed.swapaxes(axis, -2)  # swaps the original last dimension(-2) back in place
 
     return windowed
 
 
-def _into_rolling_windows(array, window, axis, padding=np.nan): # todo deprecate
+### helper dispersion functions
 
+def _window_kruskal(working_slice):
     '''
-    makes a 2d array into a 3d array containing a colection of rolled windows in time
-    :param array: 2D array, with dimentions Channels x Time bins
-    :param window: window size in time bins
-    :param padding: value to fill the end of the rolling windows, nan is default
-    :return: 3d array with dimetions Channels x Windows x Time bins in window
+    calculates kruskal wallis between contexts , binning by time,
+    for an array of shape Repetition x Context x Time
+    :param working_slice: 3d ndarray with dims Repetition x Context x Time
+    :return: float pvalue
+    '''
+    # flattens the window time bin dimension into the Repetition dimension
+    working_slice = np.swapaxes(working_slice, 0, 1)
+    work_shape = working_slice.shape
+    working_slice = working_slice.reshape(
+        work_shape[0],
+        work_shape[1] * work_shape[2], order='C')  # dimensions = Context x (Repetitions * window Time bin)
+
+    # kruskal Wallis pvalue calculates simultaneously for all contexts
+    try:
+        kruscal = sst.kruskal(*working_slice)
+        pval = kruscal.pvalue
+    except:
+        pval = np.nan
+
+    return pval
+
+
+def _window_pearsons(working_slice):
+    '''
+    calculates mean of the pairwise pearsons correlation of the PSTHs (i.e. collapsed repetitions) between contexts
+    for an array of shape Repetition x Context x Time
+    :param working_slice: 3d ndarray with dims Repetition x Context x Time
+    :return: float pvalue
     '''
 
-    padded = np.empty([array.shape[0], array.shape[1] + window - 1])
-    padded[:] = padding
-    padded[:array.shape[0], :array.shape[1]] = array
+    def _working_slice_rval(working_slice):
+        # input array should have shape Repetitions x Context x Time
+        # calculates PSTH i.e. mean across repetitions
+        psth = working_slice.mean(axis=0)  # dimentions Context x WindowTime
+        # initializes array for cc of all combinations
+        combs = int(math.factorial(psth.shape[0]) / (2 * math.factorial(psth.shape[0] - 2)))
+        r_values = np.empty(combs)
+        # iterates over every pair of contexts
+        for ctx, (ctx1, ctx2) in enumerate(itt.combinations(range(psth.shape[0]), 2)):
+            # calculates an holds the correlation coeficient
+            r_val, pval = sst.pearsonr(psth[ctx1, :], psth[ctx2, :])
+            r_values[ctx] = r_val
 
-    windowed = np.empty([array.shape[0], array.shape[1], window])
+        mean_r = r_values.mean()
+        return mean_r
 
-    for ii in range(array.shape[1]):
-        windowed[:, ii, :] = padded[:, ii:ii + window]
+    # 1. calculates the mean of the pairwise correlation coefficient between al differente contexts
+    obs_rval = _working_slice_rval(working_slice)
 
-    return windowed
+    # 2. shuffles across repetitions a contexts
+    # collapses repetition and context together
+    collapsed = working_slice.swapaxes(0,2) # maktes time the first axis, the only relevant to hold
+    t, c, r = collapsed.shape
+    collapsed = collapsed.reshape([t, c * r], order='C')
+    # makes the dimention to suffle first, to acomodate for numpy way of shuffling
+    shuffled = collapsed.T # dimentions (C*R) x T
 
+    shuffle_n = 100
 
-def _into_static_windows(array, window, padding=np.nan): #todo deprecate
-    '''
-    makes a 2d array into a 3d array containing a collection of succesive, non overlaping windows in time
-    :param array: 2d array, with dimentions Channels x Time bins
-    :param window: window size in time bins
-    :param padding: value to fill the last windows, nan is default
-    :return: 3d array with dimentions Channels x Windows x Time bins in window
-    '''
+    rval_floor = np.empty([100])
 
-    extra_len = int((window * np.ceil(array.shape[1]/window)) - array.shape[1])
+    # n times shuffle
 
-    padded = np.empty([array.shape[0], array.shape[1] + extra_len])
-    padded[:] = padding
-    padded[:array.shape[0], :array.shape[1]] = array
+    for rep in range(shuffle_n):
+        # shuffles array
+        np.random.shuffle(shuffled)
+        # reshapes
+        reshaped = shuffled.T.reshape(t, c, r)
+        reshaped = reshaped.swapaxes(0,1)
+        # calculates pairwise r_value
+        rval_floor[rep] = _working_slice_rval(reshaped)
 
-    windowed = padded.reshape(array.shape[0], int(padded.shape[1]/window), window)
+    pvalue = (rval_floor > obs_rval).sum()/shuffle_n
 
-    return windowed
+    return pvalue
 
 
 ### base dispersion fucntions
 
-def _single_cell_dispersion(matrixes, channels='all', window=1, rolling=False):
+def _single_cell_sigdif(matrixes, channels='all', window=1, rolling=False, type='Kruskal'):
     '''
-    given a dictionary of matrices (from signal.extract_epochs), calculates pvalue for a Kruskal Wallis considering
-    the response to the different stimuli (different epochs, each of the keywords in the dictionary)
-    . these calculations are done over time i.e. for each time bin
-    :param matrix: a dictionary of matrices of dimensions Repetitions x Cells x Time.
-                   Each keywords corresponds to a different stimulus
-    :channels: the channels/cells to consider (second dimension of input matrices)
+    given a dictionary of matrices (from signal.extract_epochs), calculates pvalue for a difference metric
+    for the response to the different contexts of a stimuli (different epochs, each of the keywords in the dictionary).
+    these calculations are done over time i.e. for each time bin
+
+    :param matrixes: a dictionary of matrices of dimensions Repetitions x Cells x Time. Each keywords corresponds to a different stimulus
+    :param channels: the channels/cells to consider (second dimension of input matrices)
+    :param window: window size in time bins over which to perform the calculations.
+    :param rolling: boolena, wheather to use rolling windows or non overlapping yuxtaposed windows
+    :param type: keyword defining what metric to use. 'Kruskal' for Kurscal Wallis,
+    'Pearsons' for mean of pairwise correlation coefficient.
     :return: an array of shape Cell x Time, of pvalues for each cell across time.
     '''
     # stacks all matrixes (different vocalizations) across new axis, then selects the desired cell
-    full_mat = np.stack(matrixes.values(), axis=3) # shape: Repetitions x Channels x TimeBins x ContextStimuli
+    full_mat = np.stack(matrixes.values(), axis=3)  # shape: Repetitions x Channels x TimeBins x ContextStimuli
 
     # handles channel keywords
     channels = hand._channel_handler(full_mat[..., 0], channels)
 
     # generates the windowed array
-
     windowed = _into_windows(full_mat, window=window, axis=2, rolling=rolling)
-
 
     # initializes result matrix with shape C x T where C is cell and T is time or TimeWindow
     shape = windowed.shape
-    kruscal_over_time = np.zeros([len(channels), shape[2]])  # empty array of dimentions Cells x Time
+    metric_over_time = np.zeros([len(channels), shape[2]])  # empty array of dimentions Cells x Time
 
     # iterates over cell
     for cc, cell in enumerate(channels):
         # iterates over time window
-        for time in range(shape[2]):
-            working_slice = windowed[:, cell, time, :,:]  # array has dimentions Repetition x Context x winndow Time bin
-            # flattens the window time bin dimension into the Repetition dimension
-            working_slice = np.swapaxes(working_slice, 0, 1)
-            work_shape = working_slice.shape
-            working_slice = working_slice.reshape(work_shape[0], work_shape[1] * work_shape[2])
+        for wind in range(shape[2]):
+            working_slice = windowed[:, cell, wind, :, :]  # array has dimensions Repetition x Context x window Time bin
 
-            try:
-                kruscal = sst.kruskal(*working_slice)
-                pval = kruscal.pvalue
-            except:
-                pval = np.nan
-            kruscal_over_time[cc, time] = pval
+            # selects betwee different metrics
+            if type == 'Kruskal':
+                pvalue = _window_kruskal(working_slice)
 
-    return kruscal_over_time
+            if type == 'Pearsons':
+                pvalue = _window_pearsons(working_slice)
+
+            metric_over_time[cc, wind] = pvalue
+
+    return metric_over_time
 
 
-def _significance_criterion(pvalues, window=1, alpha=0.01):
+def _significance_criterion(pvalues, window=1, threshold=0.01, comp='<='):
     '''
     acording to Asari and sador, to determine significance of a contextual effect, and to avoid false possitive
     due to multiple comparisons, significant differences are only acepted if there are streches of consecutive time bins
@@ -161,35 +205,24 @@ def _significance_criterion(pvalues, window=1, alpha=0.01):
     acording to an alpha threshold an a window size
     :param pvalues: 2d array of dimentions C x T where C are cells/channels and T are time bins
     :param window: rolling window sizes in number of time bins, default 1 i.e time window = bin size
-    :param alpha: certainty threshold, by default 0.01
+    :param threshold: certainty threshold, by default 0.01
     :return: boolean array of the same dimentions of pvalues array
     '''
 
     # windowed = _into_rolling_windows(pvalues, window, padding=np.nan)
     windowed = _into_windows(pvalues, window=window, axis=1, rolling=True, padding=np.nan)
 
-    sign_bin = np.where(windowed <= alpha, True, False)  # which individual time bins are significant
+    # which individual time bins are significant
+    if comp == '<=':
+        sign_bin = np.where(windowed <= threshold, True, False)
+    elif comp == '>=':
+        sign_bin = np.where(windowed >= threshold, True, False)
+    else:
+        raise ValueError(" only '<=' and '>=' defined")
 
     sign_window = np.all(sign_bin, axis=2)  # which windows contain only significant bins
 
     return sign_window
-
-
-def _sig_bin_to_time(sign_window, window, fs):
-    # takes a boolean matrix of significance, the size of the window and the sampling frequency an transforms into a
-    # array of times describing the start and end of streches of significance
-
-    start_times = list()
-    end_times = list()
-
-    for cc in range(sign_window.shape[0]):  # iterates over the channels/cells
-        bin_ind = np.where(sign_window[cc, :] == True)[0]
-        start = bin_ind / fs  # thise indexing takes out the array from the tupple
-        end = start + (window / fs)
-        start_times.append(start)
-        end_times.append(end)
-
-    return start_times, end_times
 
 
 def _pairwise_distance_within(matrix):
@@ -251,12 +284,8 @@ def _pairwise_distance_between(matrixes):
 
 ### signal wrapers
 
-def signal_single_cell_dispersion(signal, epoch_names='single', channels='all', window_kws=None):
-
-    # window keywords
-    window_kws = {} if window_kws is None else window_kws
-
-
+def signal_single_cell_sigdif(signal, epoch_names='single', channels='all', window=1, rolling=False,
+                              type='Kruskal'):
     # handles epoch_names as standard
     epoch_names = hand._epoch_name_handler(signal, epoch_names)
 
@@ -265,10 +294,130 @@ def signal_single_cell_dispersion(signal, epoch_names='single', channels='all', 
 
     matrixes = signal.rasterize().extract_epochs(epoch_names)
 
-    disp = _single_cell_dispersion(matrixes, channels=channels, **window_kws)
+    disp = _single_cell_sigdif(matrixes, channels=channels, window=window, rolling=rolling, type=type)
 
     return disp
 
 
-### pipeline wrappers
+### complex plotting functions
 
+def population_significance(signal, channels, probes=(1, 2, 3, 4), sort=True, window=1, rolling=True, type='Kruskal',
+                            hist=False, bins=60):
+    '''
+    makes a summary plot of the significance(black dots) over time (x axis) for each combination of cell and
+    *[contexts,...]-Probe (y axis).
+    :param signal: a signal object with cpp epochs
+    :param channels: channel index, cell name (or a list of the two previos). or kwd 'all' to define which channels to consider
+    :param probes: list of ints, eache one corresponds to the identity of a vocalization used as probe.
+    :param sort: boolean. If True sort by last siginificant time bin.
+    :param window: time window size, in time bins, over which calculate significant difference metrics
+    :param rolling: boolean, If True, uses rolling window of stride 1. If False uses non overlaping yuxtaposed windows
+    :param type: keyword defining what metric to use. 'Kruskal' for Kurscal Wallis,
+    'Pearsons' for mean of pairwise correlation coefficient.
+    :param hist: Boolean, If True, draws a histogram of significance over time (cololapsing by cell-probe identity)
+    :param bins: number of bins of the histogram
+    :return: figure, axis
+    '''
+    # todo clean this function
+    all_probes = list()
+    compound_names = list()
+
+    # calculates dipersion pval for eache set of contexts probe.
+    for pp in probes:
+        this_probe = r'\AC\d_P{}'.format(pp)
+        disp_mat = signal_single_cell_sigdif(signal, epoch_names=this_probe, channels=channels,
+                                             window=window, rolling=rolling, type=type)
+
+        chan_idx = hand._channel_handler(signal, channels)
+        cell_names = [name for nn, name in enumerate(signal.chans) if nn in chan_idx]
+        comp_names = ['C*_P{}: {}'.format(pp, cell_name) for cell_name in cell_names]
+
+        all_probes.append(disp_mat)
+        compound_names.extend(comp_names)
+
+    compound_names = np.asarray(compound_names)
+
+    # concatenates across first dimention i.e. cell/channel
+    pop_pval = np.concatenate(all_probes, axis=0)
+
+
+    # defines significance, uses window size equal to time bin size
+    pop_sign = _significance_criterion(pop_pval, window=1, threshold=0.01, comp='<=')  # array with shape
+
+    times = np.arange(0, pop_sign.shape[1]) / signal.fs
+
+    if hist is False:
+        # set size of scatter markers
+        scat_kwargs = {'s': 10}
+        # raster significance, unsorted
+        if sort is False:
+            fig, ax = cplt._raster(times, pop_sign, scatter_kws=scat_kwargs)
+            ax.set_yticks(np.arange(0, pop_sign.shape[0], 1))
+            ax.set_yticklabels(compound_names)
+
+        elif sort is True:
+            # organizes by last significant time for clarity
+            def sort_by_last_significant_bin(unsorted):
+                last_True = list()
+                for cell in range(unsorted.shape[0]):
+                    # find last significant point
+                    idxs = np.where(unsorted[cell, :] == True)[0]
+                    if idxs.size == 0:
+                        idxs = 0
+                    else:
+                        idxs = np.max(idxs)
+                    last_True.append(idxs)
+                sort_idx = np.argsort(np.asarray(last_True))
+
+                # initializes empty sorted array
+                sorted_sign = np.empty(shape=unsorted.shape)
+                for ii, ss in enumerate(sort_idx):
+                    sorted_sign[ii, :] = pop_sign[ss, :]
+
+                return sorted_sign, sort_idx
+
+            sorted_sign, sort_idx = sort_by_last_significant_bin(pop_sign)
+            sorted_names = compound_names[sort_idx]
+
+            # rasters the sorted significances
+            fig, ax = cplt._raster(times, sorted_sign, scatter_kws=scat_kwargs)
+            ax.set_yticks(np.arange(0, sorted_sign.shape[0], 1))
+            ax.set_yticklabels(sorted_names)
+
+    elif hist is True:
+        _, sign_times = np.where(pop_sign == True)
+
+        fig, ax = plt.subplots()
+        ax.hist(sign_times, bins=bins)
+
+    return fig, ax
+
+
+def plot_single(signal, channels, epochs, window=1, rolling=False, type='Kruskal'):
+    '''
+    calculates significant difference over time for the specified cells/channels and *[contexts,...]-probe (epochs),
+    overlays gray vertical bars to hybrid plot (raster + PSTH) on time bins with significante difference between
+    contexts
+    :param channels: channel index, cell name (or a list of the two previos). or kwd 'all' to define which channels to consider
+    :param epochs:  epoch name (str), regexp, list of epoch names, 'single', 'pair'. keywords 'single' and 'pair'
+    correspond to all single vocalization, and pair of context probe vocalizations.
+    :param window: time window size, in time bins, over which calculate significant difference metrics
+    :param rolling: boolean, If True, uses rolling window of stride 1. If False uses non overlaping yuxtaposed windows
+    :param type: keyword defining what metric to use. 'Kruskal' for Kurscal Wallis,
+    :return: figure, axes
+    '''
+    # todo clean this function
+    # calculates significant difference between different context across time
+    disp_pval = signal_single_cell_sigdif(signal, epoch_names=epochs, channels=channels, window=window,
+                                          rolling=rolling, type=type)
+
+
+    # defines significance, uses window size equal to time bin size
+    significance = _significance_criterion(disp_pval, window=1, threshold=0.01, comp='<=')  # array with shape
+
+    # overlays significatn times on the raster and PSTH for the specified cells and context probe pairs
+    scat_key = {'s': 5, 'alpha': 0.5}
+    fig, axes = cplt.hybrid(signal, epoch_names=epochs, channels=channels, start=3, end=6, scatter_kws=scat_key,
+                            significance=significance)
+
+    return fig, axes

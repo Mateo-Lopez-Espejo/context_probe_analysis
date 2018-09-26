@@ -3,17 +3,16 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 import cpp_PCA as cpca
-import cpp_dispersion as cdisp
 import cpp_epochs as cpe
-import cpp_parameter_handlers as hand
 import cpp_plots as cplt
 import nems.recording as recording
 import nems_db.baphy as nb
-
 # multi electode array loading options
+import cpp_dispersion as cdisp
+
 options = {'batch': 310,
            'site': 'BRT037b',
-           'rasterfs': 10}
+           'rasterfs': 100}
 
 # todo this is creating a cache in charlies directory, move somewhere else!
 # gives the uri to a cached recording. if the cached data does not exists, creates it and saves it.
@@ -53,7 +52,7 @@ if plot == True:
         toplot = np.cumsum(pca.explained_variance_ratio_)
         ax.plot(toplot, '.-')
         ax.set_xlabel('number of components')
-        ax.set_ylabel('cumulative explained variance');
+        ax.set_ylabel('cumulative explained variance')
         ax.set_title('PCA: fraction of variance explained')
 
     # selects most responsive celll
@@ -102,13 +101,13 @@ good_cell_names = [chan_name for cc, chan_name in enumerate(sig.chans) if cc in 
 filt_sig = sig.extract_channels(good_cell_names)
 filt_pca, PCA = cpca.signal_PCA(filt_sig, center=True)
 
-if plot == True:
+if plot is True:
     # variance explained by PCs
     fig, ax = plt.subplots()
     toplot = np.cumsum(PCA.explained_variance_ratio_)
     ax.plot(toplot, '.-')
     ax.set_xlabel('number of components')
-    ax.set_ylabel('cumulative explained variance');
+    ax.set_ylabel('cumulative explained variance')
     ax.set_title('PCA: fraction of variance explained')
 
     # ... so far not more encouragig
@@ -129,138 +128,45 @@ if plot == True:
     cplt.signal_trajectory(filt_sig, dims=[0, 3, 4], epoch_names=r'\AC0_P\d', _trajectory_kws=traj_kws)
     cplt.signal_trajectory(filt_pca, dims=3, epoch_names=r'\AC0_P\d', _trajectory_kws=traj_kws)
 
-
-
-
 ############################## dispersion analyis
 # example of full population ploting for a set of all contexts to a probe
 epoch_names = r'\AC\d_P3'
 channels = 'all'
-
-# todo clean this function, move elsewhere
-def plot_single(channels, epochs, window_kws=None):
-    # calculates kurskal wallis between different context across time
-    disp_pval = cdisp.signal_single_cell_dispersion(sig, epoch_names=epochs, channels=channels, window_kws=window_kws)
-    # defines significance, uses window size equal to time bin size
-    insignificance = cdisp._significance_criterion(disp_pval, window=1, alpha=0.01)  # array with shape
-
-    # overlays significatn times on the raster and PSTH for the specified cells and context probe pairs
-    scat_key = {'s': 5, 'alpha': 0.5}
-    fig, ax = cplt.hybrid(sig, epoch_names=epochs, channels=channels, start=3, end=6, scatter_kws=scat_key,
-                          significance=insignificance)
-
-    return fig, ax
-
-fig, ax = plot_single(channels, epoch_names)
+fig, ax = cdisp.plot_single(sig, channels, epoch_names)
 fig.suptitle('full population example for probe 3')
 
 ##############################
 # considers each combination of cell/probe as an independent recording (disregard cell identity)
 # 1 iterates over all relevant probes i.e. excludes silence
-# todo clean this function, move elsewhere
-def population_significance(signal, channels, probes=[1, 2, 3, 4], sort=True, window_kws=None, hist=False, bins=60):
-    all_probes = list()
-    compound_names = list()
 
-    # calculates dipersion pval for eache set of contexts probe.
-    for pp in probes:
-        this_probe = r'\AC\d_P{}'.format(pp)
-        disp_mat = cdisp.signal_single_cell_dispersion(signal, epoch_names=this_probe, channels=channels,
-                                                       window_kws=window_kws)
-
-        chan_idx = hand._channel_handler(signal, channels)
-        cell_names = [name for nn, name in enumerate(signal.chans) if nn in chan_idx]
-        comp_names = ['C*_P{}: {}'.format(pp, cell_name) for cell_name in cell_names]
-
-        all_probes.append(disp_mat)
-        compound_names.extend(comp_names)
-
-    compound_names = np.asarray(compound_names)
-
-    # concatenates across first dimention i.e. cell/channel
-    pop_pval = np.concatenate(all_probes, axis=0)
-
-    # defines significnce
-    pop_sign = cdisp._significance_criterion(pop_pval, window=1, alpha=0.01)
-    times = np.arange(0, pop_sign.shape[1]) / signal.fs
-
-
-    if hist == False:
-        # set size of scatter markers
-        scat_kwargs = {'s': 10}
-        # raster significance, unsorted
-        if sort == False:
-            fig, ax = cplt._raster(times, pop_sign, scatter_kws=scat_kwargs)
-            ax.set_yticks(np.arange(0, pop_sign.shape[0], 1))
-            ax.set_yticklabels(compound_names)
-
-        elif sort == True:
-            # organizes by last significant time for clarity
-            def sort_by_last_significant_bin(unsorted):
-                last_True = list()
-                for cell in range(unsorted.shape[0]):
-                    # find last significant point
-                    idxs = np.where(unsorted[cell, :] == True)[0]
-                    if idxs.size == 0:
-                        idxs = 0
-                    else:
-                        idxs = np.max(idxs)
-                    last_True.append(idxs)
-                sort_idx = np.argsort(np.asarray(last_True))
-
-                # initializes empty sorted array
-                sorted_sign = np.empty(shape=unsorted.shape)
-                for ii, ss in enumerate(sort_idx):
-                    sorted_sign[ii, :] = pop_sign[ss, :]
-
-                return sorted_sign, sort_idx
-
-            sorted_sign, sort_idx = sort_by_last_significant_bin(pop_sign)
-
-            sorted_names = compound_names[sort_idx]
-
-            # rasters the sorted significances
-
-            fig, ax = cplt._raster(times, sorted_sign, scatter_kws=scat_kwargs)
-            ax.set_yticks(np.arange(0, sorted_sign.shape[0], 1))
-            ax.set_yticklabels(sorted_names)
-
-    elif hist == True:
-        _, sign_times = np.where(pop_sign == True)
-
-        fig, ax = plt.subplots()
-        ax.hist(sign_times, bins=bins)
-    return fig, ax
-
-
-fig, ax = population_significance(sig, channels='all')
+fig, ax = cdisp.population_significance(sig, channels='all')
 fig.suptitle('all cells * all cpp')
 ax.axvline(3, color='red')
 
 # sanity check 1. a cell without any significant bins
 insig_eps = r'\AC\d_P4'
 insig_cell = 'BRT037b-39-1'
-plot_single(insig_cell, insig_eps)
+cdisp.plot_single(sig, insig_cell, insig_eps)
 
 # sanity check 2. plots the cell with the latest significant bin
 sign_eps = r'\AC\d_P4'
 sign_cell = 'BRT037b-06-1'
-plot_single(sign_cell, sign_eps)
+cdisp.plot_single(sig, sign_cell, sign_eps)
 
 ##############################
 # repeat the 'population sumary plots' but only keeping good cells.
-fig, ax = population_significance(sig, channels=good_cell_index, sort=True)
+fig, ax = cdisp.population_significance(sig, channels=good_cell_index, sort=True)
 fig.suptitle('good cells * all cpps, significant difference over time')
 ax.axvline(3, color='red')
 
 # plots worst and best
 best_cell = 'BRT037b-46-1'
 best_probe = r'\AC\d_P4'
-plot_single(best_cell, best_probe)
+cdisp.plot_single(sig, best_cell, best_probe)
 
 worst_cell = 'BRT037b-31-1'
 worst_probe = r'\AC\d_P1'
-plot_single(worst_cell, worst_probe)
+cdisp.plot_single(sig, worst_cell, worst_probe)
 
 ##############################
 ### calculates pvalues with a rolling window
@@ -268,28 +174,51 @@ epoch_names = r'\AC\d_P3'
 channels = good_cell_index
 
 # calculates kurskal wallis between different context across time
-wind_kws = {'window': 5, 'rolling': True}
+wind_kws = {'window': 5, 'rolling': True, 'type': 'Kruskal'}
 
 # plots all cells for example cpp
-fig, ax = plot_single(channels=channels, epochs=epoch_names, window_kws=wind_kws)
+fig, ax = cdisp.plot_single(sig, channels=channels, epochs=epoch_names, **wind_kws)
 
-fig, ax = population_significance(sig, channels=channels, sort=True, window_kws=wind_kws)
+fig, ax = cdisp.population_significance(sig, channels=channels, sort=True, **wind_kws)
 ax.axvline(3, color='red')
 fig.suptitle('all cells * all cpp, kruskal window = 5')
 
 # plots best
 sig_eps = r'\AC\d_P1'
 sig_cell = 'BRT037b-33-3'
-fig, ax =plot_single(sig_cell, sig_eps, wind_kws)
+fig, ax = cdisp.plot_single(sig, channels=sig_cell, epochs=sig_eps, **wind_kws)
 fig.suptitle('latest significance')
 
 # plots wort
 insig_eps = r'\AC\d_P4'
 insig_cell = 'BRT037b-38-1'
-fig, ax = plot_single(insig_cell, insig_eps, wind_kws)
+fig, ax = cdisp.plot_single(sig, channels=insig_cell, epochs=insig_eps, **wind_kws)
 fig.suptitle('earliest significance')
 
+##############################
+### calculates the mean of pairwise correlation coefficient for all contexts
 
+epoch_names = r'\AC\d_P3'
+channels = good_cell_index
 
+# calculates pairwise cc between different context across time
+wind_kws = {'window': 5, 'rolling': True, 'type': 'Pearsons'}
 
+# plots all cells for example cpp
+fig, ax = cdisp.plot_single(sig, channels=channels, epochs=epoch_names, **wind_kws)
 
+fig, ax = cdisp.population_significance(sig, channels=channels, sort=True, **wind_kws)
+ax.axvline(3, color='red')
+fig.suptitle('all cells * all cpp, kruskal window = 5')
+
+# plots best
+sig_eps = r'\AC\d_P4'
+sig_cell = 'BRT037b-46-1'
+fig, ax = cdisp.plot_single(sig, channels=sig_cell, epochs=sig_eps, **wind_kws)
+fig.suptitle('latest significance')
+
+# plots wort
+insig_eps = r'\AC\d_P3'
+insig_cell = 'BRT037b-39-1'
+fig, ax = cdisp.plot_single(sig, channels=insig_cell, epochs=insig_eps, **wind_kws)
+fig.suptitle('earliest significance')
