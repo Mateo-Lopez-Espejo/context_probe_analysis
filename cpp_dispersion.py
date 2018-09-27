@@ -11,7 +11,6 @@ import cpp_parameter_handlers as hand
 import cpp_plots as cplt
 
 
-
 def _into_windows(array, window, axis=-1, rolling=True, padding=np.nan, ):
     '''
     I am so proud of this fucntion. Takes an nd array, of N dimensions and generates an array of N+1 of windows across
@@ -124,11 +123,11 @@ def _window_pearsons(working_slice):
 
     # 2. shuffles across repetitions a contexts
     # collapses repetition and context together
-    collapsed = working_slice.swapaxes(0,2) # maktes time the first axis, the only relevant to hold
+    collapsed = working_slice.swapaxes(0, 2)  # maktes time the first axis, the only relevant to hold
     t, c, r = collapsed.shape
     collapsed = collapsed.reshape([t, c * r], order='C')
     # makes the dimention to suffle first, to acomodate for numpy way of shuffling
-    shuffled = collapsed.T # dimentions (C*R) x T
+    shuffled = collapsed.T  # dimentions (C*R) x T
 
     shuffle_n = 100
 
@@ -141,24 +140,24 @@ def _window_pearsons(working_slice):
         np.random.shuffle(shuffled)
         # reshapes
         reshaped = shuffled.T.reshape(t, c, r)
-        reshaped = reshaped.swapaxes(0,1)
+        reshaped = reshaped.swapaxes(0, 1)
         # calculates pairwise r_value
         rval_floor[rep] = _working_slice_rval(reshaped)
 
-    pvalue = (rval_floor > obs_rval).sum()/shuffle_n
+    pvalue = (rval_floor > obs_rval).sum() / shuffle_n
 
     return pvalue
 
 
 ### base dispersion fucntions
 
-def _single_cell_sigdif(matrixes, channels='all', window=1, rolling=False, type='Kruskal'):
+def _single_cell_sigdif(matrices, channels='all', window=1, rolling=False, type='Kruskal'):
     '''
     given a dictionary of matrices (from signal.extract_epochs), calculates pvalue for a difference metric
     for the response to the different contexts of a stimuli (different epochs, each of the keywords in the dictionary).
     these calculations are done over time i.e. for each time bin
 
-    :param matrixes: a dictionary of matrices of dimensions Repetitions x Cells x Time. Each keywords corresponds to a different stimulus
+    :param matrices: a dictionary of matrices of dimensions Repetitions x Cells x Time. Each keywords corresponds to a different stimulus
     :param channels: the channels/cells to consider (second dimension of input matrices)
     :param window: window size in time bins over which to perform the calculations.
     :param rolling: boolena, wheather to use rolling windows or non overlapping yuxtaposed windows
@@ -166,8 +165,8 @@ def _single_cell_sigdif(matrixes, channels='all', window=1, rolling=False, type=
     'Pearsons' for mean of pairwise correlation coefficient.
     :return: an array of shape Cell x Time, of pvalues for each cell across time.
     '''
-    # stacks all matrixes (different vocalizations) across new axis, then selects the desired cell
-    full_mat = np.stack(matrixes.values(), axis=3)  # shape: Repetitions x Channels x TimeBins x ContextStimuli
+    # stacks all matrices (different vocalizations) across new axis, then selects the desired cell
+    full_mat = np.stack(matrices.values(), axis=3)  # shape: Repetitions x Channels x TimeBins x ContextStimuli
 
     # handles channel keywords
     channels = hand._channel_handler(full_mat[..., 0], channels)
@@ -340,7 +339,6 @@ def population_significance(signal, channels, probes=(1, 2, 3, 4), sort=True, wi
     # concatenates across first dimention i.e. cell/channel
     pop_pval = np.concatenate(all_probes, axis=0)
 
-
     # defines significance, uses window size equal to time bin size
     pop_sign = _significance_criterion(pop_pval, window=1, threshold=0.01, comp='<=')  # array with shape
 
@@ -411,7 +409,6 @@ def plot_single(signal, channels, epochs, window=1, rolling=False, type='Kruskal
     disp_pval = signal_single_cell_sigdif(signal, epoch_names=epochs, channels=channels, window=window,
                                           rolling=rolling, type=type)
 
-
     # defines significance, uses window size equal to time bin size
     significance = _significance_criterion(disp_pval, window=1, threshold=0.01, comp='<=')  # array with shape
 
@@ -421,3 +418,34 @@ def plot_single(signal, channels, epochs, window=1, rolling=False, type='Kruskal
                             significance=significance)
 
     return fig, axes
+
+
+### test unit
+
+def test_object():
+    # single context params
+    rep_num = 10
+    cell_num = 2
+    bin_num = 20
+
+    cell_std = (0.25, 2)
+    cont_means = (2 ,5, 8)
+
+    matrices = dict()
+
+    for context, mean in enumerate(cont_means):
+        matix = np.empty(
+            [rep_num, cell_num, bin_num])  # shape: Repetitions x Channels x TimeBins
+        for cell, std in enumerate(cell_std):
+            for rep in range(rep_num):
+                # generates a silence and signal strech of time, concatenates
+                silence = np.zeros(int(bin_num/2)) + np.random.normal(0, std, int(bin_num/2))
+                sound = np.empty(int(bin_num/2)); sound[:] = mean
+                sound = sound + np.random.normal(mean, std, int(bin_num/2))
+                trial = np.concatenate([silence, sound], axis=0)
+
+                matix[rep, cell, :] = trial
+
+        matrices['C{}'.format(context)] = matix
+
+    return matrices
