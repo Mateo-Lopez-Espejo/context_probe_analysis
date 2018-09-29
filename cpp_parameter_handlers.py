@@ -1,3 +1,5 @@
+import warnings
+
 import numpy as np
 
 from nems import epoch as nep
@@ -81,3 +83,17 @@ def _channel_handler(mat_or_sig, channels):
         plot_chans = [mat_or_sig.chans.index(channels)]
 
     return plot_chans
+
+
+def _fs_handler(signal, fs):
+    if fs == None:
+        new_fs = signal.fs
+    elif isinstance(fs, (int, float)) and fs >0:
+        if fs > signal.fs:
+            warnings.warn('specified fs is larger than native fs. integrity of epochs cannot be asured.'
+                          'Consider loadinge the signal with a higher fs to begin with')
+        new_fs = fs
+    else:
+        raise ValueError('fs must be a number')
+
+    return new_fs

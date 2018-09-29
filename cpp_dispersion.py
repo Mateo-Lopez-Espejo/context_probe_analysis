@@ -42,6 +42,8 @@ def _into_windows(array, window, axis=-1, rolling=True, padding=np.nan, ):
         extra_len = int((window * np.ceil(pad_shape[-1] / window)) - pad_shape[-1])
         pad_shape[-1] = pad_shape[-1] + extra_len
 
+    else: raise ValueError('rolling must be a bool')
+
     padded = np.empty(pad_shape)
     padded[:] = padding
     padded[..., :swapped.shape[-1]] = swapped
@@ -139,14 +141,85 @@ def _window_pearsons(working_slice):
         # shuffles array
         np.random.shuffle(shuffled)
         # reshapes
-        reshaped = shuffled.T.reshape(t, c, r)
-        reshaped = reshaped.swapaxes(0, 1)
+        reshaped = shuffled.T.reshape(t, c, r).swapaxes(0, 2)
         # calculates pairwise r_value
         rval_floor[rep] = _working_slice_rval(reshaped)
 
-    pvalue = (rval_floor > obs_rval).sum() / shuffle_n
+    # two sided pvalue
+    # pvalue = (rval_floor > obs_rval).sum() / shuffle_n
+
+    if obs_rval > rval_floor.mean():
+        pvalue = (rval_floor > obs_rval).sum() / shuffle_n
+    elif obs_rval < rval_floor.mean():
+        pvalue = (rval_floor < obs_rval).sum() / shuffle_n
+    else:
+        pvalue = 1
 
     return pvalue
+
+
+def _window_MSD(working_slice):
+    '''
+        calculates mean of the pairwise pearsons correlation of the PSTHs (i.e. collapsed repetitions) between contexts
+        for an array of shape Repetition x Context x Time
+        :param working_slice: 3d ndarray with dims Repetition x Context x Time
+        :return: float pvalue
+        '''
+
+    def _working_slice_MSD(working_slice):
+        # input array should have shape Repetitions x Context x Time
+        # calculates PSTH i.e. mean across repetitions
+        psth = working_slice.mean(axis=0)  # dimentions Context x WindowTime
+        # initializes array to hold the calculated metric for all context pairs combinations
+        combs = int(math.factorial(psth.shape[0]) / (2 * math.factorial(psth.shape[0] - 2)))
+        msd_values = np.empty(combs)
+        # iterates over every pair of contexts
+        for ctx, (ctx1, ctx2) in enumerate(itt.combinations(range(psth.shape[0]), 2)):
+            # calculates an holds the mean standard difference
+            msd = np.nanmean((psth[ctx1, :] - psth[ctx2, :])**2) # uses nanmean to acount for the nan
+                                                                 # padding at end of rolling window
+            msd_values[ctx] = msd
+
+        mean_r = msd_values.mean()
+        return mean_r
+
+    # 1. calculates the mean of the pairwise correlation coefficient between all differente contexts
+    obs_msd = _working_slice_MSD(working_slice)
+
+    # 2. shuffles across repetitions a contexts
+    # collapses repetition and context together
+    collapsed = working_slice.swapaxes(0, 2)  # makes time the first axis, the only relevant to hold
+    t, c, r = collapsed.shape
+    collapsed = collapsed.reshape([t, c * r], order='C')
+    # makes the dimention to suffle first, to acomodate for numpy way of shuffling
+    shuffled = collapsed.T  # dimentions (C*R) x T
+
+    shuffle_n = 100
+
+    msd_floor = np.empty([100])
+
+    # n times shuffle
+
+    for rep in range(shuffle_n):
+        # shuffles array
+        np.random.shuffle(shuffled)
+        # reshapes
+        reshaped = shuffled.T.reshape(t, c, r).swapaxes(0, 2)
+        # calculates pairwise r_value
+        msd_floor[rep] = _working_slice_MSD(reshaped)
+
+
+    # pvalue = (msd_floor > obs_msd).sum() / shuffle_n
+
+    if obs_msd > msd_floor.mean():
+        pvalue = (msd_floor > obs_msd).sum() / shuffle_n
+    elif obs_msd < msd_floor.mean():
+        pvalue = (msd_floor < obs_msd).sum() / shuffle_n
+    else:
+        pvalue = 1
+
+    return pvalue
+
 
 
 ### base dispersion fucntions
@@ -188,8 +261,15 @@ def _single_cell_sigdif(matrices, channels='all', window=1, rolling=False, type=
             if type == 'Kruskal':
                 pvalue = _window_kruskal(working_slice)
 
-            if type == 'Pearsons':
+            elif type == 'Pearsons':
+                if window == 1: raise ValueError('Pearsons correlation requieres window of size > 1')
                 pvalue = _window_pearsons(working_slice)
+
+            elif type =='MSD':
+                pvalue = _window_MSD(working_slice)
+
+            else:
+                raise  ValueError('keyword {} not suported'.format(type))
 
             metric_over_time[cc, wind] = pvalue
 
@@ -283,7 +363,7 @@ def _pairwise_distance_between(matrixes):
 
 ### signal wrapers
 
-def signal_single_cell_sigdif(signal, epoch_names='single', channels='all', window=1, rolling=False,
+def signal_single_cell_sigdif(signal, epoch_names='single', channels='all', fs=None, window=1, rolling=False,
                               type='Kruskal'):
     # handles epoch_names as standard
     epoch_names = hand._epoch_name_handler(signal, epoch_names)
@@ -291,7 +371,15 @@ def signal_single_cell_sigdif(signal, epoch_names='single', channels='all', wind
     # handles channels/cells
     channels = hand._channel_handler(signal, channels)
 
-    matrixes = signal.rasterize().extract_epochs(epoch_names)
+    # handles the fs for analysis
+    fs = hand._fs_handler(signal,fs)
+
+    if fs == signal.fs:
+        tempsig = signal
+    else:
+        tempsig = signal._modified_copy(signal._data, fs=fs)
+
+    matrixes = tempsig.rasterize().extract_epochs(epoch_names)
 
     disp = _single_cell_sigdif(matrixes, channels=channels, window=window, rolling=rolling, type=type)
 
@@ -300,19 +388,21 @@ def signal_single_cell_sigdif(signal, epoch_names='single', channels='all', wind
 
 ### complex plotting functions
 
-def population_significance(signal, channels, probes=(1, 2, 3, 4), sort=True, window=1, rolling=True, type='Kruskal',
-                            hist=False, bins=60):
+def population_significance(signal, channels, probes=(1, 2, 3, 4), fs=None, sort=True, window=1, rolling=True, type='Kruskal',
+                            consecutives=1, hist=False, bins=60):
     '''
     makes a summary plot of the significance(black dots) over time (x axis) for each combination of cell and
     *[contexts,...]-Probe (y axis).
     :param signal: a signal object with cpp epochs
     :param channels: channel index, cell name (or a list of the two previos). or kwd 'all' to define which channels to consider
     :param probes: list of ints, eache one corresponds to the identity of a vocalization used as probe.
+    :fs: sampling frequency at which perform the analysis, None uses de native fs of the signal.
     :param sort: boolean. If True sort by last siginificant time bin.
     :param window: time window size, in time bins, over which calculate significant difference metrics
     :param rolling: boolean, If True, uses rolling window of stride 1. If False uses non overlaping yuxtaposed windows
     :param type: keyword defining what metric to use. 'Kruskal' for Kurscal Wallis,
     'Pearsons' for mean of pairwise correlation coefficient.
+    :consecutives: int number of consecutive significant time bins to consider "real" significance
     :param hist: Boolean, If True, draws a histogram of significance over time (cololapsing by cell-probe identity)
     :param bins: number of bins of the histogram
     :return: figure, axis
@@ -321,10 +411,13 @@ def population_significance(signal, channels, probes=(1, 2, 3, 4), sort=True, wi
     all_probes = list()
     compound_names = list()
 
-    # calculates dipersion pval for eache set of contexts probe.
+    # handlese fs
+    fs = hand._fs_handler(signal, fs)
+
+    # calculates dipersion pval for each set of contexts probe.
     for pp in probes:
         this_probe = r'\AC\d_P{}'.format(pp)
-        disp_mat = signal_single_cell_sigdif(signal, epoch_names=this_probe, channels=channels,
+        disp_mat = signal_single_cell_sigdif(signal, epoch_names=this_probe, channels=channels, fs=fs,
                                              window=window, rolling=rolling, type=type)
 
         chan_idx = hand._channel_handler(signal, channels)
@@ -340,9 +433,9 @@ def population_significance(signal, channels, probes=(1, 2, 3, 4), sort=True, wi
     pop_pval = np.concatenate(all_probes, axis=0)
 
     # defines significance, uses window size equal to time bin size
-    pop_sign = _significance_criterion(pop_pval, window=1, threshold=0.01, comp='<=')  # array with shape
+    pop_sign = _significance_criterion(pop_pval, window=consecutives, threshold=0.01, comp='<=')  # array with shape
 
-    times = np.arange(0, pop_sign.shape[1]) / signal.fs
+    times = np.arange(0, pop_sign.shape[1]) / fs
 
     if hist is False:
         # set size of scatter markers
@@ -449,3 +542,5 @@ def test_object():
         matrices['C{}'.format(context)] = matix
 
     return matrices
+
+# out = _single_cell_sigdif(test_object(),window=5, rolling=True, type='Pearsons')

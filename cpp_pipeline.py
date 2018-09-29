@@ -3,12 +3,11 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 import cpp_PCA as cpca
+import cpp_dispersion as cdisp
 import cpp_epochs as cpe
 import cpp_plots as cplt
 import nems.recording as recording
 import nems_db.baphy as nb
-# multi electode array loading options
-import cpp_dispersion as cdisp
 
 options = {'batch': 310,
            'site': 'BRT037b',
@@ -26,7 +25,6 @@ if Test == True:
     # test_rec_path = os.path.normcase('{}/BRT037b'.format(pickle_path))
     test_rec_path = '/home/mateo/context_probe_analysis/pickles/BRT037b'
     loaded_rec = jl.load(test_rec_path)
-
 
 else:
     load_URI = nb.baphy_load_multichannel_recording(**options)
@@ -128,97 +126,96 @@ if plot is True:
     cplt.signal_trajectory(filt_sig, dims=[0, 3, 4], epoch_names=r'\AC0_P\d', _trajectory_kws=traj_kws)
     cplt.signal_trajectory(filt_pca, dims=3, epoch_names=r'\AC0_P\d', _trajectory_kws=traj_kws)
 
-############################## dispersion analyis
-# example of full population ploting for a set of all contexts to a probe
-epoch_names = r'\AC\d_P3'
-channels = 'all'
-fig, ax = cdisp.plot_single(sig, channels, epoch_names)
-fig.suptitle('full population example for probe 3')
+if plot is True:
+    ############################## dispersion analyis
+    # example of full population ploting for a set of all contexts to a probe
+    epoch_names = r'\AC\d_P3'
+    channels = 'all'
+    fig, ax = cdisp.plot_single(sig, channels, epoch_names)
+    fig.suptitle('full population example for probe 3')
+
+    ##############################
+    # considers each combination of cell/probe as an independent recording (disregard cell identity)
+    # 1 iterates over all relevant probes i.e. excludes silence
+
+    fig, ax = cdisp.population_significance(sig, channels='all')
+    fig.suptitle('all cells * all cpp')
+    ax.axvline(3, color='red')
+
+    # sanity check 1. a cell without any significant bins
+    insig_eps = r'\AC\d_P4'
+    insig_cell = 'BRT037b-39-1'
+    cdisp.plot_single(sig, insig_cell, insig_eps)
+
+    # sanity check 2. plots the cell with the latest significant bin
+    sign_eps = r'\AC\d_P4'
+    sign_cell = 'BRT037b-06-1'
+    cdisp.plot_single(sig, sign_cell, sign_eps)
+
+    ##############################
+    # repeat the 'population sumary plots' but only keeping good cells.
+    fig, ax = cdisp.population_significance(sig, channels=good_cell_index, sort=True)
+    fig.suptitle('good cells * all cpps, significant difference over time')
+    ax.axvline(3, color='red')
+
+    # plots worst and best
+    best_cell = 'BRT037b-46-1'
+    best_probe = r'\AC\d_P4'
+    cdisp.plot_single(sig, best_cell, best_probe)
+
+    worst_cell = 'BRT037b-31-1'
+    worst_probe = r'\AC\d_P1'
+    cdisp.plot_single(sig, worst_cell, worst_probe)
+
+    ##############################
+    ### calculates pvalues with a rolling window
+    epoch_names = r'\AC\d_P3'
+    channels = good_cell_index
+
+    # calculates kurskal wallis between different context across time
+    wind_kws = {'window': 5, 'rolling': True, 'type': 'MSD'}
+
+    # plots all cells for example cpp
+    fig, ax = cdisp.plot_single(sig, channels=channels, epochs=epoch_names, **wind_kws)
+
+    fig, ax = cdisp.population_significance(sig, channels=channels, sort=True, **wind_kws)
+    ax.axvline(3, color='red')
+    fig.suptitle('all cells * all cpp, kruskal window = 5')
+
+    # plots best
+    sig_eps = r'\AC\d_P1'
+    sig_cell = 'BRT037b-33-3'
+    fig, ax = cdisp.plot_single(sig, channels=sig_cell, epochs=sig_eps, **wind_kws)
+    fig.suptitle('latest significance')
+
+    # plots worst
+    insig_eps = r'\AC\d_P4'
+    insig_cell = 'BRT037b-38-1'
+    fig, ax = cdisp.plot_single(sig, channels=insig_cell, epochs=insig_eps, **wind_kws)
+    fig.suptitle('earliest significance')
 
 ##############################
-# considers each combination of cell/probe as an independent recording (disregard cell identity)
-# 1 iterates over all relevant probes i.e. excludes silence
+# calculates all dispersion types for the full population
 
-fig, ax = cdisp.population_significance(sig, channels='all')
-fig.suptitle('all cells * all cpp')
-ax.axvline(3, color='red')
-
-# sanity check 1. a cell without any significant bins
-insig_eps = r'\AC\d_P4'
-insig_cell = 'BRT037b-39-1'
-cdisp.plot_single(sig, insig_cell, insig_eps)
-
-# sanity check 2. plots the cell with the latest significant bin
-sign_eps = r'\AC\d_P4'
-sign_cell = 'BRT037b-06-1'
-cdisp.plot_single(sig, sign_cell, sign_eps)
-
-##############################
-# repeat the 'population sumary plots' but only keeping good cells.
-fig, ax = cdisp.population_significance(sig, channels=good_cell_index, sort=True)
-fig.suptitle('good cells * all cpps, significant difference over time')
-ax.axvline(3, color='red')
-
-# plots worst and best
-best_cell = 'BRT037b-46-1'
-best_probe = r'\AC\d_P4'
-cdisp.plot_single(sig, best_cell, best_probe)
-
-worst_cell = 'BRT037b-31-1'
-worst_probe = r'\AC\d_P1'
-cdisp.plot_single(sig, worst_cell, worst_probe)
-
-##############################
-### calculates pvalues with a rolling window
-epoch_names = r'\AC\d_P3'
+all_disps = ['Kruskal', 'MSD']
+wind_kws = {'window': 5, 'rolling': True, 'type': 'Kruskal', 'consecutives':2}
 channels = good_cell_index
 
-# calculates kurskal wallis between different context across time
-wind_kws = {'window': 5, 'rolling': True, 'type': 'Kruskal'}
+for disp_type in all_disps:
+    wind_kws = {'window': 5, 'rolling': True, 'type': disp_type, 'consecutives':2}
 
-# plots all cells for example cpp
-fig, ax = cdisp.plot_single(sig, channels=channels, epochs=epoch_names, **wind_kws)
+    fig, ax = cdisp.population_significance(sig, channels=channels, fs=10, sort=True, **wind_kws)
+    ax.axvline(3, color='red')
+    fig.suptitle('good_cells * all cpp, {} window = {}'.format(disp_type, wind_kws['window']))
 
-fig, ax = cdisp.population_significance(sig, channels=channels, sort=True, **wind_kws)
-ax.axvline(3, color='red')
-fig.suptitle('all cells * all cpp, kruskal window = 5')
-
-# plots best
-sig_eps = r'\AC\d_P1'
-sig_cell = 'BRT037b-33-3'
-fig, ax = cdisp.plot_single(sig, channels=sig_cell, epochs=sig_eps, **wind_kws)
+sig_eps = r'\AC\d_P3'
+sig_cell = 'BRT037b-39-1'
+fig, ax = cdisp.plot_single(sig, channels=sig_cell, epochs=sig_eps, window=1, rolling=True, type='MSD')
 fig.suptitle('latest significance')
 
-# plots wort
-insig_eps = r'\AC\d_P4'
-insig_cell = 'BRT037b-38-1'
-fig, ax = cdisp.plot_single(sig, channels=insig_cell, epochs=insig_eps, **wind_kws)
-fig.suptitle('earliest significance')
 
-##############################
-### calculates the mean of pairwise correlation coefficient for all contexts
+# checks if hybridplot is using two different
 
-epoch_names = r'\AC\d_P3'
-channels = good_cell_index
-
-# calculates pairwise cc between different context across time
-wind_kws = {'window': 5, 'rolling': True, 'type': 'Pearsons'}
-
-# plots all cells for example cpp
-fig, ax = cdisp.plot_single(sig, channels=channels, epochs=epoch_names, **wind_kws)
-
-fig, ax = cdisp.population_significance(sig, channels=channels, sort=True, **wind_kws)
-ax.axvline(3, color='red')
-fig.suptitle('all cells * all cpp, kruskal window = 5')
-
-# plots best
-sig_eps = r'\AC\d_P4'
-sig_cell = 'BRT037b-46-1'
-fig, ax = cdisp.plot_single(sig, channels=sig_cell, epochs=sig_eps, **wind_kws)
-fig.suptitle('latest significance')
-
-# plots wort
-insig_eps = r'\AC\d_P3'
-insig_cell = 'BRT037b-39-1'
-fig, ax = cdisp.plot_single(sig, channels=insig_cell, epochs=insig_eps, **wind_kws)
-fig.suptitle('earliest significance')
+for ii in  [100, 25]:
+    sig.fs = ii
+    cplt.hybrid(sig, epoch_names=sig_eps, channels=sig_cell, start=3, end=6)

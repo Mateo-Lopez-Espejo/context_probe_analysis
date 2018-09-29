@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import scipy.ndimage.filters as sf
 import scipy.signal as ssig
-
+from nems.signal import PointProcess
 from cpp_parameter_handlers import _epoch_name_handler, _channel_handler
 
 
@@ -28,21 +28,53 @@ def _subplot_handler(epoch_names, channels):
     return fig, axes
 
 
-def _sig_bin_to_time(sign_window, window, fs):
-    # takes a boolean matrix of significance, the size of the window and the sampling frequency an transforms into a
-    # array of times describing the start and end of streches of significance
+def _sig_bin_to_time(sign_window, window, fs, unite_overlaping=True):
+    '''
+    takes a boolean array of significance with shape Cell/Channle x Timebins, and returns the time values of start and end of
+    the significant bins. This are organized in two lists start_time and end_time, each of len equal to cell number
+    containing 1d arrays with time in seconds.
+    None, the output are lists of 1d arrays instead of 2d arrays because of the non uniform lenth of the 1d arrys
+    i.e. the number of significant bins
+    :param sign_window:
+    :param window:
+    :param fs:
+    :param unite_overlaping:
+    :return:
+    '''
+    # takes a boolean matrix of significance, the size of the window and the sampling frequency an transforms into two
+    # arrays of times describing the start and end of streches of significance
 
     start_times = list()
     end_times = list()
 
     for cc in range(sign_window.shape[0]):  # iterates over the channels/cells
-        bin_ind = np.where(sign_window[cc, :] == True)[0]
-        start = bin_ind / fs  # thise indexing takes out the array from the tupple
+        bin_ind = np.where(sign_window[cc, :] == True)[0]  # thise indexing takes out the array from the tupple
+        start = bin_ind / fs
+        start.sort()
         end = start + (window / fs)
+
+        if unite_overlaping is True:
+            i = 0
+            n = len(start)
+            u_start = list()
+            u_end = list()
+            while i < n:
+                s, e = start[i], end[i]
+                i += 1
+                while (i < n) and ((e > start[i]) or (math.isclose(e, start[i], abs_tol=1e-10))):
+                    e = end[i]
+                    i += 1
+                u_start.append(s)
+                u_end.append(e)
+
+            start = np.asarray(u_start)
+            end = np.asarray(u_end)
+
         start_times.append(start)
         end_times.append(end)
 
     return start_times, end_times
+
 
 ### base plotting functions
 
@@ -290,9 +322,8 @@ def _significance_bars(start_times, end_times, y_range='auto', ax=None, fill_kws
 
 def dispersion(matrixes, smoothing=0, y_offset=0, ax=None, rep_line=None, mean_line=None, line_kws=None):
     # this is super temporary bad implementeation, again each subplot should be distintive of a single cell
-
-    # matrixes is a dict of matrix each of which has dimentions C x T (cells x Time). each different matrix
-    # corresponds to a different group of subepochs i.e. all conntexts for a given probe
+    #  matrixes is a dict of matrix each of which has dimentions C x T (cells x Time). each different matrix
+    #  corresponds to a different group of subepochs i.e. all conntexts for a given probe
 
     stimuli = list(matrixes.keys())
 
@@ -325,7 +356,6 @@ def dispersion(matrixes, smoothing=0, y_offset=0, ax=None, rep_line=None, mean_l
 
 
 ##### signal and recording wrapers
-
 
 def signal_PSTH(signal, epoch_names='single', channels='all', psth_kws=None, plot_kws=None):
     '''
@@ -511,20 +541,28 @@ def signal_raster(signal, epoch_names='single', channels='all', scatter_kws=None
 def hybrid(signal, epoch_names='single', channels='all', start=None, end=None,
            significance=None, sign_kws=None,
            scatter_kws=None, plot_kws=None):
+
+    if not isinstance(signal, PointProcess): raise ValueError('signal should be a point process')
+
     epoch_names = _epoch_name_handler(signal, epoch_names)
     matrices = signal.rasterize().extract_epochs(epoch_names)
+
+    # rasterizes at higher frequency to keep individual spikes
+    rast_fs = 100
+    rast_sig = signal._modified_copy(signal._data, fs=rast_fs)
+    rast_matrices = rast_sig.rasterize().extract_epochs(epoch_names)
 
     # preprocesing of significance array
     if isinstance(significance, np.ndarray):
         # handles significance keywords
         sign_kws = {} if sign_kws is None else sign_kws
-
         # some preprocesing of the significance matrix
         defaults = {'window': 1}
         for key, val in defaults.items(): sign_kws.setdefault(key, val)
+
         start_times, end_times = _sig_bin_to_time(significance, fs=signal.fs, **sign_kws)
 
-    # handles scatter_kws
+    # handles scatter and psth keywords
     scatter_kws = {} if scatter_kws is None else scatter_kws
     plot_kws = {} if plot_kws is None else plot_kws
 
@@ -538,9 +576,9 @@ def hybrid(signal, epoch_names='single', channels='all', start=None, end=None,
     max_Reps = np.max([epoch_matrix.shape[0] for epoch_matrix in matrices.values()])
     y_scaling = max_Reps / max_val  # normalizes by max val and scales to max reps
 
-    # calculates the y_range of the significance areas based on the number of stimuli and repetitionse per stimuli
+    # calculates the vertical_range of the significance areas based on the number of stimuli and repetitionse per stimuli
     # in the second value, the first factor is the number of stimuli, the second is the number of repetitions
-    y_range = [-0.5, len(matrices) * matrices[epoch_names[0]].shape[0] + 0.5]
+    vertical_range = [-0.5, len(matrices) * matrices[epoch_names[0]].shape[0] + 0.5]
 
     # iterates over each cell... plot
     first = True
@@ -550,12 +588,18 @@ def hybrid(signal, epoch_names='single', channels='all', start=None, end=None,
             color = 'C{}'.format(ss % 10)
             y_offset = epoch_matrix.shape[0] * ss  # offsets subsequent rasters by the number of repetitions
 
+            # values for raster plot
+            rast_epoch_matrix = rast_matrices[epoch_key]
+            rast_values = rast_epoch_matrix[:, chan, :]  # holds all Repetitions, for a given Channel, acrossTime
+            rast_times = np.arange(0, rast_epoch_matrix.shape[2]) / rast_fs
+
+            # values for psth
             values = epoch_matrix[:, chan, :]  # holds all Repetitions, for a given Channel, acrossTime
             times = np.arange(0, epoch_matrix.shape[2]) / signal.fs
 
             scatter_kws.update({'color': color})
 
-            _raster(times, values, y_offset=y_offset,
+            _raster(rast_times, rast_values, y_offset=y_offset,
                     ax=ax, scatter_kws=scatter_kws)
 
             plot_kws.update({'color': color,
@@ -568,7 +612,7 @@ def hybrid(signal, epoch_names='single', channels='all', start=None, end=None,
 
         if isinstance(significance, np.ndarray):
             # draws the dispersion significance across time
-            _significance_bars(start_times[cc], end_times[cc], y_range=y_range, ax=ax)
+            _significance_bars(start_times[cc], end_times[cc], y_range=vertical_range, ax=ax)
 
         ax.set_title('{}: {}'.format(chan, signal.chans[chan]))
         if first:
