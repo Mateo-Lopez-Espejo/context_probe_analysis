@@ -1,5 +1,6 @@
 import itertools as itt
 import math
+import collections as coll
 
 import numpy as np
 import scipy.stats as sst
@@ -224,7 +225,7 @@ def _window_MSD(working_slice):
 
 ### base dispersion fucntions
 
-def _single_cell_sigdif(matrices, channels='all', window=1, rolling=False, type='Kruskal'):
+def _single_cell_difsig(matrices, channels='all', window=1, rolling=False, type='Kruskal'):
     '''
     given a dictionary of matrices (from signal.extract_epochs), calculates pvalue for a difference metric
     for the response to the different contexts of a stimuli (different epochs, each of the keywords in the dictionary).
@@ -363,17 +364,17 @@ def _pairwise_distance_between(matrixes):
 
 ### signal wrapers
 
-def signal_single_cell_sigdif(signal, epoch_names='single', channels='all', fs=None, window=1, rolling=False,
-                              type='Kruskal'):
+def signal_single_context_sigdif(signal, epoch_names='single', channels='all', fs=None, window=1, rolling=False,
+                                 type='Kruskal'):
     # handles epoch_names as standard
     epoch_names = hand._epoch_name_handler(signal, epoch_names)
 
     # handles channels/cells
     channels = hand._channel_handler(signal, channels)
 
-    # handles the fs for analysis
+    # handles the frequency sampling for analysis
     fs = hand._fs_handler(signal,fs)
-
+    # defines what what frequency sampling to use for the analysis
     if fs == signal.fs:
         tempsig = signal
     else:
@@ -381,44 +382,36 @@ def signal_single_cell_sigdif(signal, epoch_names='single', channels='all', fs=N
 
     matrixes = tempsig.rasterize().extract_epochs(epoch_names)
 
-    disp = _single_cell_sigdif(matrixes, channels=channels, window=window, rolling=rolling, type=type)
+    diff_pvals = _single_cell_difsig(matrixes, channels=channels, window=window, rolling=rolling, type=type)
 
-    return disp
+    return diff_pvals
 
 
-### complex plotting functions
+def signal_all_context_sigdif(signal, channels, probes=(1,2,3,4), sign_fs=None, window=1, rolling=True, type='Kruskal'):
 
-def population_significance(signal, channels, probes=(1, 2, 3, 4), fs=None, sort=True, window=1, rolling=True, type='Kruskal',
-                            consecutives=1, hist=False, bins=60):
     '''
-    makes a summary plot of the significance(black dots) over time (x axis) for each combination of cell and
-    *[contexts,...]-Probe (y axis).
-    :param signal: a signal object with cpp epochs
-    :param channels: channel index, cell name (or a list of the two previos). or kwd 'all' to define which channels to consider
-    :param probes: list of ints, eache one corresponds to the identity of a vocalization used as probe.
-    :fs: sampling frequency at which perform the analysis, None uses de native fs of the signal.
-    :param sort: boolean. If True sort by last siginificant time bin.
-    :param window: time window size, in time bins, over which calculate significant difference metrics
-    :param rolling: boolean, If True, uses rolling window of stride 1. If False uses non overlaping yuxtaposed windows
-    :param type: keyword defining what metric to use. 'Kruskal' for Kurscal Wallis,
-    'Pearsons' for mean of pairwise correlation coefficient.
-    :consecutives: int number of consecutive significant time bins to consider "real" significance
-    :param hist: Boolean, If True, draws a histogram of significance over time (cololapsing by cell-probe identity)
-    :param bins: number of bins of the histogram
-    :return: figure, axis
+    calculates the difference pvalue across all cells in all probes
+    :param signal: cpp Singal object
+    :param channels: channel index, cell name (or a list of the two previous). or kwd 'all' to define which channels to consider
+    :param probes:
+    :param sign_fs:
+    :param window:
+    :param rolling:
+    :param type:
+    :return:
     '''
-    # todo clean this function
+
     all_probes = list()
     compound_names = list()
 
-    # handlese fs
-    fs = hand._fs_handler(signal, fs)
+    # handlese sign_fs
+    sign_fs = hand._fs_handler(signal, sign_fs)
 
     # calculates dipersion pval for each set of contexts probe.
     for pp in probes:
         this_probe = r'\AC\d_P{}'.format(pp)
-        disp_mat = signal_single_cell_sigdif(signal, epoch_names=this_probe, channels=channels, fs=fs,
-                                             window=window, rolling=rolling, type=type)
+        disp_mat = signal_single_context_sigdif(signal, epoch_names=this_probe, channels=channels, fs=sign_fs,
+                                                window=window, rolling=rolling, type=type)
 
         chan_idx = hand._channel_handler(signal, channels)
         cell_names = [name for nn, name in enumerate(signal.chans) if nn in chan_idx]
@@ -432,21 +425,80 @@ def population_significance(signal, channels, probes=(1, 2, 3, 4), fs=None, sort
     # concatenates across first dimention i.e. cell/channel
     pop_pval = np.concatenate(all_probes, axis=0)
 
-    # defines significance, uses window size equal to time bin size
-    pop_sign = _significance_criterion(pop_pval, window=consecutives, threshold=0.01, comp='<=')  # array with shape
+    output = coll.namedtuple('population pvals', 'matrix cell_names' )
 
-    times = np.arange(0, pop_sign.shape[1]) / fs
+    return output(pop_pval, compound_names)
 
-    if hist is False:
-        # set size of scatter markers
-        scat_kwargs = {'s': 10}
-        # raster significance, unsorted
-        if sort is False:
-            fig, ax = cplt._raster(times, pop_sign, scatter_kws=scat_kwargs)
-            ax.set_yticks(np.arange(0, pop_sign.shape[0], 1))
-            ax.set_yticklabels(compound_names)
 
-        elif sort is True:
+### complex plotting functions
+
+
+
+def population_significance(signal, channels, probes=(1, 2, 3, 4), sign_fs=None, window=1, rolling=True, type='Kruskal',
+                            consecutives=1, hist=False, bins=60):
+    '''
+    makes a summary plot of the significance(black dots) over time (x axis) for each combination of cell and
+    *[contexts,...]-Probe (y axis).
+    :param signal: a signal object with cpp epochs
+    :param channels: channel index, cell name (or a list of the two previous). or kwd 'all' to define which channels to consider
+    :param probes: list of ints, eache one corresponds to the identity of a vocalization used as probe.
+    :sign_fs: sampling frequency at which perform the analysis, None uses de native sign_fs of the signal.
+    :param sort: boolean. If True sort by last siginificant time bin.
+    :param window: time window size, in time bins, over which calculate significant difference metrics
+    :param rolling: boolean, If True, uses rolling window of stride 1. If False uses non overlaping yuxtaposed windows
+    :param type: keyword defining what metric to use. 'Kruskal' for Kurscal Wallis,
+    'Pearsons' for mean of pairwise correlation coefficient, 'MSD' for mean standard difference
+    :consecutives: int number of consecutive significant time bins to consider "real" significance
+    :param hist: Boolean, If True, draws a histogram of significance over time (cololapsing by cell-probe identity)
+    :param bins: number of bins of the histogram
+    :return: figure, axis
+    '''
+    # todo clean this function
+    all_probes = list()
+    compound_names = list()
+
+    # handlese sign_fs
+    sign_fs = hand._fs_handler(signal, sign_fs)
+
+    # calculates dipersion pval for each set of contexts probe.
+    for pp in probes:
+        this_probe = r'\AC\d_P{}'.format(pp)
+        disp_mat = signal_single_context_sigdif(signal, epoch_names=this_probe, channels=channels, fs=sign_fs,
+                                                window=window, rolling=rolling, type=type)
+
+        chan_idx = hand._channel_handler(signal, channels)
+        cell_names = [name for nn, name in enumerate(signal.chans) if nn in chan_idx]
+        comp_names = ['C*_P{}: {}'.format(pp, cell_name) for cell_name in cell_names]
+
+        all_probes.append(disp_mat)
+        compound_names.extend(comp_names)
+
+    compound_names = np.asarray(compound_names)
+
+    # concatenates across first dimention i.e. cell/channel
+    pop_pval = np.concatenate(all_probes, axis=0)
+
+    # defines significance "integration window"
+    if isinstance(consecutives, int):
+        consecutives = [consecutives]
+    elif isinstance(consecutives, list):
+        pass
+    else:
+        raise ValueError("consecutives should be a positive int or a list of ppositive ints")
+
+    all_figs = list()
+    diff_matrices = list()
+    cell_orders = list()
+
+    for cons in consecutives:
+        pop_sign = _significance_criterion(pop_pval, window=cons, threshold=0.01, comp='<=')  # array with shape
+
+        times = np.arange(0, pop_sign.shape[1]) / sign_fs
+
+        if hist is False:
+            # set size of scatter markers
+            scat_kwargs = {'s': 10}
+
             # organizes by last significant time for clarity
             def sort_by_last_significant_bin(unsorted):
                 last_True = list()
@@ -475,16 +527,25 @@ def population_significance(signal, channels, probes=(1, 2, 3, 4), fs=None, sort
             ax.set_yticks(np.arange(0, sorted_sign.shape[0], 1))
             ax.set_yticklabels(sorted_names)
 
-    elif hist is True:
-        _, sign_times = np.where(pop_sign == True)
+            fig.suptitle('metric: {}, window: {}, fs: {}, consecutives: {}'.format(type, window, sign_fs, consecutives))
 
-        fig, ax = plt.subplots()
-        ax.hist(sign_times, bins=bins)
+        elif hist is True:
+            _, sign_times = np.where(pop_sign == True)
 
-    return fig, ax
+            fig, ax = plt.subplots()
+            ax.hist(sign_times, bins=bins)
+
+        all_figs.append(fig)
+        diff_matrices.append(sorted_sign)
+        cell_orders.append(sorted_names)
 
 
-def plot_single(signal, channels, epochs, window=1, rolling=False, type='Kruskal'):
+    output = coll.namedtuple('Population_significance', 'figures diff_matrices cell_orders')
+
+    return output(all_figs, diff_matrices, cell_orders)
+
+
+def plot_single_context(signal, channels, epochs, sign_fs=None, raster_fs=None, psth_fs=None, window=1, rolling=False, type='Kruskal', consecutives=1):
     '''
     calculates significant difference over time for the specified cells/channels and *[contexts,...]-probe (epochs),
     overlays gray vertical bars to hybrid plot (raster + PSTH) on time bins with significante difference between
@@ -498,17 +559,20 @@ def plot_single(signal, channels, epochs, window=1, rolling=False, type='Kruskal
     :return: figure, axes
     '''
     # todo clean this function
+
     # calculates significant difference between different context across time
-    disp_pval = signal_single_cell_sigdif(signal, epoch_names=epochs, channels=channels, window=window,
-                                          rolling=rolling, type=type)
+    disp_pval = signal_single_context_sigdif(signal, epoch_names=epochs, channels=channels, fs=sign_fs, window=window,
+                                             rolling=rolling, type=type)
+
+
 
     # defines significance, uses window size equal to time bin size
-    significance = _significance_criterion(disp_pval, window=1, threshold=0.01, comp='<=')  # array with shape
+    significance = _significance_criterion(disp_pval, window=consecutives, threshold=0.01, comp='<=')  # array with shape
 
     # overlays significatn times on the raster and PSTH for the specified cells and context probe pairs
     scat_key = {'s': 5, 'alpha': 0.5}
     fig, axes = cplt.hybrid(signal, epoch_names=epochs, channels=channels, start=3, end=6, scatter_kws=scat_key,
-                            significance=significance)
+                            significance=significance, raster_fs=raster_fs, psth_fs=psth_fs, sign_fs=sign_fs)
 
     return fig, axes
 
@@ -543,4 +607,4 @@ def test_object():
 
     return matrices
 
-# out = _single_cell_sigdif(test_object(),window=5, rolling=True, type='Pearsons')
+# out = _single_cell_difsig(test_object(),window=5, rolling=True, type='Pearsons')

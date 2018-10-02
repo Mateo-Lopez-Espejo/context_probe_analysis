@@ -6,7 +6,7 @@ import numpy as np
 import scipy.ndimage.filters as sf
 import scipy.signal as ssig
 from nems.signal import PointProcess
-from cpp_parameter_handlers import _epoch_name_handler, _channel_handler
+from cpp_parameter_handlers import _epoch_name_handler, _channel_handler, _fs_handler
 
 
 # todo redo the distribution of axes in figures for psth, there is not purpose in plotig multiple signals as different
@@ -539,18 +539,21 @@ def signal_raster(signal, epoch_names='single', channels='all', scatter_kws=None
 
 
 def hybrid(signal, epoch_names='single', channels='all', start=None, end=None,
-           significance=None, sign_kws=None,
+           significance=None, raster_fs=None,  psth_fs=None, sign_fs=None, sign_kws=None,
            scatter_kws=None, plot_kws=None):
 
     if not isinstance(signal, PointProcess): raise ValueError('signal should be a point process')
 
+    # formats epoch naems
     epoch_names = _epoch_name_handler(signal, epoch_names)
-    matrices = signal.rasterize().extract_epochs(epoch_names)
 
-    # rasterizes at higher frequency to keep individual spikes
-    rast_fs = 100
-    rast_sig = signal._modified_copy(signal._data, fs=rast_fs)
-    rast_matrices = rast_sig.rasterize().extract_epochs(epoch_names)
+    # formats fs paramter
+    raster_fs = _fs_handler(signal, raster_fs)
+    psth_fs = _fs_handler(signal, psth_fs)
+    sign_fs = _fs_handler(signal, sign_fs)
+
+    rast_matrices = signal._modified_copy(signal._data, fs=raster_fs).rasterize().extract_epochs(epoch_names)
+    psth_matrices = signal._modified_copy(signal._data, fs=psth_fs).rasterize().extract_epochs(epoch_names)
 
     # preprocesing of significance array
     if isinstance(significance, np.ndarray):
@@ -560,7 +563,7 @@ def hybrid(signal, epoch_names='single', channels='all', start=None, end=None,
         defaults = {'window': 1}
         for key, val in defaults.items(): sign_kws.setdefault(key, val)
 
-        start_times, end_times = _sig_bin_to_time(significance, fs=signal.fs, **sign_kws)
+        start_times, end_times = _sig_bin_to_time(significance, fs=sign_fs, **sign_kws)
 
     # handles scatter and psth keywords
     scatter_kws = {} if scatter_kws is None else scatter_kws
@@ -572,30 +575,30 @@ def hybrid(signal, epoch_names='single', channels='all', start=None, end=None,
     fig, axes = _subplot_handler(epoch_names, channels)
 
     # scales the PSTH to entirely overlap with the raster
-    max_val = np.max([np.max(np.mean(epoch_matrix, axis=0)) for epoch_matrix in matrices.values()])
-    max_Reps = np.max([epoch_matrix.shape[0] for epoch_matrix in matrices.values()])
+    max_val = np.max([np.max(np.mean(epoch_matrix, axis=0)) for epoch_matrix in psth_matrices.values()])
+    max_Reps = np.max([epoch_matrix.shape[0] for epoch_matrix in psth_matrices.values()])
     y_scaling = max_Reps / max_val  # normalizes by max val and scales to max reps
 
     # calculates the vertical_range of the significance areas based on the number of stimuli and repetitionse per stimuli
     # in the second value, the first factor is the number of stimuli, the second is the number of repetitions
-    vertical_range = [-0.5, len(matrices) * matrices[epoch_names[0]].shape[0] + 0.5]
+    vertical_range = [-0.5, len(psth_matrices) * psth_matrices[epoch_names[0]].shape[0] + 0.5]
 
     # iterates over each cell... plot
     first = True
     for cc, (chan, ax) in enumerate(zip(channels, axes)):
 
-        for ss, (epoch_key, epoch_matrix) in enumerate(matrices.items()):
+        for ss, (epoch_key, epoch_matrix) in enumerate(psth_matrices.items()):
             color = 'C{}'.format(ss % 10)
             y_offset = epoch_matrix.shape[0] * ss  # offsets subsequent rasters by the number of repetitions
 
             # values for raster plot
             rast_epoch_matrix = rast_matrices[epoch_key]
             rast_values = rast_epoch_matrix[:, chan, :]  # holds all Repetitions, for a given Channel, acrossTime
-            rast_times = np.arange(0, rast_epoch_matrix.shape[2]) / rast_fs
+            rast_times = np.arange(0, rast_epoch_matrix.shape[2]) / raster_fs
 
             # values for psth
             values = epoch_matrix[:, chan, :]  # holds all Repetitions, for a given Channel, acrossTime
-            times = np.arange(0, epoch_matrix.shape[2]) / signal.fs
+            times = np.arange(0, epoch_matrix.shape[2]) / psth_fs
 
             scatter_kws.update({'color': color})
 

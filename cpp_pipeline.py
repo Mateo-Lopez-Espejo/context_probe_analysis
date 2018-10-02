@@ -131,7 +131,7 @@ if plot is True:
     # example of full population ploting for a set of all contexts to a probe
     epoch_names = r'\AC\d_P3'
     channels = 'all'
-    fig, ax = cdisp.plot_single(sig, channels, epoch_names)
+    fig, ax = cdisp.plot_single_context(sig, channels, epoch_names)
     fig.suptitle('full population example for probe 3')
 
     ##############################
@@ -145,27 +145,27 @@ if plot is True:
     # sanity check 1. a cell without any significant bins
     insig_eps = r'\AC\d_P4'
     insig_cell = 'BRT037b-39-1'
-    cdisp.plot_single(sig, insig_cell, insig_eps)
+    cdisp.plot_single_context(sig, insig_cell, insig_eps)
 
     # sanity check 2. plots the cell with the latest significant bin
     sign_eps = r'\AC\d_P4'
     sign_cell = 'BRT037b-06-1'
-    cdisp.plot_single(sig, sign_cell, sign_eps)
+    cdisp.plot_single_context(sig, sign_cell, sign_eps)
 
     ##############################
     # repeat the 'population sumary plots' but only keeping good cells.
-    fig, ax = cdisp.population_significance(sig, channels=good_cell_index, sort=True)
+    fig, ax = cdisp.population_significance(sig, channels=good_cell_index)
     fig.suptitle('good cells * all cpps, significant difference over time')
     ax.axvline(3, color='red')
 
     # plots worst and best
     best_cell = 'BRT037b-46-1'
     best_probe = r'\AC\d_P4'
-    cdisp.plot_single(sig, best_cell, best_probe)
+    cdisp.plot_single_context(sig, best_cell, best_probe)
 
     worst_cell = 'BRT037b-31-1'
     worst_probe = r'\AC\d_P1'
-    cdisp.plot_single(sig, worst_cell, worst_probe)
+    cdisp.plot_single_context(sig, worst_cell, worst_probe)
 
     ##############################
     ### calculates pvalues with a rolling window
@@ -176,46 +176,66 @@ if plot is True:
     wind_kws = {'window': 5, 'rolling': True, 'type': 'MSD'}
 
     # plots all cells for example cpp
-    fig, ax = cdisp.plot_single(sig, channels=channels, epochs=epoch_names, **wind_kws)
+    fig, ax = cdisp.plot_single_context(sig, channels=channels, epochs=epoch_names, **wind_kws)
 
-    fig, ax = cdisp.population_significance(sig, channels=channels, sort=True, **wind_kws)
+    fig, ax = cdisp.population_significance(sig, channels=channels, **wind_kws)
     ax.axvline(3, color='red')
     fig.suptitle('all cells * all cpp, kruskal window = 5')
 
     # plots best
     sig_eps = r'\AC\d_P1'
     sig_cell = 'BRT037b-33-3'
-    fig, ax = cdisp.plot_single(sig, channels=sig_cell, epochs=sig_eps, **wind_kws)
+    fig, ax = cdisp.plot_single_context(sig, channels=sig_cell, epochs=sig_eps, **wind_kws)
     fig.suptitle('latest significance')
 
     # plots worst
     insig_eps = r'\AC\d_P4'
     insig_cell = 'BRT037b-38-1'
-    fig, ax = cdisp.plot_single(sig, channels=insig_cell, epochs=insig_eps, **wind_kws)
+    fig, ax = cdisp.plot_single_context(sig, channels=insig_cell, epochs=insig_eps, **wind_kws)
     fig.suptitle('earliest significance')
 
 ##############################
 # calculates all dispersion types for the full population
 
-all_disps = ['Kruskal', 'MSD']
-wind_kws = {'window': 5, 'rolling': True, 'type': 'Kruskal', 'consecutives':2}
+all_disps = ['Kruskal', 'Pearsons', 'MSD']
 channels = good_cell_index
+wind_kws = {'window': 5, 'rolling': True, 'type': 'Kruskal', 'consecutives':3}
 
 for disp_type in all_disps:
     wind_kws = {'window': 5, 'rolling': True, 'type': disp_type, 'consecutives':2}
 
-    fig, ax = cdisp.population_significance(sig, channels=channels, fs=10, sort=True, **wind_kws)
+    fig, _, _ = cdisp.population_significance(sig, channels=channels, sign_fs=25, **wind_kws)
+    ax = fig.axes[0]
     ax.axvline(3, color='red')
     fig.suptitle('good_cells * all cpp, {} window = {}'.format(disp_type, wind_kws['window']))
 
 sig_eps = r'\AC\d_P3'
 sig_cell = 'BRT037b-39-1'
-fig, ax = cdisp.plot_single(sig, channels=sig_cell, epochs=sig_eps, window=1, rolling=True, type='MSD')
-fig.suptitle('latest significance')
+fig, ax = cdisp.plot_single_context(sig, channels=sig_cell, epochs=sig_eps, sign_fs=100, raster_fs=100, psth_fs=100,
+                                    window=1, rolling=True, type='MSD', consecutives=1)
+fig.suptitle('dispersion analysis at 100 hz, consecutive significances: 1')
 
 
-# checks if hybridplot is using two different
 
-for ii in  [100, 25]:
-    sig.fs = ii
-    cplt.hybrid(sig, epoch_names=sig_eps, channels=sig_cell, start=3, end=6)
+for anal_fs in [100]:
+    # calculates significance at difference sampling frequencies
+    disp_pval = cdisp.signal_single_context_sigdif(sig, epoch_names=sig_eps, channels=channels, fs=anal_fs, window=1,
+                                                   rolling=True, type='MSD')
+    for consec in [1, 2, 3, 4, 5]:
+
+        # defines significance, uses window size equal to time bin size
+        significance = cdisp._significance_criterion(disp_pval, window=consec, threshold=0.01,
+                                               comp='<=')  # array with shape
+
+        # overlays significant times on the raster and PSTH for the specified cells and context probe pairs
+        scat_key = {'s': 5, 'alpha': 0.5}
+        fig, axes = cplt.hybrid(sig, epoch_names=sig_eps, channels=channels, start=3, end=6, scatter_kws=scat_key,
+                                significance=significance, raster_fs=100, psth_fs=anal_fs, sign_fs=anal_fs)
+
+
+
+        fig.suptitle('dispersion analysis at {}hz, consecutive significances: {}'.format(anal_fs, consec))
+
+
+out = cdisp.population_significance(sig, channels=channels, sign_fs=100, window=1, rolling=True, type='MSD',
+                                    consecutives=[1,2,3,4,5])
