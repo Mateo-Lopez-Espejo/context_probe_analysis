@@ -138,7 +138,7 @@ if plot is True:
     # considers each combination of cell/probe as an independent recording (disregard cell identity)
     # 1 iterates over all relevant probes i.e. excludes silence
 
-    fig, ax = cdisp.population_significance(sig, channels='all')
+    fig, ax = cdisp.pseudopop_significance(sig, channels='all')
     fig.suptitle('all cells * all cpp')
     ax.axvline(3, color='red')
 
@@ -154,7 +154,7 @@ if plot is True:
 
     ##############################
     # repeat the 'population sumary plots' but only keeping good cells.
-    fig, ax = cdisp.population_significance(sig, channels=good_cell_index)
+    fig, ax = cdisp.pseudopop_significance(sig, channels=good_cell_index)
     fig.suptitle('good cells * all cpps, significant difference over time')
     ax.axvline(3, color='red')
 
@@ -178,7 +178,7 @@ if plot is True:
     # plots all cells for example cpp
     fig, ax = cdisp.plot_single_context(sig, channels=channels, epochs=epoch_names, **wind_kws)
 
-    fig, ax = cdisp.population_significance(sig, channels=channels, **wind_kws)
+    fig, ax = cdisp.pseudopop_significance(sig, channels=channels, **wind_kws)
     ax.axvline(3, color='red')
     fig.suptitle('all cells * all cpp, kruskal window = 5')
 
@@ -197,45 +197,27 @@ if plot is True:
 ##############################
 # calculates all dispersion types for the full population
 
-all_disps = ['Kruskal', 'Pearsons', 'MSD']
-channels = good_cell_index
-wind_kws = {'window': 5, 'rolling': True, 'type': 'Kruskal', 'consecutives':3}
+# uses high fs for the analysis and tries windows of consecutives, of different lengths
 
-for disp_type in all_disps:
-    wind_kws = {'window': 5, 'rolling': True, 'type': disp_type, 'consecutives':2}
+out = cdisp.pseudopop_significance(sig, channels='all', sign_fs=100, window=1, rolling=True, type='MSD',
+                                   consecutives=[1, 2, 3, 4, 5], recache=False, signal_name='BRT037b')
 
-    fig, _, _ = cdisp.population_significance(sig, channels=channels, sign_fs=25, **wind_kws)
-    ax = fig.axes[0]
-    ax.axvline(3, color='red')
-    fig.suptitle('good_cells * all cpp, {} window = {}'.format(disp_type, wind_kws['window']))
-
+# does the same for an example good cell
 sig_eps = r'\AC\d_P3'
 sig_cell = 'BRT037b-39-1'
-fig, ax = cdisp.plot_single_context(sig, channels=sig_cell, epochs=sig_eps, sign_fs=100, raster_fs=100, psth_fs=100,
-                                    window=1, rolling=True, type='MSD', consecutives=1)
-fig.suptitle('dispersion analysis at 100 hz, consecutive significances: 1')
+fig_list = cdisp.plot_single_context(sig, channels=sig_cell, epochs=sig_eps, sign_fs=100, raster_fs=100, psth_fs=100,
+                                     window=1, rolling=True, type='MSD', consecutives=[1, 2, 3, 4, 5])
 
+# give that the "best looking" significance plot is when considering siginificance for 4 consecutive window
+# an equivalent aproach would be to do the analysis with an equivalent downsampling of 1/4, i.e. 25hz \
+# with the added advantage of reduced calculation time.
 
+# full population
+out = cdisp.pseudopop_significance(sig, channels=channels, sign_fs=20, window=1, rolling=True, type='MSD',
+                                   consecutives=[1])
 
-for anal_fs in [100]:
-    # calculates significance at difference sampling frequencies
-    disp_pval = cdisp.signal_single_context_sigdif(sig, epoch_names=sig_eps, channels=channels, fs=anal_fs, window=1,
-                                                   rolling=True, type='MSD')
-    for consec in [1, 2, 3, 4, 5]:
-
-        # defines significance, uses window size equal to time bin size
-        significance = cdisp._significance_criterion(disp_pval, window=consec, threshold=0.01,
-                                               comp='<=')  # array with shape
-
-        # overlays significant times on the raster and PSTH for the specified cells and context probe pairs
-        scat_key = {'s': 5, 'alpha': 0.5}
-        fig, axes = cplt.hybrid(sig, epoch_names=sig_eps, channels=channels, start=3, end=6, scatter_kws=scat_key,
-                                significance=significance, raster_fs=100, psth_fs=anal_fs, sign_fs=anal_fs)
-
-
-
-        fig.suptitle('dispersion analysis at {}hz, consecutive significances: {}'.format(anal_fs, consec))
-
-
-out = cdisp.population_significance(sig, channels=channels, sign_fs=100, window=1, rolling=True, type='MSD',
-                                    consecutives=[1,2,3,4,5])
+# example cell
+sig_eps = r'\AC\d_P3'
+sig_cell = 'BRT037b-39-1'
+fig_list = cdisp.plot_single_context(sig, channels=sig_cell, epochs=sig_eps, sign_fs=20, raster_fs=100, psth_fs=20,
+                                     window=1, rolling=True, type='MSD', consecutives=[1])

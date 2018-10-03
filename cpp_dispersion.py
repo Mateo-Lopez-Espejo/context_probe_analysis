@@ -1,16 +1,18 @@
+import collections as coll
 import itertools as itt
 import math
-import collections as coll
 
 import numpy as np
 import scipy.stats as sst
 from matplotlib import pyplot as plt
 from sklearn.metrics.pairwise import pairwise_distances
 
+import cpp_cache as cch
 import cpp_parameter_handlers as hand
-### helper funtions
 import cpp_plots as cplt
 
+
+### helper funtions
 
 def _into_windows(array, window, axis=-1, rolling=True, padding=np.nan, ):
     '''
@@ -43,7 +45,8 @@ def _into_windows(array, window, axis=-1, rolling=True, padding=np.nan, ):
         extra_len = int((window * np.ceil(pad_shape[-1] / window)) - pad_shape[-1])
         pad_shape[-1] = pad_shape[-1] + extra_len
 
-    else: raise ValueError('rolling must be a bool')
+    else:
+        raise ValueError('rolling must be a bool')
 
     padded = np.empty(pad_shape)
     padded[:] = padding
@@ -177,8 +180,8 @@ def _window_MSD(working_slice):
         # iterates over every pair of contexts
         for ctx, (ctx1, ctx2) in enumerate(itt.combinations(range(psth.shape[0]), 2)):
             # calculates an holds the mean standard difference
-            msd = np.nanmean((psth[ctx1, :] - psth[ctx2, :])**2) # uses nanmean to acount for the nan
-                                                                 # padding at end of rolling window
+            msd = np.nanmean((psth[ctx1, :] - psth[ctx2, :]) ** 2)  # uses nanmean to acount for the nan
+            # padding at end of rolling window
             msd_values[ctx] = msd
 
         mean_r = msd_values.mean()
@@ -209,7 +212,6 @@ def _window_MSD(working_slice):
         # calculates pairwise r_value
         msd_floor[rep] = _working_slice_MSD(reshaped)
 
-
     # pvalue = (msd_floor > obs_msd).sum() / shuffle_n
 
     if obs_msd > msd_floor.mean():
@@ -222,8 +224,7 @@ def _window_MSD(working_slice):
     return pvalue
 
 
-
-### base dispersion fucntions
+### base single cell dispersion fucntions
 
 def _single_cell_difsig(matrices, channels='all', window=1, rolling=False, type='Kruskal'):
     '''
@@ -234,8 +235,8 @@ def _single_cell_difsig(matrices, channels='all', window=1, rolling=False, type=
     :param matrices: a dictionary of matrices of dimensions Repetitions x Cells x Time. Each keywords corresponds to a different stimulus
     :param channels: the channels/cells to consider (second dimension of input matrices)
     :param window: window size in time bins over which to perform the calculations.
-    :param rolling: boolena, wheather to use rolling windows or non overlapping yuxtaposed windows
-    :param type: keyword defining what metric to use. 'Kruskal' for Kurscal Wallis,
+    :param rolling: boolena, wheather to use rolling windows or non overlapping juxtaposed windows
+    :param type: keyword defining what metric to use. 'Kruskal' for Kruskal Wallis,
     'Pearsons' for mean of pairwise correlation coefficient.
     :return: an array of shape Cell x Time, of pvalues for each cell across time.
     '''
@@ -266,11 +267,11 @@ def _single_cell_difsig(matrices, channels='all', window=1, rolling=False, type=
                 if window == 1: raise ValueError('Pearsons correlation requieres window of size > 1')
                 pvalue = _window_pearsons(working_slice)
 
-            elif type =='MSD':
+            elif type == 'MSD':
                 pvalue = _window_MSD(working_slice)
 
             else:
-                raise  ValueError('keyword {} not suported'.format(type))
+                raise ValueError('keyword {} not suported'.format(type))
 
             metric_over_time[cc, wind] = pvalue
 
@@ -304,6 +305,8 @@ def _significance_criterion(pvalues, window=1, threshold=0.01, comp='<='):
 
     return sign_window
 
+
+### base population dispersion functions
 
 def _pairwise_distance_within(matrix):
     # matrix has shape R x C x T: Repetition, Channel/Cell, Time
@@ -365,7 +368,19 @@ def _pairwise_distance_between(matrixes):
 ### signal wrapers
 
 def signal_single_context_sigdif(signal, epoch_names='single', channels='all', fs=None, window=1, rolling=False,
-                                 type='Kruskal'):
+                                 type='Kruskal', recache=False, signal_name=None):
+    func_args = locals()
+
+    # looks in cache
+    folder = '/home/mateo/mycache/cpp/'
+    name_args = {key: val for key, val in func_args.items() if key not in ['signal', 'signal_name']}
+    cache_name = cch.set_name(name_args, signal_name=signal_name, onlysig=False)
+    cache_out = cch.cache_wrap(obj_name=cache_name, folder=folder, obj=None,
+                               recache=recache)
+    # if cache exists, returns, else runs the rest of the funciton
+    if cache_out is not None:
+        return cache_out
+
     # handles epoch_names as standard
     epoch_names = hand._epoch_name_handler(signal, epoch_names)
 
@@ -373,7 +388,8 @@ def signal_single_context_sigdif(signal, epoch_names='single', channels='all', f
     channels = hand._channel_handler(signal, channels)
 
     # handles the frequency sampling for analysis
-    fs = hand._fs_handler(signal,fs)
+    fs = hand._fs_handler(signal, fs)
+
     # defines what what frequency sampling to use for the analysis
     if fs == signal.fs:
         tempsig = signal
@@ -381,14 +397,16 @@ def signal_single_context_sigdif(signal, epoch_names='single', channels='all', f
         tempsig = signal._modified_copy(signal._data, fs=fs)
 
     matrixes = tempsig.rasterize().extract_epochs(epoch_names)
-
     diff_pvals = _single_cell_difsig(matrixes, channels=channels, window=window, rolling=rolling, type=type)
+
+    # saves to cache
+    diff_pvals = cch.cache_wrap(obj_name=cache_name, folder=folder, obj=diff_pvals, recache=recache)
 
     return diff_pvals
 
 
-def signal_all_context_sigdif(signal, channels, probes=(1,2,3,4), sign_fs=None, window=1, rolling=True, type='Kruskal'):
-
+def signal_all_context_sigdif(signal, channels, probes=(1, 2, 3, 4), sign_fs=None, window=1, rolling=True,
+                              type='Kruskal'):
     '''
     calculates the difference pvalue across all cells in all probes
     :param signal: cpp Singal object
@@ -413,7 +431,7 @@ def signal_all_context_sigdif(signal, channels, probes=(1,2,3,4), sign_fs=None, 
         disp_mat = signal_single_context_sigdif(signal, epoch_names=this_probe, channels=channels, fs=sign_fs,
                                                 window=window, rolling=rolling, type=type)
 
-        chan_idx = hand._channel_handler(signal, channels)
+        chan_idx = hand._channel_handler(signal, channels)  # heterogeneous "channels" value to indexes
         cell_names = [name for nn, name in enumerate(signal.chans) if nn in chan_idx]
         comp_names = ['C*_P{}: {}'.format(pp, cell_name) for cell_name in cell_names]
 
@@ -425,7 +443,7 @@ def signal_all_context_sigdif(signal, channels, probes=(1,2,3,4), sign_fs=None, 
     # concatenates across first dimention i.e. cell/channel
     pop_pval = np.concatenate(all_probes, axis=0)
 
-    output = coll.namedtuple('population pvals', 'matrix cell_names' )
+    output = coll.namedtuple('population pvals', 'matrix cell_names')
 
     return output(pop_pval, compound_names)
 
@@ -433,9 +451,8 @@ def signal_all_context_sigdif(signal, channels, probes=(1,2,3,4), sign_fs=None, 
 ### complex plotting functions
 
 
-
-def population_significance(signal, channels, probes=(1, 2, 3, 4), sign_fs=None, window=1, rolling=True, type='Kruskal',
-                            consecutives=1, hist=False, bins=60):
+def pseudopop_significance(signal, channels, probes=(1, 2, 3, 4), sign_fs=None, window=1, rolling=True, type='Kruskal',
+                           consecutives=1, hist=False, bins=60, recache=False, signal_name=None):
     '''
     makes a summary plot of the significance(black dots) over time (x axis) for each combination of cell and
     *[contexts,...]-Probe (y axis).
@@ -460,11 +477,15 @@ def population_significance(signal, channels, probes=(1, 2, 3, 4), sign_fs=None,
     # handlese sign_fs
     sign_fs = hand._fs_handler(signal, sign_fs)
 
+    # handles channel names
+    channels = hand._channel_handler(signal, channels)
+
     # calculates dipersion pval for each set of contexts probe.
     for pp in probes:
         this_probe = r'\AC\d_P{}'.format(pp)
         disp_mat = signal_single_context_sigdif(signal, epoch_names=this_probe, channels=channels, fs=sign_fs,
-                                                window=window, rolling=rolling, type=type)
+                                                window=window, rolling=rolling, type=type, recache=recache,
+                                                signal_name=signal_name)
 
         chan_idx = hand._channel_handler(signal, channels)
         cell_names = [name for nn, name in enumerate(signal.chans) if nn in chan_idx]
@@ -527,7 +548,7 @@ def population_significance(signal, channels, probes=(1, 2, 3, 4), sign_fs=None,
             ax.set_yticks(np.arange(0, sorted_sign.shape[0], 1))
             ax.set_yticklabels(sorted_names)
 
-            fig.suptitle('metric: {}, window: {}, fs: {}, consecutives: {}'.format(type, window, sign_fs, consecutives))
+            fig.suptitle('metric: {}, window: {}, fs: {}, consecutives: {}'.format(type, window, sign_fs, cons))
 
         elif hist is True:
             _, sign_times = np.where(pop_sign == True)
@@ -539,13 +560,13 @@ def population_significance(signal, channels, probes=(1, 2, 3, 4), sign_fs=None,
         diff_matrices.append(sorted_sign)
         cell_orders.append(sorted_names)
 
-
     output = coll.namedtuple('Population_significance', 'figures diff_matrices cell_orders')
 
     return output(all_figs, diff_matrices, cell_orders)
 
 
-def plot_single_context(signal, channels, epochs, sign_fs=None, raster_fs=None, psth_fs=None, window=1, rolling=False, type='Kruskal', consecutives=1):
+def plot_single_context(signal, channels, epochs, sign_fs=None, raster_fs=None, psth_fs=None, window=1, rolling=False,
+                        type='Kruskal', consecutives=1):
     '''
     calculates significant difference over time for the specified cells/channels and *[contexts,...]-probe (epochs),
     overlays gray vertical bars to hybrid plot (raster + PSTH) on time bins with significante difference between
@@ -564,15 +585,28 @@ def plot_single_context(signal, channels, epochs, sign_fs=None, raster_fs=None, 
     disp_pval = signal_single_context_sigdif(signal, epoch_names=epochs, channels=channels, fs=sign_fs, window=window,
                                              rolling=rolling, type=type)
 
+    all_figs = list()
 
+    # defines significance "integration window"
+    if isinstance(consecutives, int):
+        consecutives = [consecutives]
+    elif isinstance(consecutives, list):
+        pass
+    else:
+        raise ValueError("consecutives should be a positive int or a list of ppositive ints")
 
-    # defines significance, uses window size equal to time bin size
-    significance = _significance_criterion(disp_pval, window=consecutives, threshold=0.01, comp='<=')  # array with shape
+    for con in consecutives:
+        # defines significance, uses window size equal to time bin size
+        significance = _significance_criterion(disp_pval, window=con, threshold=0.01, comp='<=')  # array with shape
 
-    # overlays significatn times on the raster and PSTH for the specified cells and context probe pairs
-    scat_key = {'s': 5, 'alpha': 0.5}
-    fig, axes = cplt.hybrid(signal, epoch_names=epochs, channels=channels, start=3, end=6, scatter_kws=scat_key,
-                            significance=significance, raster_fs=raster_fs, psth_fs=psth_fs, sign_fs=sign_fs)
+        # overlays significatn times on the raster and PSTH for the specified cells and context probe pairs
+        scat_key = {'s': 5, 'alpha': 0.5}
+        fig, axes = cplt.hybrid(signal, epoch_names=epochs, channels=channels, start=3, end=6, scatter_kws=scat_key,
+                                significance=significance, raster_fs=raster_fs, psth_fs=psth_fs, sign_fs=sign_fs)
+
+        fig.suptitle('metric: {}, window: {}, fs: {}, consecutives: {}'.format(type, window, sign_fs, con))
+
+        all_figs.append(fig)
 
     return fig, axes
 
@@ -586,7 +620,7 @@ def test_object():
     bin_num = 20
 
     cell_std = (0.25, 2)
-    cont_means = (2 ,5, 8)
+    cont_means = (2, 5, 8)
 
     matrices = dict()
 
@@ -596,9 +630,10 @@ def test_object():
         for cell, std in enumerate(cell_std):
             for rep in range(rep_num):
                 # generates a silence and signal strech of time, concatenates
-                silence = np.zeros(int(bin_num/2)) + np.random.normal(0, std, int(bin_num/2))
-                sound = np.empty(int(bin_num/2)); sound[:] = mean
-                sound = sound + np.random.normal(mean, std, int(bin_num/2))
+                silence = np.zeros(int(bin_num / 2)) + np.random.normal(0, std, int(bin_num / 2))
+                sound = np.empty(int(bin_num / 2));
+                sound[:] = mean
+                sound = sound + np.random.normal(mean, std, int(bin_num / 2))
                 trial = np.concatenate([silence, sound], axis=0)
 
                 matix[rep, cell, :] = trial

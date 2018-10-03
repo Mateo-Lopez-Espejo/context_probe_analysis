@@ -50,7 +50,7 @@ def _channel_handler(mat_or_sig, channels):
         max_chan = mat_or_sig.shape[1]
 
     elif isinstance(mat_or_sig, SignalBase):
-        is_sig = True
+        is_signal = True
         max_chan = mat_or_sig.nchans
 
     # returns a different list of channles depending on the keywords or channels specified. add keywords here!
@@ -72,13 +72,13 @@ def _channel_handler(mat_or_sig, channels):
             plot_chans = channels
         # list of cell names
         elif isinstance(item, str):
-            if is_sig != True:
+            if is_signal != True:
                 raise ValueError('can only use cell names when indexing from a signal object')
-            plot_chans = [mat_or_sig.chans.index(channels)]
+            plot_chans = [mat_or_sig.chans.index(cellname) for cellname in channels]
 
     elif isinstance(channels, str):
         # accepts the name of the unit as found in cellDB
-        if is_sig != True:
+        if is_signal != True:
             raise ValueError('can only use cell names when indexing from a signal object')
         plot_chans = [mat_or_sig.chans.index(channels)]
 

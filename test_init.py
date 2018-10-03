@@ -1,15 +1,26 @@
-import cpp_epochs as cpe
-import joblib as jl
-import cpp_PCA as cpca
+def hola(foo=1, bar=2, baz=3):
 
-test_rec_path = '/home/mateo/context_probe_analysis/pickles/BRT037b'
-loaded_rec = jl.load(test_rec_path)
 
-rec = cpe.set_recording_subepochs(loaded_rec, set_pairs=True)
-sig = rec['resp']
-eps = sig.epochs
+    out = '{} {} {}'.format(foo, bar, baz)
 
-rec_pca, pca_stats = cpca.recording_PCA(rec, signal_names='resp', inplace=False, method='scikit', center=False)
+    return out
 
-matrix = rec_pca['resp_PCs'].extract_epoch('C0_P1')
 
+def mundo(eggs='a', hamm='b'):
+
+    print(hola())
+
+    out = '{} {}'.format(eggs, hamm)
+
+    return out
+
+
+def test(foo=1, bar='a'):
+
+    baz = True
+
+    print(locals())
+    # {'foo':1, 'bar':'a', 'baz':True, ...}
+
+    print(func_args())
+    # {'foo':1, 'bar':'a'}
