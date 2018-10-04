@@ -195,29 +195,50 @@ if plot is True:
     fig.suptitle('earliest significance')
 
 ##############################
-# calculates all dispersion types for the full population
-
 # uses high fs for the analysis and tries windows of consecutives, of different lengths
 
-out = cdisp.pseudopop_significance(sig, channels='all', sign_fs=100, window=1, rolling=True, type='MSD',
-                                   consecutives=[1, 2, 3, 4, 5], recache=False, signal_name='BRT037b')
+if plot is True:
+    out = cdisp.pseudopop_significance(sig, channels='all', sign_fs=100, window=1, rolling=True, type='MSD',
+                                       consecutives=[1, 2, 3, 4, 5], recache=False, signal_name='BRT037b')
 
-# does the same for an example good cell
-sig_eps = r'\AC\d_P3'
-sig_cell = 'BRT037b-39-1'
-fig_list = cdisp.plot_single_context(sig, channels=sig_cell, epochs=sig_eps, sign_fs=100, raster_fs=100, psth_fs=100,
-                                     window=1, rolling=True, type='MSD', consecutives=[1, 2, 3, 4, 5])
+    # does the same for an example good cell
+    sig_eps = r'\AC\d_P3'
+    sig_cell = 'BRT037b-39-1'
+    fig_list = cdisp.plot_single_context(sig, channels=sig_cell, epochs=sig_eps, sign_fs=100, raster_fs=100, psth_fs=100,
+                                         window=1, rolling=True, type='MSD', consecutives=[1, 2, 3, 4, 5])
 
-# give that the "best looking" significance plot is when considering siginificance for 4 consecutive window
-# an equivalent aproach would be to do the analysis with an equivalent downsampling of 1/4, i.e. 25hz \
-# with the added advantage of reduced calculation time.
+    # give that the "best looking" significance plot is when considering siginificance for 4 consecutive window
+    # an equivalent aproach would be to do the analysis with an equivalent downsampling of 1/4, i.e. 25hz \
+    # with the added advantage of reduced calculation time.
 
-# full population
-out = cdisp.pseudopop_significance(sig, channels=channels, sign_fs=20, window=1, rolling=True, type='MSD',
-                                   consecutives=[1])
+    # full population
+    out = cdisp.pseudopop_significance(sig, channels=channels, sign_fs=20, window=1, rolling=True, type='MSD',
+                                       consecutives=[1])
 
-# example cell
-sig_eps = r'\AC\d_P3'
-sig_cell = 'BRT037b-39-1'
-fig_list = cdisp.plot_single_context(sig, channels=sig_cell, epochs=sig_eps, sign_fs=20, raster_fs=100, psth_fs=20,
-                                     window=1, rolling=True, type='MSD', consecutives=[1])
+    # example cell
+    sig_eps = r'\AC\d_P3'
+    sig_cell = 'BRT037b-39-1'
+    fig_list = cdisp.plot_single_context(sig, channels=sig_cell, epochs=sig_eps, sign_fs=20, raster_fs=100, psth_fs=20,
+                                         window=1, rolling=True, type='MSD', consecutives=[1])
+
+
+
+######### second go into population
+
+pop_dist = cdisp.signal_all_context_sigdif(sig, channels='all', probes=(1, 2, 3, 4), dimensions='population',
+                                           sign_fs=100, window=1, rolling=True, type='MSD')
+
+significance = cdisp._significance_criterion(pop_dist.matrix, axis=1, window=2)
+
+if  plot is True:
+    fig, ax = plt.subplots()
+    for ii in range(significance.shape[0]):
+
+        toplot = significance[ii,:] + ii
+        label = pop_dist.cell_names[ii]
+
+        ax.plot(toplot, label=label)
+        ax.legend()
+
+
+
