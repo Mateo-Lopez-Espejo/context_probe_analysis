@@ -5,8 +5,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 import scipy.ndimage.filters as sf
 import scipy.signal as ssig
-from nems.signal import PointProcess
+
 from cpp_parameter_handlers import _epoch_name_handler, _channel_handler, _fs_handler
+from nems.signal import PointProcess
 
 
 # todo redo the distribution of axes in figures for psth, there is not purpose in plotig multiple signals as different
@@ -78,6 +79,7 @@ def _sig_bin_to_time(sign_window, window, fs, unite_overlaping=True):
 
 ### base plotting functions
 
+
 def _raster(times, values, y_offset=None, ax=None, scatter_kws=None):
     '''
     Plots a raster with one line for each pair of
@@ -117,6 +119,54 @@ def _raster(times, values, y_offset=None, ax=None, scatter_kws=None):
 
     # plots
     ax.scatter(t, i, **scatter_kws)
+
+    return fig, ax
+
+
+def _heatmap(times, values, y_offset=None, ax=None, imshow_kws=None):
+    '''
+        Plots a heatmap with one line for each value vector
+
+        times : Array with shape T where T is time bins in seconds
+        values : Array with shape R x T : where R is repetitions, and T is time. the dimensio of T must agree with that of
+                 T in times.
+        imshow_kws : pass-through arguments for plt.imshow
+        '''
+    # ToDo check thise works as expected
+
+    if ax == None:
+        fig, ax = plt.subplots()
+    else:
+        fig = ax.figure
+
+    x = values.copy()
+    x = x[np.isfinite(x[:, 0]), :]  # discards channels with non numeric values
+
+    i, j = np.where(x > 0)  # finds "spikes"
+
+    if y_offset != None:
+        i += y_offset
+
+    if times is not None:
+        t = times[j]
+    else:
+        t = j
+
+    # defines bounds of image for compatibility with other plot types
+
+    left = 0
+    right = times[-1]
+    bottom = values.shape(0)
+    top = 0
+
+    # updates kwargs
+    imshow_kws = {} if imshow_kws is None else imshow_kws
+    defaults = {'origin': 'upper',
+                'extent': (left, right, bottom, top)}
+    for key, arg in defaults.items(): imshow_kws.setdefault(key, arg)
+
+    # plots
+    ax.imshow(values, **imshow_kws)
 
     return fig, ax
 
@@ -539,9 +589,8 @@ def signal_raster(signal, epoch_names='single', channels='all', scatter_kws=None
 
 
 def hybrid(signal, epoch_names='single', channels='all', start=None, end=None,
-           significance=None, raster_fs=None,  psth_fs=None, sign_fs=None, sign_kws=None,
+           significance=None, raster_fs=None, psth_fs=None, sign_fs=None, sign_kws=None,
            scatter_kws=None, plot_kws=None):
-
     if not isinstance(signal, PointProcess): raise ValueError('signal should be a point process')
 
     # formats epoch naems

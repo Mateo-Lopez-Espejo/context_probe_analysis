@@ -11,6 +11,10 @@ import cpp_cache as cch
 import cpp_parameter_handlers as hand
 import cpp_plots as cplt
 
+### defines all named tuples for pickling
+dispersion_over_time = coll.namedtuple('dispersion_over_time', 'metric pvalue')
+population_dispersion = coll.namedtuple('population_dispersion', 'matrix cell_names')
+
 
 ### helper funtions
 
@@ -84,6 +88,34 @@ def _split_dim_into_dims(argin):
     return argout
 
 
+def _significance_criterion(pvalues, axis, window=1, threshold=0.01, comp='<='):
+    '''
+    acording to Asari and sador, to determine significance of a contextual effect, and to avoid false possitive
+    due to multiple comparisons, significant differences are only acepted if there are streches of consecutive time bins
+    all with significance < 0.01. takes an array of pvalues and returns a boolean vector of significance
+    acording to an alpha threshold an a window size
+    :param pvalues: 2d array of dimentions C x T where C are cells/channels and T are time bins
+    :param window: rolling window sizes in number of time bins, default 1 i.e time window = bin size
+    :param threshold: certainty threshold, by default 0.01
+    :return: boolean array of the same dimentions of pvalues array
+    '''
+
+    # windowed = _into_rolling_windows(pvalues, window, padding=np.nan)
+    windowed = _into_windows(pvalues, window=window, axis=axis, rolling=True, padding=np.nan)
+
+    # which individual time bins are significant
+    if comp == '<=':
+        sign_bin = np.where(windowed <= threshold, True, False)
+    elif comp == '>=':
+        sign_bin = np.where(windowed >= threshold, True, False)
+    else:
+        raise ValueError(" only '<=' and '>=' defined")
+
+    sign_window = np.all(sign_bin, axis=-1)  # which windows contain only significant bins
+
+    return sign_window
+
+
 ### single-cell window dispersion functions
 
 def _window_kruskal(working_window):
@@ -102,12 +134,33 @@ def _window_kruskal(working_window):
 
     # kruskal Wallis pvalue calculates simultaneously for all contexts
     try:
-        kruscal = sst.kruskal(*working_window)
-        pval = kruscal.pvalue
-    except:
-        pval = np.nan
+        metric, pvalue = sst.kruskal(*working_window)
 
-    return pval
+    except:
+        metric = pvalue = np.nan
+
+    return metric, pvalue
+
+
+def _window_STD(working_window):
+    '''
+    calculates standard deviation of the PSTH between contexts , binning by time with the mean,
+    for an array of shape Repetition x Context x Time
+    :param working_window: 3d ndarray with dims Repetition x Context x Time
+    :return: float pvalue
+    '''
+
+    # calculates the PSTH
+    psth = np.mean(working_window, axis=0)  # PSTH with shape Context x Time
+
+    # calculates the standard deviation across contexts
+    ctx_std = np.std(psth, axis=0)  # std of PSTHs with shape Time
+
+    # gets the mean acroos time
+    metric = np.mean(ctx_std)
+    pvalue = np.nan
+
+    return metric, pvalue
 
 
 def _window_pearsons(working_window):
@@ -169,7 +222,9 @@ def _window_pearsons(working_window):
     else:
         pvalue = 1
 
-    return pvalue
+    metric = obs_rval
+
+    return metric, pvalue
 
 
 def _window_MSD(working_window):
@@ -231,7 +286,9 @@ def _window_MSD(working_window):
     else:
         pvalue = 1
 
-    return pvalue
+    metric = obs_msd
+
+    return metric, pvalue
 
 
 ### cell-population window dispersion functions
@@ -239,11 +296,11 @@ def _window_MSD(working_window):
 
 def _window_ndim_MSD(working_window):
     '''
-        calculates mean of the pairwise Mean Standard Difference of the PSTHs (i.e. collapsed repetitions) between contexts
-        for an array of shape Repetition x Unit x Context x WindowTimeBin
-        :param working_window: 4D array has dimensions Repetition x Unit x Context x WindowTimeBin
-        :return: float pvalue
-        '''
+    calculates mean of the pairwise Mean Standard Difference of the PSTHs (i.e. collapsed repetitions) between contexts
+    for an array of shape Repetition x Unit x Context x WindowTimeBin
+    :param working_window: 4D array has dimensions Repetition x Unit x Context x WindowTimeBin
+    :return: float pvalue
+    '''
 
     def _working_window_MSD(working_window):
         # input array should have shape Repetition x Unit x Context x WindowTimeBin
@@ -297,9 +354,98 @@ def _window_ndim_MSD(working_window):
     else:
         pvalue = 1
 
-    shuffle_test = coll.namedtuple('shuffled_vals', 'pvalue calculated floor')
+    metric = obs_msd
 
-    return shuffle_test(pvalue, obs_msd, msd_floor)
+    return metric, pvalue
+
+
+def _window_ndim_STD(working_window):
+    '''
+    todo this function is shit. I cannot figure out a proper manner of considering standard deviation across the dimentions of context, and cells
+    calculates standard deviation of the PSTH between contexts , binning by time with the mean,
+    for an array of shape Repetition x Context x Time
+    :param working_window: 3d ndarray with dims Repetition x Context x Time
+    :return: float pvalue
+    '''
+
+    # input array should have shape Repetition x Unit x Context x WindowTimeBin
+    # calculates PSTH
+    psth = np.mean(working_window, axis=0)  # PSTH with shape Unit x Context x Time
+
+    # calculates the cell-specific context-driven dispersion
+    cell_std = np.std(psth, axis=1)  # cell STD with shape Unit x Time
+
+    # mean of the std across cells, and bins by meaning in time
+    metric = np.mean(cell_std)
+
+    pvalue = np.nan
+
+    return metric, pvalue
+
+
+def _window_ndim_euclidean(working_window):
+    '''
+    calculates mean of the pairwise Mean Standard Difference of the PSTHs (i.e. collapsed repetitions) between contexts
+    for an array of shape Repetition x Unit x Context x WindowTimeBin
+    :param working_window: 4D array has dimensions Repetition x Unit x Context x WindowTimeBin
+    :return: float pvalue
+    '''
+
+    def _working_window_euclidean(working_window):
+        # input array should have shape Repetition x Unit x Context x WindowTimeBin
+        # calculates PSTH i.e. mean across repetitions
+        psth = working_window.mean(axis=0)  # dimentions Unit x Context x WindowTime
+        # initializes array to hold the calculated metric for all context pairs combinations
+        combs = int(math.factorial(psth.shape[1]) / (2 * math.factorial(psth.shape[1] - 2)))
+        msd_values = np.empty(combs)
+        # iterates over every pair of contexts
+        for ctx, (ctx1, ctx2) in enumerate(itt.combinations(range(psth.shape[1]), 2)):
+            # compares the psth difference for each Unit
+            unit_sqr_dif = math.sqrt((psth[:, ctx1, :] - psth[:, ctx2, :]) ** 2)
+            # sums across Units, means across time
+            msd_values[ctx] = np.nanmean(np.sum(unit_sqr_dif, axis=0), axis=0)
+
+        mean_r = msd_values.mean()
+        return mean_r
+
+    # 1. calculates the mean of the pairwise correlation coefficient between all differente contexts
+    obs_euc = _working_window_euclidean(working_window)
+
+    # 2. shuffles across repetitions a contexts
+    # collapses repetition and context together
+    # first two axes remain unaltered, swaps axes to shape WindowTimeBin x Unit x Context x repetition
+    collapsed = working_window.swapaxes(0, 3)
+    t, u, c, r = collapsed.shape
+    collapsed = collapsed.reshape([t, u, c * r], order='C')
+    # makes the dimention to suffle first, to acomodate for numpy way of shuffling
+    shuffled = collapsed.swapaxes(0, 2)  # dimentions (C*R) x U x T
+
+    shuffle_n = 100
+
+    msd_floor = np.empty([shuffle_n])
+
+    # n times shuffle
+
+    for rep in range(shuffle_n):
+        # shuffles array
+        np.random.shuffle(shuffled)
+        # reshapes
+        reshaped = shuffled.transpose(2, 1, 0).reshape(t, u, c, r).transpose(3, 1, 2, 0)
+        # calculates pairwise r_value
+        msd_floor[rep] = _working_window_euclidean(reshaped)
+
+    # pvalue = (msd_floor > obs_euc).sum() / shuffle_n
+
+    if obs_euc > msd_floor.mean():
+        pvalue = (msd_floor > obs_euc).sum() / shuffle_n
+    elif obs_euc < msd_floor.mean():
+        pvalue = (msd_floor < obs_euc).sum() / shuffle_n
+    else:
+        pvalue = 1
+
+    metric = obs_euc
+
+    return metric, pvalue
 
 
 ### base single cell dispersion fucntions
@@ -329,7 +475,9 @@ def _single_cell_difsig(matrices, channels='all', window=1, rolling=False, type=
 
     # initializes result matrix with shape C x T where C is cell and T is time or TimeWindow
     shape = windowed.shape
+
     metric_over_time = np.zeros([len(channels), shape[2]])  # empty array of dimentions Cells x Time
+    pvalue_over_time = np.zeros([len(channels), shape[2]])  # empty array of dimentions Cells x Time
 
     # iterates over cell
     for cc, cell in enumerate(channels):
@@ -340,49 +488,25 @@ def _single_cell_difsig(matrices, channels='all', window=1, rolling=False, type=
 
             # selects betwee different metrics
             if type == 'Kruskal':
-                pvalue = _window_kruskal(working_window)
+                metric, pvalue = _window_kruskal(working_window)
 
             elif type == 'Pearsons':
                 if window == 1: raise ValueError('Pearsons correlation requieres window of size > 1')
-                pvalue = _window_pearsons(working_window)
+                metric, pvalue = _window_pearsons(working_window)
 
             elif type == 'MSD':
-                pvalue = _window_MSD(working_window)
+                metric, pvalue = _window_MSD(working_window)
+
+            elif type == 'STD':
+                metric, pvalue = _window_MSD(working_window)
 
             else:
                 raise ValueError('keyword {} not suported'.format(type))
 
-            metric_over_time[cc, wind] = pvalue
+            metric_over_time[cc, wind] = metric
+            pvalue_over_time[cc, wind] = pvalue
 
-    return metric_over_time
-
-
-def _significance_criterion(pvalues, axis, window=1, threshold=0.01, comp='<='):
-    '''
-    acording to Asari and sador, to determine significance of a contextual effect, and to avoid false possitive
-    due to multiple comparisons, significant differences are only acepted if there are streches of consecutive time bins
-    all with significance < 0.01. takes an array of pvalues and returns a boolean vector of significance
-    acording to an alpha threshold an a window size
-    :param pvalues: 2d array of dimentions C x T where C are cells/channels and T are time bins
-    :param window: rolling window sizes in number of time bins, default 1 i.e time window = bin size
-    :param threshold: certainty threshold, by default 0.01
-    :return: boolean array of the same dimentions of pvalues array
-    '''
-
-    # windowed = _into_rolling_windows(pvalues, window, padding=np.nan)
-    windowed = _into_windows(pvalues, window=window, axis=axis, rolling=True, padding=np.nan)
-
-    # which individual time bins are significant
-    if comp == '<=':
-        sign_bin = np.where(windowed <= threshold, True, False)
-    elif comp == '>=':
-        sign_bin = np.where(windowed >= threshold, True, False)
-    else:
-        raise ValueError(" only '<=' and '>=' defined")
-
-    sign_window = np.all(sign_bin, axis=-1)  # which windows contain only significant bins
-
-    return sign_window
+    return dispersion_over_time(metric_over_time, pvalue_over_time)
 
 
 ### base population dispersion functions
@@ -415,24 +539,25 @@ def _population_difsig(matrices, channels='all', window=1, rolling=False, type='
     # initializes result matrix with shape T where T is time or TimeWindow
     shape = windowed.shape
     metric_over_time = np.zeros(shape[2])
+    pvalue_over_time = np.zeros(shape[2])
 
     # iterates over time window
     for wind in range(shape[2]):
         working_window = windowed[:, :, wind, :, :]  # array has dimensions Repetition x Cell x Context x WindowTimeBin
 
         if type == 'MSD':
-            pvalue = _window_ndim_MSD(working_window).pvalue
+            metric, pvalue = _window_ndim_MSD(working_window)
 
         elif type == 'Euclidean':
-            # ToDo implement
-            raise NotImplementedError
+            metric, pvalue = _window_ndim_euclidean(working_window)
 
         else:
             raise ValueError('keyword {} not suported'.format(type))
 
-        metric_over_time[wind] = pvalue
+        metric_over_time[wind] = metric
+        pvalue_over_time[wind] = pvalue
 
-    return metric_over_time
+    return dispersion_over_time(metric_over_time, pvalue_over_time)
 
 
 def _pairwise_distance_within(matrix):
@@ -494,12 +619,13 @@ def _pairwise_distance_between(matrixes):
 
 ###  signal wrapers
 
-def signal_single_context_sigdif(signal, epoch_names='single', channels='all', dimensions='cell', fs=None, window=1, rolling=False, type='Kruskal', recache=False, signal_name=None):
+def signal_single_context_sigdif(signal, epoch_names='single', channels='all', dimensions='cell', fs=None, window=1,
+                                 rolling=False, type='Kruskal', recache=False, signal_name=None):
     func_args = locals()
 
     # looks in cache
     folder = '/home/mateo/mycache/cpp/'
-    name_args = {key: val for key, val in func_args.items() if key not in ['signal', 'signal_name']}
+    name_args = {key: val for key, val in func_args.items() if key not in ['signal', 'signal_name', 'recache']}
     # acnowledgese its a population calculation
     name_args['population'] = False
     cache_name = cch.set_name(name_args, signal_name=signal_name, onlysig=False)
@@ -527,23 +653,24 @@ def signal_single_context_sigdif(signal, epoch_names='single', channels='all', d
     matrixes = tempsig.rasterize().extract_epochs(epoch_names)
 
     if dimensions == 'population':
-        diff_pvals = _population_difsig(matrixes, channels=channels, window=window, rolling=rolling, type=type)
+        dispersion_over_time = _population_difsig(matrixes, channels=channels, window=window, rolling=rolling,
+                                                  type=type)
 
     elif dimensions == 'cell':
-        diff_pvals = _single_cell_difsig(matrixes, channels=channels, window=window, rolling=rolling, type=type)
+        dispersion_over_time = _single_cell_difsig(matrixes, channels=channels, window=window, rolling=rolling,
+                                                   type=type)
 
     else:
-        raise ValueError("dimensions can only be 'cell' or 'population', but {} was given".format(dimensions))
-
+        raise ValueError("dimensions can only be 'cell' or 'population', but '{}' was given".format(dimensions))
 
     # saves to cache
-    diff_pvals = cch.cache_wrap(obj_name=cache_name, folder=folder, obj=diff_pvals, recache=recache)
+    dispersion_over_time = cch.cache_wrap(obj_name=cache_name, folder=folder, obj=dispersion_over_time, recache=recache)
 
-    return diff_pvals
+    return dispersion_over_time
 
 
-def signal_all_context_sigdif(signal, channels, probes=(1, 2, 3, 4), dimensions='cell', sign_fs=None, window=1, rolling=True,
-                              type='Kruskal'):
+def signal_all_context_sigdif(signal, channels, probes=(1, 2, 3, 4), dimensions='cell', sign_fs=None, window=1,
+                              rolling=True, type='Kruskal', recache=False, signal_name=None, value='pvalue'):
     '''
     calculates the difference pvalue across all cells in all probes
     :param signal: cpp Singal object
@@ -565,8 +692,11 @@ def signal_all_context_sigdif(signal, channels, probes=(1, 2, 3, 4), dimensions=
     # calculates dipersion pval for each set of contexts probe.
     for pp in probes:
         this_probe = r'\AC\d_P{}'.format(pp)
-        disp_mat = signal_single_context_sigdif(signal, epoch_names=this_probe, channels=channels, dimensions=dimensions,
-                                                fs=sign_fs, window=window, rolling=rolling, type=type)
+        dispersion_over_time = signal_single_context_sigdif(signal, epoch_names=this_probe, channels=channels,
+                                                            dimensions=dimensions,
+                                                            fs=sign_fs, window=window, rolling=rolling, type=type,
+                                                            recache=recache,
+                                                            signal_name=signal_name)
 
         if dimensions == 'cell':
             chan_idx = hand._channel_handler(signal, channels)  # heterogeneous "channels" value to indexes
@@ -578,29 +708,34 @@ def signal_all_context_sigdif(signal, channels, probes=(1, 2, 3, 4), dimensions=
         else:
             raise ValueError("dimensions can only be 'cell' or 'population', but {} was given".format(dimensions))
 
-        all_probes.append(disp_mat)
+        if value == 'metric':
+            all_probes.append(dispersion_over_time.metric)
+        elif value == 'pvalue':
+            all_probes.append(dispersion_over_time.pvalue)
+        else:
+            raise ValueError("parameter 'value' can only be 'metric' or 'pvalue'. {} was given".format(value))
+
         compound_names.extend(comp_names)
 
     compound_names = np.asarray(compound_names)
 
     if dimensions == 'cell':
         # concatenates across first dimention i.e. cell/channel
-        pop_pval = np.concatenate(all_probes, axis=0)
+        disp_val = np.concatenate(all_probes, axis=0)
     elif dimensions == 'population':
         # stacs across new first dimention i.e. stimuli
-        pop_pval = np.stack(all_probes, axis=0)
+        disp_val = np.stack(all_probes, axis=0)
     else:
         raise ValueError("dimensions can only be 'cell' or 'population', but {} was given".format(dimensions))
 
-    output = coll.namedtuple('population_pvals', 'matrix cell_names')
+    return population_dispersion(disp_val, compound_names)
 
-    return output(pop_pval, compound_names)
 
 ### complex plotting functions
 
 
 def pseudopop_significance(signal, channels, probes=(1, 2, 3, 4), sign_fs=None, window=1, rolling=True, type='Kruskal',
-                           consecutives=1, hist=False, bins=60, recache=False, signal_name=None):
+                           consecutives=1, hist=False, bins=60, recache=False, signal_name=None, value='pvalue'):
     '''
     makes a summary plot of the significance(black dots) over time (x axis) for each combination of cell and
     *[contexts,...]-Probe (y axis).
@@ -625,88 +760,104 @@ def pseudopop_significance(signal, channels, probes=(1, 2, 3, 4), sign_fs=None, 
     # handlese sign_fs
     sign_fs = hand._fs_handler(signal, sign_fs)
 
-    # handles channel names
-    channels = hand._channel_handler(signal, channels)
-
     # calculates dipersion pval for each set of contexts probe.
     for pp in probes:
         this_probe = r'\AC\d_P{}'.format(pp)
-        disp_mat = signal_single_context_sigdif(signal, epoch_names=this_probe, channels=channels, fs=sign_fs,
-                                                     window=window, rolling=rolling, type=type, recache=recache,
-                                                     signal_name=signal_name)
+        dispersion_over_time = signal_single_context_sigdif(signal, epoch_names=this_probe, channels=channels,
+                                                            dimensions='cell',
+                                                            fs=sign_fs,
+                                                            window=window, rolling=rolling, type=type, recache=recache,
+                                                            signal_name=signal_name)
 
         chan_idx = hand._channel_handler(signal, channels)
         cell_names = [name for nn, name in enumerate(signal.chans) if nn in chan_idx]
         comp_names = ['C*_P{}: {}'.format(pp, cell_name) for cell_name in cell_names]
 
-        all_probes.append(disp_mat)
+        if value == 'metric':
+            all_probes.append(dispersion_over_time.metric)
+        elif value == 'pvalue':
+            all_probes.append(dispersion_over_time.pvalue)
+        else:
+            raise ValueError("parameter 'value' can only be 'metric' or 'pvalue'. {} was given".format(value))
+
         compound_names.extend(comp_names)
 
     compound_names = np.asarray(compound_names)
 
-    # concatenates across first dimention i.e. cell/channel
-    pop_pval = np.concatenate(all_probes, axis=0)
+    # concatenates across first dimention i.e. cell/channel, final shape is (Context x Cell) x Time
+    population_dispersion = np.concatenate(all_probes, axis=0)
 
-    # defines significance "integration window"
-    if isinstance(consecutives, int):
-        consecutives = [consecutives]
-    elif isinstance(consecutives, list):
-        pass
-    else:
-        raise ValueError("consecutives should be a positive int or a list of ppositive ints")
+    # defines sorting function
+    def sort_by_last_significant_bin(unsorted):
+        last_True = list()
+        for cell in range(unsorted.shape[0]):
+            # find last significant point
+            idxs = np.where(unsorted[cell, :] == True)[0]
+            if idxs.size == 0:
+                idxs = 0
+            else:
+                idxs = np.max(idxs)
+            last_True.append(idxs)
+        sort_idx = np.argsort(np.asarray(last_True))
 
-    all_figs = list()
-    diff_matrices = list()
-    cell_orders = list()
+        # initializes empty sorted array
+        sorted_sign = np.empty(shape=unsorted.shape)
+        for ii, ss in enumerate(sort_idx):
+            sorted_sign[ii, :] = pop_sign[ss, :]
 
-    for cons in consecutives:
-        pop_sign = _significance_criterion(pop_pval, axis=1, window=cons, threshold=0.01, comp='<=')  # array with shape
+        return sorted_sign, sort_idx
 
-        times = np.arange(0, pop_sign.shape[1]) / sign_fs
+    if value == 'pvalue':
+        # defines significance "integration window"
+        if isinstance(consecutives, int):
+            consecutives = [consecutives]
+        elif isinstance(consecutives, list):
+            pass
+        else:
+            raise ValueError("consecutives should be a positive int or a list of positive ints")
 
-        if hist is False:
-            # set size of scatter markers
-            scat_kwargs = {'s': 10}
+        all_figs = list()
+        diff_matrices = list()
+        cell_orders = list()
 
-            # organizes by last significant time for clarity
-            def sort_by_last_significant_bin(unsorted):
-                last_True = list()
-                for cell in range(unsorted.shape[0]):
-                    # find last significant point
-                    idxs = np.where(unsorted[cell, :] == True)[0]
-                    if idxs.size == 0:
-                        idxs = 0
-                    else:
-                        idxs = np.max(idxs)
-                    last_True.append(idxs)
-                sort_idx = np.argsort(np.asarray(last_True))
+        for cons in consecutives:
+            pop_sign = _significance_criterion(population_dispersion, axis=1, window=cons, threshold=0.01,
+                                               comp='<=')  # array with shape
 
-                # initializes empty sorted array
-                sorted_sign = np.empty(shape=unsorted.shape)
-                for ii, ss in enumerate(sort_idx):
-                    sorted_sign[ii, :] = pop_sign[ss, :]
+            times = np.arange(0, pop_sign.shape[1]) / sign_fs
 
-                return sorted_sign, sort_idx
+            if hist is False:
+                # set size of scatter markers
+                scat_kwargs = {'s': 10}
 
-            sorted_sign, sort_idx = sort_by_last_significant_bin(pop_sign)
-            sorted_names = compound_names[sort_idx]
+                # organizes by last significant time for clarity
+                sorted_sign, sort_idx = sort_by_last_significant_bin(pop_sign)
+                sorted_names = compound_names[sort_idx]
 
-            # rasters the sorted significances
-            fig, ax = cplt._raster(times, sorted_sign, scatter_kws=scat_kwargs)
-            ax.set_yticks(np.arange(0, sorted_sign.shape[0], 1))
-            ax.set_yticklabels(sorted_names)
+                # rasters the sorted significances
+                fig, ax = cplt._raster(times, sorted_sign, scatter_kws=scat_kwargs)
+                ax.set_yticks(np.arange(0, sorted_sign.shape[0], 1))
+                ax.set_yticklabels(sorted_names)
 
-            fig.suptitle('metric: {}, window: {}, fs: {}, consecutives: {}'.format(type, window, sign_fs, cons))
+                fig.suptitle('metric: {}, window: {}, fs: {}, consecutives: {}'.format(type, window, sign_fs, cons))
 
-        elif hist is True:
-            _, sign_times = np.where(pop_sign == True)
+            elif hist is True:
+                _, sign_times = np.where(pop_sign == True)
 
-            fig, ax = plt.subplots()
-            ax.hist(sign_times, bins=bins)
+                fig, ax = plt.subplots()
+                ax.hist(sign_times, bins=bins)
 
-        all_figs.append(fig)
-        diff_matrices.append(sorted_sign)
-        cell_orders.append(sorted_names)
+            all_figs.append(fig)
+            diff_matrices.append(sorted_sign)
+            cell_orders.append(sorted_names)
+
+    elif value == 'metric':
+
+        diff_matrices = [population_dispersion]
+        cell_orders = [compound_names]
+        times = np.arange(0, population_dispersion.shape[1]) / sign_fs
+        fig, ax = cplt._heatmap(times, population_dispersion)
+        ll_figs = [fig]
 
     output = coll.namedtuple('Population_significance', 'figures diff_matrices cell_orders')
 
@@ -714,7 +865,7 @@ def pseudopop_significance(signal, channels, probes=(1, 2, 3, 4), sign_fs=None, 
 
 
 def plot_single_context(signal, channels, epochs, sign_fs=None, raster_fs=None, psth_fs=None, window=1, rolling=False,
-                        type='Kruskal', consecutives=1):
+                        type='Kruskal', consecutives=1, value='pvalue'):
     '''
     calculates significant difference over time for the specified cells/channels and *[contexts,...]-probe (epochs),
     overlays gray vertical bars to hybrid plot (raster + PSTH) on time bins with significante difference between
@@ -723,40 +874,47 @@ def plot_single_context(signal, channels, epochs, sign_fs=None, raster_fs=None, 
     :param epochs:  epoch name (str), regexp, list of epoch names, 'single', 'pair'. keywords 'single' and 'pair'
     correspond to all single vocalization, and pair of context probe vocalizations.
     :param window: time window size, in time bins, over which calculate significant difference metrics
-    :param rolling: boolean, If True, uses rolling window of stride 1. If False uses non overlaping yuxtaposed windows
-    :param type: keyword defining what metric to use. 'Kruskal' for Kurscal Wallis,
+    :param rolling: boolean, If True, uses rolling window of stride 1. If False uses non overlapping juxtaposed windows
+    :param type: keyword defining what metric to use. 'Kruskal' for Kurskal Wallis,
+    :consecutives: int, [int...], number of consecutive significant time windows to consider overall significance. works only when ploting pvalues
+    :value: keyword 'metric', plots the dispersion metric; 'pvalue' plots the corresponding pvalue if possible
     :return: figure, axes
     '''
     # todo clean this function
 
     # calculates significant difference between different context across time
-    disp_pval = signal_single_context_sigdif(signal, epoch_names=epochs, channels=channels, fs=sign_fs,
-                                                  window=window,
-                                                  rolling=rolling, type=type)
+    dispersion_over_time = signal_single_context_sigdif(signal, epoch_names=epochs, channels=channels,
+                                                        dimensions='cell',
+                                                        fs=sign_fs,
+                                                        window=window,
+                                                        rolling=rolling, type=type)
 
     all_figs = list()
+    if value == 'pvalue':
+        # defines significance "integration window"
+        if isinstance(consecutives, int):
+            consecutives = [consecutives]
+        elif isinstance(consecutives, list):
+            pass
+        else:
+            raise ValueError("consecutives should be a positive int or a list of ppositive ints")
 
-    # defines significance "integration window"
-    if isinstance(consecutives, int):
-        consecutives = [consecutives]
-    elif isinstance(consecutives, list):
-        pass
-    else:
-        raise ValueError("consecutives should be a positive int or a list of ppositive ints")
+        for con in consecutives:
+            # defines significance, uses window size equal to time bin size
+            significance = _significance_criterion(dispersion_over_time, axis=1, window=con, threshold=0.01,
+                                                   comp='<=')  # array with shape Cell x Time
 
-    for con in consecutives:
-        # defines significance, uses window size equal to time bin size
-        significance = _significance_criterion(disp_pval, axis=1, window=con, threshold=0.01,
-                                               comp='<=')  # array with shape
+            # overlays significatn times on the raster and PSTH for the specified cells and context probe pairs
+            scat_key = {'s': 5, 'alpha': 0.5}
+            fig, axes = cplt.hybrid(signal, epoch_names=epochs, channels=channels, start=3, end=6, scatter_kws=scat_key,
+                                    significance=significance, raster_fs=raster_fs, psth_fs=psth_fs, sign_fs=sign_fs)
 
-        # overlays significatn times on the raster and PSTH for the specified cells and context probe pairs
-        scat_key = {'s': 5, 'alpha': 0.5}
-        fig, axes = cplt.hybrid(signal, epoch_names=epochs, channels=channels, start=3, end=6, scatter_kws=scat_key,
-                                significance=significance, raster_fs=raster_fs, psth_fs=psth_fs, sign_fs=sign_fs)
+            fig.suptitle('metric: {}, window: {}, fs: {}, consecutives: {}'.format(type, window, sign_fs, con))
 
-        fig.suptitle('metric: {}, window: {}, fs: {}, consecutives: {}'.format(type, window, sign_fs, con))
+            all_figs.append(fig)
 
-        all_figs.append(fig)
+    elif value == 'metric':
+        raise NotImplementedError('ups')
 
     return fig, axes
 

@@ -49,9 +49,11 @@ def cache_wrap(obj_name, folder='/home/mateo/mycache', obj=None, recache=False):
             print(save_msg)
             return obj
         else:
+            print('Forced recaching, running...')
             return None
 
     elif recache == False:
+        print('searching {}'.format(path))
         #
         if os.path.exists(path):
             if obj is not None:

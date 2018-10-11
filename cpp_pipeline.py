@@ -199,7 +199,15 @@ if plot is True:
 
 if plot is True:
     out = cdisp.pseudopop_significance(sig, channels='all', sign_fs=100, window=1, rolling=True, type='MSD',
-                                       consecutives=[1, 2, 3, 4, 5], recache=False, signal_name='BRT037b')
+                                       consecutives=[1, 2, 3, 4, 5], recache=False, signal_name=None)
+
+
+    # then plots the equivalent to the multiple comparisons window but downsamplig to the adecuate window size
+
+    for freq in (20, 25, 33, 50):
+        out = cdisp.pseudopop_significance(sig, channels='all', sign_fs=freq, window=1, rolling=True, type='MSD',
+                                           consecutives=[1], recache=False, signal_name=None)
+
 
     # does the same for an example good cell
     sig_eps = r'\AC\d_P3'
@@ -225,20 +233,21 @@ if plot is True:
 
 ######### second go into population
 
-pop_dist = cdisp.signal_all_context_sigdif(sig, channels='all', probes=(1, 2, 3, 4), dimensions='population',
-                                           sign_fs=100, window=1, rolling=True, type='MSD')
+pop_disp = cdisp.signal_all_context_sigdif(sig, channels=good_cell_names, probes=(1, 2, 3, 4), dimensions='pop',
+                                           sign_fs=10, window=1, rolling=True, type='STD', recache=False, value='metric')
 
-significance = cdisp._significance_criterion(pop_dist.matrix, axis=1, window=2)
+significance = cdisp._significance_criterion(pop_disp.matrix, axis=1, window=1, threshold=0.5)
 
-if  plot is True:
-    fig, ax = plt.subplots()
-    for ii in range(significance.shape[0]):
 
-        toplot = significance[ii,:] + ii
-        label = pop_dist.cell_names[ii]
+fig, ax = plt.subplots()
+for ii in range(4):
 
-        ax.plot(toplot, label=label)
-        ax.legend()
+    # toplot = pop_disp.matrix[ii,:] + ii
+    toplot = significance[ii, :] + ii
+    label = pop_disp.cell_names[ii]
+
+    ax.plot(toplot, label=label)
+    ax.legend()
 
 
 
