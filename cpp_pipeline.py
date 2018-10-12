@@ -264,13 +264,14 @@ ax.legend()
 
 dimension =['cell', 'population']
 channels = [good_cell_names, 'all']
+this_fs = 10
 
 mat_dict = dict()
 name_dict = dict()
 
 for dim, chan in itt.product(dimension, channels):
     dist_mat, dist_name = cdisp.signal_all_context_sigdif(sig, channels=chan, probes=(1, 2, 3, 4),
-                                                  dimensions=dim, sign_fs=10, window=1, rolling=True,
+                                                  dimensions=dim, sign_fs=this_fs, window=1, rolling=True,
                                                   type='Euclidean', recache=False, value='metric')
 
     if chan is good_cell_names: chankey = 'best cells'
@@ -286,10 +287,27 @@ for dim, chan in itt.product(dimension, channels):
 
 
 if plot is True:
-    # plots ray values with
+    # defines time axis, comon to all three plots
+    one_mat_time = mat_dict[list(mat_dict.keys())[0]].shape[1]
+    time = (np.arange(0, one_mat_time) / this_fs) - 3
+
+    # heatmap raw array values
     fig, axes = plt.subplots(2,2)
     axes = np.ravel(axes)
+    for ax, (key, val) in zip(axes, mat_dict.items()):
 
+        names = name_dict[key]
+
+        ax.imshow(val,origin='lower')
+        ax.set_yticks(np.arange(0, len(names) , 1))
+        ax.set_yticklabels(names)
+        ax.set_title(key)
+        ax.set_xlabel('seconds')
+
+
+    # plots raw array values
+    fig, axes = plt.subplots(2, 2)
+    axes = np.ravel(axes)
     for ax, (key, val) in zip(axes, mat_dict.items()):
         for jj in range(val.shape[0]):
 
@@ -307,17 +325,11 @@ if plot is True:
 
             toplot = val[jj, :] + (jj * 1)
 
-            ax.plot(toplot, linestyle=linestyle, color=color)
+            ax.plot(time, toplot, linestyle=linestyle, color=color)
 
             ax.set_title(key)
             ax.set_ylabel('euclidean distance')
-
-
-
-
-
-
-
+            ax.set_xlabel('seconds')
 
     # Mean across probes (population) and probe/cell (cell)
     mean_dict = {key: np.nanmean(val, axis=0) for key, val in mat_dict.items()}
@@ -332,17 +344,19 @@ if plot is True:
         if words[-2] == 'best': color = 'green'
         elif words[-2] == 'all': color = 'orange'
 
-        ax.plot(val, linestyle=linestyle, color=color, label=key)
+        ax.plot(time, val, linestyle=linestyle, color=color, label=key)
 
     ax.legend()
     ax.set_ylabel('mean euclidean distance')
+    ax.set_xlabel('seconds')
+    ax.set_title('multidimentional vs cell by cell comparison')
 
 
     # Normalizes to compare between cell by cell and multidimentional
     norm_dict = {key: val/np.max(val) for key, val in mean_dict.items()}
     # plots
     fig, ax = plt.subplots()
-    for key, val in mean_dict.items():
+    for key, val in norm_dict.items():
         words = key.split(' ')
         # sets the dimention as linestile
         if words[0] == 'cell':
@@ -355,10 +369,12 @@ if plot is True:
         elif words[-2] == 'all':
             color = 'orange'
 
-        ax.plot(val, linestyle=linestyle, color=color, label=key)
+        ax.plot(time, val, linestyle=linestyle, color=color, label=key)
 
     ax.legend()
-    ax.set_ylabel('mean euclidean distance')
+    ax.set_ylabel('normalized euclidean distance')
+    ax.set_xlabel('seconds')
+    ax.set_title('multidimentional vs cell by cell comparison, Normalized')
 
 
 
