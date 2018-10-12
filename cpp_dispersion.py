@@ -13,7 +13,7 @@ import cpp_plots as cplt
 
 ### defines all named tuples for pickling
 dispersion_over_time = coll.namedtuple('dispersion_over_time', 'metric pvalue')
-population_dispersion = coll.namedtuple('population_dispersion', 'matrix cell_names')
+population_dispersion = coll.namedtuple('population_dispersion', 'matrix good_unit_names')
 
 
 ### helper funtions
@@ -291,6 +291,73 @@ def _window_MSD(working_window):
     return metric, pvalue
 
 
+def _window_euclidean(working_window):
+    '''
+        calculates mean of the pairwise euclidean distance of the PSTHs (i.e. collapsed repetitions) between contexts
+        for an array of shape Repetition x Context x Time
+        :param working_window: 3d ndarray with dims Repetition x Context x Time
+        :return: float pvalue
+        '''
+
+    def _working_window_euclidean(working_window):
+        # input array should have shape Repetitions x Context x Time
+        # calculates PSTH i.e. mean across repetitions
+        psth = working_window.mean(axis=0)  # dimentions Context x WindowTime
+        # initializes array to hold the calculated metric for all context pairs combinations
+        combs = int(math.factorial(psth.shape[0]) / (2 * math.factorial(psth.shape[0] - 2)))
+        euc_values = np.empty(combs)
+        # iterates over every pair of contexts
+        for ctx, (ctx1, ctx2) in enumerate(itt.combinations(range(psth.shape[0]), 2)):
+            # calculates an holds the euclidean distance
+            euc = (np.sqrt((psth[ctx1, :] - psth[ctx2, :]) ** 2))
+
+            # takes the mean across time
+            t_mean = np.nanmean(euc)
+
+            euc_values[ctx] = t_mean
+
+        # calculates the mean of the pairwise distances.
+        pair_euc_mean = euc_values.mean()
+        return pair_euc_mean
+
+    # 1. calculates the mean of the pairwise correlation coefficient between all differente contexts
+    obs_msd = _working_window_euclidean(working_window)
+
+    # 2. shuffles across repetitions a contexts
+    # collapses repetition and context together
+    collapsed = working_window.swapaxes(0, 2)  # makes time the first axis, the only relevant to hold
+    t, c, r = collapsed.shape
+    collapsed = collapsed.reshape([t, c * r], order='C')
+    # makes the dimention to suffle first, to acomodate for numpy way of shuffling
+    shuffled = collapsed.T  # dimentions (C*R) x T
+
+    shuffle_n = 100
+
+    msd_floor = np.empty([100])
+
+    # n times shuffle
+
+    for rep in range(shuffle_n):
+        # shuffles array
+        np.random.shuffle(shuffled)
+        # reshapes
+        reshaped = shuffled.T.reshape(t, c, r).swapaxes(0, 2)
+        # calculates pairwise r_value
+        msd_floor[rep] = _working_window_euclidean(reshaped)
+
+    # pvalue = (msd_floor > obs_msd).sum() / shuffle_n
+
+    if obs_msd > msd_floor.mean():
+        pvalue = (msd_floor > obs_msd).sum() / shuffle_n
+    elif obs_msd < msd_floor.mean():
+        pvalue = (msd_floor < obs_msd).sum() / shuffle_n
+    else:
+        pvalue = 1
+
+    metric = obs_msd
+
+    return metric, pvalue
+
 ### cell-population window dispersion functions
 
 
@@ -391,7 +458,7 @@ def _window_ndim_euclidean(working_window):
     :return: float pvalue
     '''
 
-    def _working_window_euclidean(working_window):
+    def _working_window_ndim_euclidean(working_window):
         # input array should have shape Repetition x Unit x Context x WindowTimeBin
         # calculates PSTH i.e. mean across repetitions
         psth = working_window.mean(axis=0)  # dimentions Unit x Context x WindowTime
@@ -400,16 +467,16 @@ def _window_ndim_euclidean(working_window):
         msd_values = np.empty(combs)
         # iterates over every pair of contexts
         for ctx, (ctx1, ctx2) in enumerate(itt.combinations(range(psth.shape[1]), 2)):
-            # compares the psth difference for each Unit
-            unit_sqr_dif = math.sqrt((psth[:, ctx1, :] - psth[:, ctx2, :]) ** 2)
-            # sums across Units, means across time
-            msd_values[ctx] = np.nanmean(np.sum(unit_sqr_dif, axis=0), axis=0)
+            # compares the psth difference for each Unit/state-dimension
+            unit_sqr_dif = np.sqrt(np.sum((psth[:, ctx1, :] - psth[:, ctx2, :]) ** 2, axis=0))
+            # means across time
+            msd_values[ctx] = np.nanmean(unit_sqr_dif, axis=0)
 
         mean_r = msd_values.mean()
         return mean_r
 
     # 1. calculates the mean of the pairwise correlation coefficient between all differente contexts
-    obs_euc = _working_window_euclidean(working_window)
+    obs_euc = _working_window_ndim_euclidean(working_window)
 
     # 2. shuffles across repetitions a contexts
     # collapses repetition and context together
@@ -432,7 +499,7 @@ def _window_ndim_euclidean(working_window):
         # reshapes
         reshaped = shuffled.transpose(2, 1, 0).reshape(t, u, c, r).transpose(3, 1, 2, 0)
         # calculates pairwise r_value
-        msd_floor[rep] = _working_window_euclidean(reshaped)
+        msd_floor[rep] = _working_window_ndim_euclidean(reshaped)
 
     # pvalue = (msd_floor > obs_euc).sum() / shuffle_n
 
@@ -500,6 +567,9 @@ def _single_cell_difsig(matrices, channels='all', window=1, rolling=False, type=
             elif type == 'STD':
                 metric, pvalue = _window_MSD(working_window)
 
+            elif type == 'Euclidean':
+                metric, pvalue = _window_euclidean(working_window)
+
             else:
                 raise ValueError('keyword {} not suported'.format(type))
 
@@ -530,11 +600,14 @@ def _population_difsig(matrices, channels='all', window=1, rolling=False, type='
     full_mat = np.stack(matrices.values(), axis=3)  # shape: Repetitions x Channels x TimeBins x ContextStimuli
 
     # handles channel keywords
-    channels = hand._channel_handler(full_mat[..., 0], channels)
+    channels = hand._channel_handler(full_mat[..., 0], channels) # uses a single cotext matrix to check channel format.
+
+    # takes only the channels to be used
+    chan_mat = np.take(full_mat, channels, axis=1)
 
     # generates the windowed array
     # shape REpetition x Channels x Window x ContextStimuli x WindowTimeBin.
-    windowed = _into_windows(full_mat, window=window, axis=2, rolling=rolling)
+    windowed = _into_windows(chan_mat, window=window, axis=2, rolling=rolling)
 
     # initializes result matrix with shape T where T is time or TimeWindow
     shape = windowed.shape
@@ -626,12 +699,11 @@ def signal_single_context_sigdif(signal, epoch_names='single', channels='all', d
     # looks in cache
     folder = '/home/mateo/mycache/cpp/'
     name_args = {key: val for key, val in func_args.items() if key not in ['signal', 'signal_name', 'recache']}
-    # acnowledgese its a population calculation
-    name_args['population'] = False
+
     cache_name = cch.set_name(name_args, signal_name=signal_name, onlysig=False)
     cache_out = cch.cache_wrap(obj_name=cache_name, folder=folder, obj=None,
                                recache=recache)
-    # if cache exists, returns, else runs the rest of the funciton
+    # if cache exists, returns, else runs the rest of the function
     if cache_out is not None:
         return cache_out
 
@@ -951,3 +1023,5 @@ def test_object():
     return matrices
 
 # out = _single_cell_difsig(test_object(),window=5, rolling=True, type='Pearsons')
+
+

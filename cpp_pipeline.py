@@ -8,6 +8,7 @@ import cpp_epochs as cpe
 import cpp_plots as cplt
 import nems.recording as recording
 import nems_db.baphy as nb
+import itertools as itt
 
 options = {'batch': 310,
            'site': 'BRT037b',
@@ -233,21 +234,131 @@ if plot is True:
 
 ######### second go into population
 
-pop_disp = cdisp.signal_all_context_sigdif(sig, channels=good_cell_names, probes=(1, 2, 3, 4), dimensions='pop',
-                                           sign_fs=10, window=1, rolling=True, type='STD', recache=False, value='metric')
+disp_mat, cell_names = cdisp.signal_all_context_sigdif(sig, channels=good_cell_names, probes=(1, 2, 3, 4), dimensions='population',
+                                                            sign_fs=10, window=1, rolling=True, type='Euclidean', recache=False, value='metric')
 
-significance = cdisp._significance_criterion(pop_disp.matrix, axis=1, window=1, threshold=0.5)
+print('matrix shape: {}'.format(disp_mat.shape))
 
 
+# calculates significance from pvalue, plots
+significance = cdisp._significance_criterion(disp_mat, axis=1, window=1, threshold=0.5)
 fig, ax = plt.subplots()
 for ii in range(4):
 
     # toplot = pop_disp.matrix[ii,:] + ii
     toplot = significance[ii, :] + ii
-    label = pop_disp.cell_names[ii]
+    label = cell_names[ii]
 
     ax.plot(toplot, label=label)
     ax.legend()
+
+# plots the metric
+fig, ax = plt.subplots()
+for ii in range(disp_mat.shape[0]):
+    toplot = disp_mat[ii, :] + (ii * 2)
+    ax.plot(toplot, label=cell_names[ii])
+
+ax.legend()
+
+##### compares euclidean distance for good and all cells, in a cell by cell or population manner
+
+dimension =['cell', 'population']
+channels = [good_cell_names, 'all']
+
+mat_dict = dict()
+name_dict = dict()
+
+for dim, chan in itt.product(dimension, channels):
+    dist_mat, dist_name = cdisp.signal_all_context_sigdif(sig, channels=chan, probes=(1, 2, 3, 4),
+                                                  dimensions=dim, sign_fs=10, window=1, rolling=True,
+                                                  type='Euclidean', recache=False, value='metric')
+
+    if chan is good_cell_names: chankey = 'best cells'
+    elif chan == 'all': chankey = 'all cells'
+
+    if dim == 'cell': dimkey = 'cell by cell'
+    elif dim == 'population': dimkey = 'multidimensional'
+
+    key = '{} euclidean distance, for {}'.format(dimkey, chankey)
+
+    mat_dict[key] = dist_mat
+    name_dict[key] = dist_name
+
+
+if plot is True:
+    # plots ray values with
+    fig, axes = plt.subplots(2,2)
+    axes = np.ravel(axes)
+
+    for ax, (key, val) in zip(axes, mat_dict.items()):
+        for jj in range(val.shape[0]):
+
+            # sets the dimention as linestile
+            words = key.split(' ')
+            if words[0] == 'cell':
+                linestyle = '--'
+            elif words[0] == 'multidimensional':
+                linestyle = '-'
+            # set cell subset as color
+            if words[-2] == 'best':
+                color = 'green'
+            elif words[-2] == 'all':
+                color = 'orange'
+
+            toplot = val[jj, :] + (jj * 1)
+
+            ax.plot(toplot, linestyle=linestyle, color=color)
+
+            ax.set_title(key)
+            ax.set_ylabel('euclidean distance')
+
+
+
+
+
+
+
+
+    # Mean across probes (population) and probe/cell (cell)
+    mean_dict = {key: np.nanmean(val, axis=0) for key, val in mat_dict.items()}
+    # plots
+    fig, ax = plt.subplots()
+    for key, val in mean_dict.items():
+        words = key.split(' ')
+        # sets the dimention as linestile
+        if words[0] == 'cell': linestyle = '--'
+        elif words[0] == 'multidimensional': linestyle = '-'
+        # set cell subset as color
+        if words[-2] == 'best': color = 'green'
+        elif words[-2] == 'all': color = 'orange'
+
+        ax.plot(val, linestyle=linestyle, color=color, label=key)
+
+    ax.legend()
+    ax.set_ylabel('mean euclidean distance')
+
+
+    # Normalizes to compare between cell by cell and multidimentional
+    norm_dict = {key: val/np.max(val) for key, val in mean_dict.items()}
+    # plots
+    fig, ax = plt.subplots()
+    for key, val in mean_dict.items():
+        words = key.split(' ')
+        # sets the dimention as linestile
+        if words[0] == 'cell':
+            linestyle = '--'
+        elif words[0] == 'multidimensional':
+            linestyle = '-'
+        # set cell subset as color
+        if words[-2] == 'best':
+            color = 'green'
+        elif words[-2] == 'all':
+            color = 'orange'
+
+        ax.plot(val, linestyle=linestyle, color=color, label=key)
+
+    ax.legend()
+    ax.set_ylabel('mean euclidean distance')
 
 
 

@@ -17,7 +17,7 @@ def set_name(name_args, signal_name=None, onlysig=False):
 
     ord_parms = coll.OrderedDict(sorted(name_args.items(), key=lambda t: t[0]))
 
-    cache_name = '_'.join(['{}:{}'.format(key, str(val)) for key, val in ord_parms.items()])
+    cache_name = '_'.join(['{}-{}'.format(key, str(val)) for key, val in ord_parms.items()])
 
     if signal_name != None:
 
