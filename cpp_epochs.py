@@ -1,8 +1,10 @@
 import pandas as pd
 import numpy as np
+import re
 import itertools as itt
 import nems.epoch as ne
 import ast
+from nems.signal import TiledSignal, RasterizedSignal
 
 '''
 This is a "temporary" cludge. The context probe pari (CPP) sound objects have both the usual events (eps) defined 
@@ -152,7 +154,8 @@ def _set_subepoch_pairs(epochs):
     # of subepochs
 
     sub_epochs = relevant_eps.name.values
-    sub_epochs = [ast.literal_eval(ep_name[18:]) for ep_name in sub_epochs]
+    # indexes in the 'list' part of the name and split into a list of integers by double space '  '
+    sub_epochs = [[int(ss) for ss in ep_name[18:].split('  ')] for ep_name in sub_epochs]
     sub_epochs = np.asarray(sub_epochs)
 
     # calculates the start and end of each subepochs based on the start and end of its mother epoch
@@ -238,7 +241,14 @@ def set_signal_subepochs(signal, set_pairs=True):
         new_epochs = _set_subepoch_pairs(signal.epochs)
     else:
         raise ValueError("keyword argument 'set_pairs' must be a boolean")
-    new_signal = signal._modified_copy(signal._data, epochs=new_epochs)
+
+    # special case tiled signal copy...
+    if isinstance(signal, TiledSignal):
+        attributes = signal._get_attributes()
+        attributes.update({'epochs':new_epochs})
+        new_signal = TiledSignal(data=signal._data, safety_checks=False, **attributes)
+    else:
+        new_signal = signal._modified_copy(signal._data, epochs=new_epochs)
     return new_signal
 
 
