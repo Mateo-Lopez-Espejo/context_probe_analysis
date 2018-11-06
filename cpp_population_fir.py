@@ -1,8 +1,1 @@
-from itertools import chain, repeat
-
-import numpy as np
-import scipy.signal
-from scipy import interpolate
-
-
-
+# todo figure out how to parse timeseries from data stimuli and other neurons in the population to feed into the fir
