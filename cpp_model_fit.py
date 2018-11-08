@@ -75,6 +75,9 @@ def split_rec_for_cellwise_fit(rec, stim_sig='stim', resp_sig='resp', pop_in_sti
 
     return recording_list
 
+def merge_recs_from_cellwise_fit(recs,rec, stim_sig='stim', resp_sig='resp', pop_in_stim=False, verbose=False):
+    return None
+
 
 def test_pop_fit_cellwise():
     # gets test recording, as would be the output of CPP preprocesing
@@ -305,6 +308,8 @@ def make_chache(func, filename):
 def get_cache(toload):
     return jl.load(toload)
 
+###############################################
+# fits the models and hold on cache
 
 # performs the cellwise population fit, cell by cell
 pop_fit_cachename = '/home/mateo/code/context_probe_analysis/pickles/pop_fit_modspecs'
@@ -417,9 +422,22 @@ fig.suptitle('r_test comparison between different modelse/fitting')
 
 ###############################################
 # predicts response based on params. calculates the contextual effect for actual vs predicted
+# first generates the split recording
+rec = jl.load('/home/mateo/code/context_probe_analysis/pickles/BRT037b')
 
+cell_recs = split_rec_for_cellwise_fit(rec, pop_in_stim=False)
+pop_recs = split_rec_for_cellwise_fit(rec, pop_in_stim=True)
 
+# then pairs the correc recording with modelspec, and calculates the prediction
+cell_preds = list ()
+for c_rec, c_modspec in zip(cell_recs, cells_modspecs):
+    c_pred = nems.analysis.api.generate_prediction(c_rec, c_rec, c_modspec)
+    cell_preds.append(c_pred[0][0])
 
+pop_preds = list ()
+for p_rec, p_modspec in zip(pop_recs, pop_modspecs):
+    p_pred = nems.analysis.api.generate_prediction(p_rec, p_rec, p_modspec)
+    pop_preds.append(p_pred[0][0])
 
 
 
