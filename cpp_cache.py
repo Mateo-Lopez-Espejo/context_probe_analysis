@@ -6,14 +6,6 @@ import inspect
 
 
 # ToDo Restructure cache in two functios, create and load.
-'''
-create should
-'''
-
-
-
-
-
 def set_name(name_args, signal_name=None, onlysig=False):
     '''
     creates a uniqe name using the key vals in name_args and an optional signal name. name_args sould be a dictionary
@@ -86,12 +78,14 @@ def cache_wrap(obj_name, folder='/home/mateo/mycache', obj=None, recache=False):
 
 def make_cache(function, func_args, recache=False, cache_folder='/home/mateo/mycache', use_hash=True, dump_func=jl.dump):
     '''
-
-    :param function:
-    :param func_args:
-    :param recache:
-    :param cache_folder:
-    :return:
+    caches the output of a function in a location defined by the function name and its arguments
+    :param function: pointer to the function
+    :param func_args: dict arguments to pass to the function
+    :param recache: Bool. default(False). If True force run the function and recaches
+    :param cache_folder: str. path to the location to save the cache files
+    :user_hash: Bool. default(True). False uses a string composed by the function, and the used arguments. True, uses the
+    python hash of the previous string,
+    :return: path to the function output file.
     '''
 
     # creates cache folder if necesary
@@ -146,4 +140,4 @@ def make_cache(function, func_args, recache=False, cache_folder='/home/mateo/myc
 
 def get_cache(filename, cache_func=jl.load()):
     print('loading cached file')
-    return jl.load(filename)
+    return cache_func(filename)
