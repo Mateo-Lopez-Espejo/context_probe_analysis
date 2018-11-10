@@ -138,6 +138,6 @@ def make_cache(function, func_args, recache=False, cache_folder='/home/mateo/myc
     return filename
 
 
-def get_cache(filename, cache_func=jl.load()):
+def get_cache(filename, cache_func=jl.load):
     print('loading cached file')
     return cache_func(filename)
