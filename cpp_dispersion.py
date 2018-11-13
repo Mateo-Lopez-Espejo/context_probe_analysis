@@ -514,6 +514,11 @@ def _window_ndim_euclidean(working_window):
 
     return metric, pvalue
 
+### dispersion summary metrics
+
+def fit_to_dispersion():
+    raise NotImplementedError('mateo, stop being lazy.')
+    return None
 
 ### base single cell dispersion fucntions
 

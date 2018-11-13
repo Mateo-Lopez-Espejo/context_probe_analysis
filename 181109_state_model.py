@@ -18,7 +18,7 @@ loadkey = "env.fs100.cst"
 
 options = {'stimfmt': 'envelope',
            'rasterfs': 100,
-           'recache': False,
+           'recache': True,
            'runclass': 'CPP',
            'stim': True}
 
@@ -37,11 +37,11 @@ ctx.update(xforms.split_by_occurrence_counts(
 # ctx.update(xforms.split_at_time(fraction=0.8, **ctx))
 # uncommenting will only allow signal correlations to help
 # ctx.update(xforms.average_away_stim_occurrences(**ctx)) # there is a bug downstream
-modelspec_name = 'wc.2x2.c-fir.2x15-lvl.1-stategain.S'
+modelspec_name = 'wc.2x2.c-stp.2-fir.2x15-lvl.1-stategain.S-dexp.1'
 
 # record some meta data for display and saving
 meta = {'cellid': cellid, 'batch': batch,
-        'modelspec_name': modelspec_name, 'recording': cellid}
+        'modelname': modelspec_name, 'recording': cellid}
 
 ctx.update(xforms.init_from_keywords(modelspec_name, meta=meta, **ctx))
 
@@ -53,7 +53,7 @@ if refit == True:
     jl.dump(ctx, '/home/mateo/code/context_probe_analysis/pickles/ctx_fit_all')
 elif refit == False:
     # mean_ctx = jl.load('/home/mateo/code/context_probe_analysis/pickles/ctx_fit_mean') # there is a bug downstream
-    full_ctx = jl.load('/home/mateo/code/context_probe_analysis/pickles/ctx_fit_full')
+    full_ctx = jl.load('/home/mateo/code/context_probe_analysis/pickles/ctx_fit_all')
     ctx = full_ctx
 else:
     raise ValueError('refit must be bool')

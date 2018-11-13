@@ -11,7 +11,7 @@ def single_cpp_processing(cellid, batch, modelspec_name):
                'stim': True}
 
     meta = {'cellid': cellid, 'batch': batch,
-            'modelspec_name': modelspec_name, 'recording': cellid}
+            'modelname': modelspec_name, 'recording': cellid}
 
     xfspec = list()
     xfspec.append(['nems_db.xform_wrappers.baphy_load_wrapper', {'cellid':cellid, 'batch':batch, 'loadkey':loadkey, 'options':options}])

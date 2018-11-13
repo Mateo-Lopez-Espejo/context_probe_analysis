@@ -6,6 +6,18 @@ import nems_db.db as nd
 import logging
 
 log = logging.getLogger(__name__)
+
+try:
+    import nems_db.db as nd
+
+    db_exists = True
+except Exception as e:
+    # If there's an error import nems.db, probably missing database
+    # dependencies. So keep going but don't do any database stuff.
+    print("Problem importing nems.db, can't update tQueue")
+    print(e)
+    db_exists = False
+
 if __name__ == '__main__':
 
     # leftovers from some industry standard way of parsing inputs

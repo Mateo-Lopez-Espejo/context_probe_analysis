@@ -13,7 +13,7 @@ batch = 310
 
 # define cellids
 batch_cells = nd.get_batch_cells(batch=batch).cellid
-# batch_cells = ['BRT37b-39-1'] # best cell
+batch_cells = ['BRT37b-39-1'] # best cell
 
 # define modelspec_name
 modelnames = ['wc.2x2.c-stp.2-fir.2x15-lvl.1-stategain.S-dexp.1']
