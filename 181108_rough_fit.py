@@ -133,7 +133,7 @@ def test_pop_fit_cellwise():
         val = working_sets['val']
 
         # parses some data from rec meta into the analysis meta
-        analysis_meta = {'modelname': modelspec_name, 'recording': None, **this_cell_meta}
+        analysis_meta = {'modelspec_name': modelspec_name, 'recording': None, **this_cell_meta}
         modelspec = nems.initializers.from_keywords(modelspec_name, meta=analysis_meta)
 
         # prefits the dc_shift
@@ -213,7 +213,7 @@ def test_cell_fit_cellwise():
         val = working_sets['val']
 
         # parses some data from rec meta into the analysis meta
-        analysis_meta = {'modelname': modelspec_name, 'recording': None, **this_cell_meta}
+        analysis_meta = {'modelspec_name': modelspec_name, 'recording': None, **this_cell_meta}
         modelspec = nems.initializers.from_keywords(modelspec_name, meta=analysis_meta)
 
         # prefits the dc_shift
@@ -260,7 +260,7 @@ def test_cell_fit_all():
     val = rec
 
     # parses some data from rec meta into the analysis meta
-    analysis_meta = {'modelname': modelspec_name, 'recording': rec, **rec.meta}
+    analysis_meta = {'modelspec_name': modelspec_name, 'recording': rec, **rec.meta}
     modelspec = nems.initializers.from_keywords(modelspec_name, meta=analysis_meta)
 
     # prefits the dc_shift
