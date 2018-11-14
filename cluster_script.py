@@ -47,10 +47,10 @@ if __name__ == '__main__':
         exit(-1)
 
     cellid = sys.argv[1]
-    batch = sys.argv[2]
+    batch = int(sys.argv[2])
     modelspec_name = sys.argv[3]
 
-    print("Running single_oddball_processing with parameters ({0},{1},{2})".format(cellid, batch, modelspec_name))
+    print("Running single_cpp_processing with parameters ({0},{1},{2})".format(cellid, batch, modelspec_name))
     ctx = csp.single_cpp_processing(cellid, batch, modelspec_name)
 
     # Mark completed in the queue. Note that this should happen last thing!

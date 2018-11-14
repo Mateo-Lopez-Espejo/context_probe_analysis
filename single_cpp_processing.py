@@ -40,4 +40,5 @@ def single_cpp_processing(cellid, batch, modelspec_name):
                              figures=ctx['figures'],
                              log=log_xf)
 
+    print('saving at {}'.format(save_data['savepath']))
     return save_data['savepath']

@@ -1,6 +1,10 @@
 import nems.xforms as xforms
 import nems.modelspec as ms
 
+import itertools as itt
+import nems_db.db as nd
+import single_cpp_processing as scp
+
 batch = 310
 cellid = 'BRT037b-39-1'
 loadkey = "env.fs100.cst"
@@ -45,4 +49,21 @@ save_data = xforms.save_analysis(destination,
 
 savepath = save_data['savepath']
 loaded = xforms.load_analysis(filepath=savepath, eval_model=True, only=None)
+
+
+
+
+#### enqueue everything locally overnight
+batch = 310
+batch_cells = nd.get_batch_cells(batch=batch).cellid
+modelnames = ['wc.2x2.c-fir.2x15-lvl.1-dexp.1', 'wc.2x2.c-stp.2-fir.2x15-lvl.1-dexp.1', 'wc.2x2.c-stp.2-fir.2x15-lvl.1-stategain.S-dexp.1']
+
+uris = list()
+fail_list = list()
+for cellid, modelname in itt.product(batch_cells, modelnames):
+    try:
+        uri = scp.single_cpp_processing(cellid, batch, modelname)
+        uris.append(uri)
+    except:
+        fail_list.append('{} {}'.format(cellid, modelname))
 

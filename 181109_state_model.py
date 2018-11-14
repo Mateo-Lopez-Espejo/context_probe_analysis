@@ -52,7 +52,6 @@ if refit == True:
     ctx.update(xforms.fit_basic(**ctx))
     jl.dump(ctx, '/home/mateo/code/context_probe_analysis/pickles/ctx_fit_all')
 elif refit == False:
-    # mean_ctx = jl.load('/home/mateo/code/context_probe_analysis/pickles/ctx_fit_mean') # there is a bug downstream
     full_ctx = jl.load('/home/mateo/code/context_probe_analysis/pickles/ctx_fit_all')
     ctx = full_ctx
 else:
