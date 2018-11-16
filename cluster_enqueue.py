@@ -12,16 +12,14 @@ force_rerun = True
 batch = 310
 
 # define cellids
-batch_cells = nd.get_batch_cells(batch=batch).cellid
-batch_cells = ['BRT37b-39-1'] # best cell
+batch_cells = nd.get_batch_cells(batch=batch).cellid.tolist()
+#batch_cells = ['BRT037b-39-1'] # best cell
 
 # define modelspec_name
-modelnames = ['wc.2x2.c-stp.2-fir.2x15-lvl.1-stategain.S-dexp.1']
-modelnames = ['wc.2x2.c-stp.2-fir.2x15-lvl.1-dexp.1']
-modelnames = ['wc.2x2.c-fir.2x15-lvl.1-dexp.1']
-
-# only old cells without jitter status
-# batch_cells = [cellid for cellid in batch_cells if cellid[0:3] != 'gus']
+modelnames = ['wc.2x2.c-fir.2x15-lvl.1-dexp.1',
+              'wc.2x2.c-stp.2-fir.2x15-lvl.1-dexp.1',
+              'wc.2x2.c-stp.2-fir.2x15-lvl.1-stategain.S-dexp.1']
+#modelnames = ['wc.2x2.c-fir.2x15-lvl.1-dexp.1'] # short model for testing
 
 
 

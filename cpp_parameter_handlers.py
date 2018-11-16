@@ -11,8 +11,8 @@ def _epoch_name_handler(rec_or_sig, epoch_names):
     helper function to transform heterogeneous inputs of epochs names (epoch names, list of epochs names, keywords) into
     the corresponding list of epoch names.
     :param rec_or_sig: nems recording of signal object
-    :param epoch_names: epoch name (str), regexp, list of epoch names, 'signle', 'pair'. keywords 'single' and 'pair'
-    correspond to all signle vocalization, and pair of context probe vocalizations.
+    :param epoch_names: epoch name (str), regexp, list of epoch names, 'single', 'pair'. keywords 'single' and 'pair'
+    correspond to all single vocalization, and pair of context probe vocalization pairs.
     :return: a list with the apropiate epoch names as found in signal.epoch.name
     '''
     if epoch_names == 'single':  # get eps matching 'voc_x' where x is a positive integer

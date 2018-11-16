@@ -21,7 +21,7 @@ options = {'batch': 310,
 # todo this is creating a cache in charlies directory, move somewhere else!
 # gives the uri to a cached recording. if the cached data does not exists, creates it and saves it.
 
-Test = False
+Test = True
 
 if Test == True:
     # # sets automatic path finding
@@ -136,7 +136,7 @@ if plot is True:
     # example of full population ploting for a set of all contexts to a probe
     epoch_names = r'\AC\d_P3'
     channels = 'all'
-    fig, ax = cdisp.plot_single_context(sig, channels, epoch_names)
+    fig, ax = cdisp.plot_single_probe(sig, channels, epoch_names)
     fig.suptitle('full population example for probe 3')
 
     ##############################
@@ -150,12 +150,12 @@ if plot is True:
     # sanity check 1. a cell without any significant bins
     insig_eps = r'\AC\d_P4'
     insig_cell = 'BRT037b-39-1'
-    cdisp.plot_single_context(sig, insig_cell, insig_eps)
+    cdisp.plot_single_probe(sig, insig_cell, insig_eps)
 
     # sanity check 2. plots the cell with the latest significant bin
     sign_eps = r'\AC\d_P4'
     sign_cell = 'BRT037b-06-1'
-    cdisp.plot_single_context(sig, sign_cell, sign_eps)
+    cdisp.plot_single_probe(sig, sign_cell, sign_eps)
 
     ##############################
     # repeat the 'population sumary plots' but only keeping good cells.
@@ -166,11 +166,11 @@ if plot is True:
     # plots worst and best
     best_cell = 'BRT037b-46-1'
     best_probe = r'\AC\d_P4'
-    cdisp.plot_single_context(sig, best_cell, best_probe)
+    cdisp.plot_single_probe(sig, best_cell, best_probe)
 
     worst_cell = 'BRT037b-31-1'
     worst_probe = r'\AC\d_P1'
-    cdisp.plot_single_context(sig, worst_cell, worst_probe)
+    cdisp.plot_single_probe(sig, worst_cell, worst_probe)
 
     ##############################
     ### calculates pvalues with a rolling window
@@ -181,7 +181,7 @@ if plot is True:
     wind_kws = {'window': 5, 'rolling': True, 'type': 'MSD'}
 
     # plots all cells for example cpp
-    fig, ax = cdisp.plot_single_context(sig, channels=channels, epochs=epoch_names, **wind_kws)
+    fig, ax = cdisp.plot_single_probe(sig, channels=channels, epochs=epoch_names, **wind_kws)
 
     fig, ax = cdisp.pseudopop_significance(sig, channels=channels, **wind_kws)
     ax.axvline(3, color='red')
@@ -190,13 +190,13 @@ if plot is True:
     # plots best
     sig_eps = r'\AC\d_P1'
     sig_cell = 'BRT037b-33-3'
-    fig, ax = cdisp.plot_single_context(sig, channels=sig_cell, epochs=sig_eps, **wind_kws)
+    fig, ax = cdisp.plot_single_probe(sig, channels=sig_cell, epochs=sig_eps, **wind_kws)
     fig.suptitle('latest significance')
 
     # plots worst
     insig_eps = r'\AC\d_P4'
     insig_cell = 'BRT037b-38-1'
-    fig, ax = cdisp.plot_single_context(sig, channels=insig_cell, epochs=insig_eps, **wind_kws)
+    fig, ax = cdisp.plot_single_probe(sig, channels=insig_cell, epochs=insig_eps, **wind_kws)
     fig.suptitle('earliest significance')
 
 ##############################
@@ -217,8 +217,8 @@ if plot is True:
     # does the same for an example good cell
     sig_eps = r'\AC\d_P3'
     sig_cell = 'BRT037b-39-1'
-    fig_list = cdisp.plot_single_context(sig, channels=sig_cell, epochs=sig_eps, sign_fs=100, raster_fs=100, psth_fs=100,
-                                         window=1, rolling=True, type='MSD', consecutives=[1, 2, 3, 4, 5])
+    fig_list = cdisp.plot_single_probe(sig, channels=sig_cell, epochs=sig_eps, sign_fs=100, raster_fs=100, psth_fs=100,
+                                       window=1, rolling=True, type='MSD', consecutives=[1, 2, 3, 4, 5])
 
     # give that the "best looking" significance plot is when considering siginificance for 4 consecutive window
     # an equivalent aproach would be to do the analysis with an equivalent downsampling of 1/4, i.e. 25hz \
@@ -231,8 +231,8 @@ if plot is True:
     # example cell
     sig_eps = r'\AC\d_P3'
     sig_cell = 'BRT037b-39-1'
-    fig_list = cdisp.plot_single_context(sig, channels=sig_cell, epochs=sig_eps, sign_fs=20, raster_fs=100, psth_fs=20,
-                                         window=1, rolling=True, type='MSD', consecutives=[1])
+    fig_list = cdisp.plot_single_probe(sig, channels=sig_cell, epochs=sig_eps, sign_fs=20, raster_fs=100, psth_fs=20,
+                                       window=1, rolling=True, type='MSD', consecutives=[1])
 
 
 

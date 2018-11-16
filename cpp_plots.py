@@ -29,7 +29,7 @@ def _subplot_handler(epoch_names, channels):
     return fig, axes
 
 
-def _sig_bin_to_time(sign_window, window, fs, unite_overlaping=True):
+def _sig_bin_to_time(sign_window, window, fs, unit_overlaping=True):
     '''
     takes a boolean array of significance with shape Cell/Channle x Timebins, and returns the time values of start and end of
     the significant bins. This are organized in two lists start_time and end_time, each of len equal to cell number
@@ -39,7 +39,7 @@ def _sig_bin_to_time(sign_window, window, fs, unite_overlaping=True):
     :param sign_window:
     :param window:
     :param fs:
-    :param unite_overlaping:
+    :param unit_overlaping:
     :return:
     '''
     # takes a boolean matrix of significance, the size of the window and the sampling frequency an transforms into two
@@ -54,7 +54,7 @@ def _sig_bin_to_time(sign_window, window, fs, unite_overlaping=True):
         start.sort()
         end = start + (window / fs)
 
-        if unite_overlaping is True:
+        if unit_overlaping is True:
             i = 0
             n = len(start)
             u_start = list()
@@ -590,19 +590,54 @@ def signal_raster(signal, epoch_names='single', channels='all', scatter_kws=None
 
 def hybrid(signal, epoch_names='single', channels='all', start=None, end=None,
            significance=None, raster_fs=None, psth_fs=None, sign_fs=None, sign_kws=None,
-           scatter_kws=None, plot_kws=None):
-    if not isinstance(signal, PointProcess): raise ValueError('signal should be a point process')
+           scatter_kws=None, plot_kws=None, sub_types=(True, True, True)):
+    '''
+    given a signal, creates a figure where each subplots correspond to a cell in that signal, where each subplot contains
+    a raster, psth and indications of siginificant difference over time. different epochs are represented by different
+    colors within each subplot
+    :param signal: A nems signals with epochs formated under for context probe pairs, see cpp_epochs
+    :param epoch_names: str, regexp or keyword(str) to select what epochs to extract and use to plot. the keyword 'single'
+    indicated use of a the ressponse of to a sound regardles of the preceding context. Keyword 'pair' independently plots
+    all possible different context-probe pairs
+    :param channels: int, str, [int, ...], [str, ...], Keyword(str). Selects what cells in the population to plot,
+    and therefore controlls the number of subplots. specific cells can be specified by their index or name, and multiple
+    cells can be specified as list of the previous. Keyword 'all' uses all cells available in the signal
+    :param start: float, in seconds. Specify where to draw a vertical line to indicate start of the stimulus
+    :param end: float, in seconds. Specify where to draw a vertical line to indicate end of the stimulus
+    :param significance: array of shape Cell x time. both dimensions must be consistent with the dimensions of the the
+    number of cells ploted and the time of the raster/PSTH bein ploted, in units of time bins.
+    :param raster_fs: float, None. Samplig frequency for the raster. None specifies native resolution(recomended)
+    :param psth_fs: float, None. Samplig frequency for the raster. None specifies native resolution, downsampling recomended
+    :param sign_fs: float, None. Samplig frequency for the raster. None specifies native resolution(recomended)
+    :param sign_kws: aditional kwargs to pass into _sig_bin_to_time
+    :param scatter_kws: aditional kwargs to pass into _raster
+    :param plot_kws: aditional kwargs to pass into _PSTH
+    :param sub_types: [bool, bool, bool], defines whether to use or not any of the plot subtypes: [raster, psth, significance]
+    :return:
+    '''
+    if not isinstance(signal, PointProcess):
+        warnings.warn('signal is not a PointProcess, resampling not implemented')
+        can_resample = False
+    else: can_resample = True
 
     # formats epoch naems
     epoch_names = _epoch_name_handler(signal, epoch_names)
 
     # formats fs paramter
-    raster_fs = _fs_handler(signal, raster_fs)
-    psth_fs = _fs_handler(signal, psth_fs)
-    sign_fs = _fs_handler(signal, sign_fs)
+    if can_resample is True:
+        raster_fs = _fs_handler(signal, raster_fs)
+        psth_fs = _fs_handler(signal, psth_fs)
+        sign_fs = _fs_handler(signal, sign_fs)
+        rast_matrices = signal._modified_copy(signal._data, fs=raster_fs).rasterize().extract_epochs(epoch_names)
+        psth_matrices = signal._modified_copy(signal._data, fs=psth_fs).rasterize().extract_epochs(epoch_names)
+    elif can_resample is False:
+        # uses native samplitng frequecy
+        raster_fs = signal.fs
+        psth_fs = signal.fs
+        sign_fs = signal.fs
+        rast_matrices = signal.rasterize().extract_epochs(epoch_names)
+        psth_matrices = signal.rasterize().extract_epochs(epoch_names)
 
-    rast_matrices = signal._modified_copy(signal._data, fs=raster_fs).rasterize().extract_epochs(epoch_names)
-    psth_matrices = signal._modified_copy(signal._data, fs=psth_fs).rasterize().extract_epochs(epoch_names)
 
     # preprocesing of significance array
     if isinstance(significance, np.ndarray):
@@ -640,29 +675,28 @@ def hybrid(signal, epoch_names='single', channels='all', start=None, end=None,
             color = 'C{}'.format(ss % 10)
             y_offset = epoch_matrix.shape[0] * ss  # offsets subsequent rasters by the number of repetitions
 
-            # values for raster plot
-            rast_epoch_matrix = rast_matrices[epoch_key]
-            rast_values = rast_epoch_matrix[:, chan, :]  # holds all Repetitions, for a given Channel, acrossTime
-            rast_times = np.arange(0, rast_epoch_matrix.shape[2]) / raster_fs
+            if sub_types[0] is True:
+                # values for raster plot
+                rast_epoch_matrix = rast_matrices[epoch_key]
+                rast_values = rast_epoch_matrix[:, chan, :]  # holds all Repetitions, for a given Channel, acrossTime
+                rast_times = np.arange(0, rast_epoch_matrix.shape[2]) / raster_fs
+                scatter_kws.update({'color': color})
+                _raster(rast_times, rast_values, y_offset=y_offset,
+                        ax=ax, scatter_kws=scatter_kws)
 
-            # values for psth
-            values = epoch_matrix[:, chan, :]  # holds all Repetitions, for a given Channel, acrossTime
-            times = np.arange(0, epoch_matrix.shape[2]) / psth_fs
+            if sub_types[1] is True:
 
-            scatter_kws.update({'color': color})
-
-            _raster(rast_times, rast_values, y_offset=y_offset,
-                    ax=ax, scatter_kws=scatter_kws)
-
-            plot_kws.update({'color': color,
-                             'label': epoch_key})
-
-            _PSTH(times, values, start=start, end=end, ax=ax, ci=False, y_offset=y_offset, y_scaling=y_scaling,
-                  plot_kws=plot_kws)
+                # values for psth
+                values = epoch_matrix[:, chan, :]  # holds all Repetitions, for a given Channel, acrossTime
+                times = np.arange(0, epoch_matrix.shape[2]) / psth_fs
+                plot_kws.update({'color': color,
+                                 'label': epoch_key})
+                _PSTH(times, values, start=start, end=end, ax=ax, ci=False, y_offset=y_offset, y_scaling=y_scaling,
+                      plot_kws=plot_kws)
 
         # dispersion significance plotting
 
-        if isinstance(significance, np.ndarray):
+        if isinstance(significance, np.ndarray) and sub_types[2] is True:
             # draws the dispersion significance across time
             _significance_bars(start_times[cc], end_times[cc], y_range=vertical_range, ax=ax)
 

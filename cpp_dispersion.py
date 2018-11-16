@@ -4,6 +4,7 @@ import math
 
 import numpy as np
 import scipy.stats as sst
+import scipy.optimize as so
 from matplotlib import pyplot as plt
 from sklearn.metrics.pairwise import pairwise_distances
 
@@ -20,9 +21,9 @@ population_dispersion = coll.namedtuple('population_dispersion', 'matrix good_un
 
 def _into_windows(array, window, axis=-1, rolling=True, padding=np.nan, ):
     '''
-    I am so proud of this fucntion. Takes an nd array, of N dimensions and generates an array of N+1 of windows across
-    the selected dimention. The selected dimention becomes window number, and the new last dimension becomes the original
-    dimention units across the window lenght.
+    I am so proud of this function. Takes an nd array, of N dimensions and generates an array of N+1 of windows across
+    the selected dimension. The selected dimension becomes window number, and the new last dimension becomes the original
+    dimension units across the window length.
     :param array: nd array
     :param window: window size in bins
     :param axis: axis along which to generate the windows
@@ -358,6 +359,7 @@ def _window_euclidean(working_window):
 
     return metric, pvalue
 
+
 ### cell-population window dispersion functions
 
 
@@ -514,11 +516,50 @@ def _window_ndim_euclidean(working_window):
 
     return metric, pvalue
 
+
 ### dispersion summary metrics
 
-def fit_to_dispersion():
-    raise NotImplementedError('mateo, stop being lazy.')
-    return None
+def disp_exp_decay(matrix, start=None, prior=None, axis=None):
+    # todo define axis parameter effect
+    if start is None:
+        start = 0
+    # todo define what to do with prior == None
+
+    # calculates the y intercept as the mean dispersione between Prior and start
+    if prior is None:
+        C = 0
+    else:
+        C = np.mean(matrix[start-prior:start])
+
+
+    t = np.arange(0, len(matrix[start:]))
+    y = matrix[start:]
+
+    def model_func(t, A, K, C):
+        return A * np.exp(K * t) + C
+
+    y1 = y - C
+    y1 = np.log(y)
+    K, A_log = np.polyfit(t, y1, 1)
+    A = np.exp(A_log)
+    # opt_parms, parm_cov = so.curve_fit(model_func, t, y, maxfev=100000)
+    # A, K, C = opt_parms
+
+    fit_y = model_func(t, A, K, C)
+
+    plt.figure()
+    plt.plot()
+    plt.scatter(t, y)
+    plt.plot(t,fit_y)
+
+    # defines first half as nan, and prepend to fit_y
+    y_context = np.empty(len(matrix[:start]))
+    y_context[:] = np.nan
+
+    full_fit = np.concatenate([y_context, fit_y])
+
+    return full_fit, A, K, C
+
 
 ### base single cell dispersion fucntions
 
@@ -605,7 +646,7 @@ def _population_difsig(matrices, channels='all', window=1, rolling=False, type='
     full_mat = np.stack(matrices.values(), axis=3)  # shape: Repetitions x Channels x TimeBins x ContextStimuli
 
     # handles channel keywords
-    channels = hand._channel_handler(full_mat[..., 0], channels) # uses a single cotext matrix to check channel format.
+    channels = hand._channel_handler(full_mat[..., 0], channels)  # uses a single cotext matrix to check channel format.
 
     # takes only the channels to be used
     chan_mat = np.take(full_mat, channels, axis=1)
@@ -941,8 +982,8 @@ def pseudopop_significance(signal, channels, probes=(1, 2, 3, 4), sign_fs=None, 
     return output(all_figs, diff_matrices, cell_orders)
 
 
-def plot_single_context(signal, channels, epochs, sign_fs=None, raster_fs=None, psth_fs=None, window=1, rolling=False,
-                        type='Kruskal', consecutives=1, value='pvalue'):
+def plot_single_probe(signal, channels, epochs, sign_fs=None, raster_fs=None, psth_fs=None, window=1, rolling=False,
+                      type='Kruskal', consecutives=1, value='pvalue'):
     '''
     calculates significant difference over time for the specified cells/channels and *[contexts,...]-probe (epochs),
     overlays gray vertical bars to hybrid plot (raster + PSTH) on time bins with significante difference between
@@ -978,7 +1019,7 @@ def plot_single_context(signal, channels, epochs, sign_fs=None, raster_fs=None, 
 
         for con in consecutives:
             # defines significance, uses window size equal to time bin size
-            significance = _significance_criterion(dispersion_over_time, axis=1, window=con, threshold=0.01,
+            significance = _significance_criterion(dispersion_over_time.pvalue, axis=1, window=con, threshold=0.01,
                                                    comp='<=')  # array with shape Cell x Time
 
             # overlays significatn times on the raster and PSTH for the specified cells and context probe pairs
@@ -1028,5 +1069,3 @@ def test_object():
     return matrices
 
 # out = _single_cell_difsig(test_object(),window=5, rolling=True, type='Pearsons')
-
-
