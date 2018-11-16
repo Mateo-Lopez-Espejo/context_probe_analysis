@@ -1,5 +1,6 @@
 import nems.xforms as xforms
 import nems.modelspec as ms
+import nems_db.db as nd
 
 def single_cpp_processing(cellid, batch, modelspec_name):
     loadkey = "env.fs100.cst"
@@ -41,4 +42,5 @@ def single_cpp_processing(cellid, batch, modelspec_name):
                              log=log_xf)
 
     print('saving at {}'.format(save_data['savepath']))
+    nd.update_results_table(modelspecs[0], username="mateo")
     return save_data['savepath']
