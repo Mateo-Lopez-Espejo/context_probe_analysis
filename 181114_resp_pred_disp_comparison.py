@@ -12,16 +12,18 @@ import nems.xforms as xforms
 import matplotlib.pyplot as plt
 import cpp_plots as cplt
 
-cache_paths = jl.load('/home/mateo/code/context_probe_analysis/pickles/xforms_paths')
 
-all_models = ['wc.2x2.c-fir.2x15-lvl.1-dexp.1',
-              'wc.2x2.c-stp.2-fir.2x15-lvl.1-dexp.1',
-              'wc.2x2.c-stp.2-fir.2x15-lvl.1-stategain.18-dexp.1']
+batch = 310
+results_file = nd.get_results_file(batch)
+
+all_models = results_file.modelname.unique().tolist()
+result_paths = results_file.modelpath.tolist()
 mod_modelnames = [ss.replace('-', '_') for ss in all_models]
 
 models_shortname = {'wc.2x2.c_fir.2x15_lvl.1_dexp.1': 'LN',
                     'wc.2x2.c_stp.2_fir.2x15_lvl.1_dexp.1': 'STP',
-                    'wc.2x2.c_stp.2_fir.2x15_lvl.1_stategain.18_dexp.1': 'pop'}
+                    'wc.2x2.c_fir.2x15_lvl.1_stategain.18_dexp.1': 'pop',
+                    'wc.2x2.c_stp.2_fir.2x15_lvl.1_stategain.18_dexp.1': 'STP_pop'}
 
 all_cells = nd.get_batch_cells(batch=310).cellid.tolist()
 
@@ -36,7 +38,7 @@ rerun = False
 #   iteratively go trough file
 if rerun == True:
     population_metas = list()
-    for filepath in cache_paths:
+    for filepath in result_paths:
         _, ctx = xforms.load_analysis(filepath=filepath, eval_model=True, only=None)
         meta = ctx['modelspecs'][0][0]['meta']
         #   extract important values into a dictionary
@@ -60,7 +62,7 @@ if rerun == True:
         cell_pred_dict = col.defaultdict()
 
         for cellid in all_cells:
-            filepath = [ff for ff in cache_paths if cellid in ff and model in ff][0]
+            filepath = [ff for ff in result_paths if cellid in ff and model in ff][0]
 
             #   use modelsepcs to predict the response of resp
             xfspec, ctx = xforms.load_analysis(filepath=filepath, eval_model=True, only=None)
@@ -150,9 +152,8 @@ pvals['resp'], stim_names = cdisp.signal_all_context_sigdif(formated['LN']['resp
 
 
 # plots the dispersion over time
-fig, axes = plt.subplots(2,2)
+fig, axes = plt.subplots(3,2)
 axes = np.ravel(axes)
-
 for ii, (key, value) in enumerate(dispersions.items()):
     ax = axes[ii]
     ax.imshow(value, aspect='auto', origin='lower')
@@ -163,9 +164,8 @@ for ii, (key, value) in enumerate(dispersions.items()):
 fig.suptitle('euclidean distance over time for for eache probe')
 
 # plot difference pval over time
-fig, axes = plt.subplots(2,2)
+fig, axes = plt.subplots(3,2)
 axes = np.ravel(axes)
-
 for ii, (key, value) in enumerate(pvals.items()):
     ax = axes[ii]
     ax.imshow(value, aspect='auto', origin='lower')
@@ -178,10 +178,8 @@ fig.suptitle('pvalue (of euclidean) over time for for eache probe')
 # plots significant difference over time
 significnaces = {key: cdisp._significance_criterion(val, axis=1, window=1, threshold=0.05, comp='<=')
                  for key, val in pvals.items()}
-
-fig, axes = plt.subplots(2,2)
+fig, axes = plt.subplots(3,2)
 axes = np.ravel(axes)
-
 for ii, (key, value) in enumerate(significnaces.items()):
     ax = axes[ii]
     ax.imshow(value, aspect='auto', origin='lower', cmap='binary')
@@ -199,8 +197,10 @@ fitted = {key: cdisp.disp_exp_decay(val, start=300, prior=-50, axis=None)[0] for
 
 fig, ax = plt.subplots()
 for ii, (key, val) in enumerate(collapsed.items()):
-    ax.plot(val, linestyle='--', label=key, color='C{}'.format(ii))
-    ax.plot (fitted[key], color='C{}'.format(ii))
+    color = 'C{}'.format(ii)
+    ax.plot(val, label=key, color=color)
+    ax.plot(dispersions[key].T, color=color, alpha=0.2)
+    #ax.plot (fitted[key], color='C{}'.format(ii))
 ax.axvline(300, color='black')
 ax.legend()
 

@@ -30,13 +30,15 @@ out = nd.enqueue_models(celllist=batch_cells, batch=batch, modellist=modelnames,
 for oo in out:
     print(oo)
 
-results_table = nd.get_results_file(batch, modelnames=[modelnames[2]])
-preds = []
-for cell in batch_cells:
-    print(cell)
-    p = results_table[results_table['cellid'] == cell]['modelpath'].values[0]
-    if os.path.isdir(p):
-        xfspec, ctx = xforms.load_analysis(p)
-        preds.append(ctx['val'][0])
-    else:
-        sys.exit('Fit for {0} does not exist'.format(cell))
+DB_pull = False
+if DB_pull is True:
+    results_table = nd.get_results_file(batch, modelnames=modelnames)
+    preds = []
+    for cell in batch_cells:
+        print(cell)
+        p = results_table[results_table['cellid'] == cell]['modelpath'].values[0]
+        if os.path.isdir(p):
+            xfspec, ctx = xforms.load_analysis(p)
+            preds.append(ctx['val'][0])
+        else:
+            sys.exit('Fit for {0} does not exist'.format(cell))
