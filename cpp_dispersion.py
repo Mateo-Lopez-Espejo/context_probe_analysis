@@ -519,18 +519,20 @@ def _window_ndim_euclidean(working_window):
 
 ### dispersion summary metrics
 
-def disp_exp_decay(matrix, start=None, prior=None, axis=None):
+def disp_exp_decay(matrix, start=None, prior=None, C=None, axis=None):
     # todo define axis parameter effect
     if start is None:
         start = 0
     # todo define what to do with prior == None
 
     # calculates the y intercept as the mean dispersione between Prior and start
-    if prior is None:
-        C = 0
-    else:
-        C = np.mean(matrix[start-prior:start])
-
+    if C is None:
+        if prior is None:
+            C = 0
+        else:
+            C = np.mean(matrix[start-prior:start])
+    elif isinstance(C, (float, int)):
+        pass
 
     t = np.arange(0, len(matrix[start:]))
     y = matrix[start:]
@@ -539,18 +541,11 @@ def disp_exp_decay(matrix, start=None, prior=None, axis=None):
         return A * np.exp(K * t) + C
 
     y1 = y - C
-    y1 = np.log(y)
+    y1 = np.log(y1)
     K, A_log = np.polyfit(t, y1, 1)
     A = np.exp(A_log)
-    # opt_parms, parm_cov = so.curve_fit(model_func, t, y, maxfev=100000)
-    # A, K, C = opt_parms
 
     fit_y = model_func(t, A, K, C)
-
-    plt.figure()
-    plt.plot()
-    plt.scatter(t, y)
-    plt.plot(t,fit_y)
 
     # defines first half as nan, and prepend to fit_y
     y_context = np.empty(len(matrix[:start]))

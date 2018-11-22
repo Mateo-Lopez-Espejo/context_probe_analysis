@@ -29,29 +29,9 @@ all_cells = nd.get_batch_cells(batch=310).cellid.tolist()
 
 goodcell = 'BRT037b-39-1'
 best_model = 'wc.2x2.c-stp.2-fir.2x15-lvl.1-stategain.18-dexp.1'
-
 test_path = '/auto/data/nems_db/results/310/BRT037b-39-1/BRT037b-39-1.wc.2x2.c_stp.2_fir.2x15_lvl.1_stategain.18_dexp.1.fit_basic.2018-11-14T093820/'
 
 rerun = False
-
-# compare goodness of fit between models
-#   iteratively go trough file
-if rerun == True:
-    population_metas = list()
-    for filepath in result_paths:
-        _, ctx = xforms.load_analysis(filepath=filepath, eval_model=True, only=None)
-        meta = ctx['modelspecs'][0][0]['meta']
-        #   extract important values into a dictionary
-        subset_keys = ['cellid', 'modelname', 'r_test', 'r_fit']
-        d = {k: v for k, v in meta.items() if k in subset_keys}
-        d['r_test'] = d['r_test'][0]
-        d['r_fit'] = d['r_fit'][0]
-        population_metas.append(d)
-    meta_DF = pd.DataFrame(population_metas)
-    jl.dump(meta_DF, '/home/mateo/code/context_probe_analysis/pickles/summary_metrics')
-else:
-    meta_DF = jl.load('/home/mateo/code/context_probe_analysis/pickles/summary_metrics')
-
 # compare cpp dispersion metrics between model predictions
 #   for each model, go through all cells
 if rerun == True:
@@ -193,15 +173,30 @@ fig.suptitle('significant difference over time for for eache probe')
 
 collapsed = {key: np.nanmean(val, axis=0) for key, val in dispersions.items()}
     # fits an exponential decay
-fitted = {key: cdisp.disp_exp_decay(val, start=300, prior=-50, axis=None)[0] for key, val in collapsed.items()}
+fitted = {key: cdisp.disp_exp_decay(val, start=300, prior=1, axis=None)[0] for key, val in collapsed.items()}
 
 fig, ax = plt.subplots()
 for ii, (key, val) in enumerate(collapsed.items()):
     color = 'C{}'.format(ii)
     ax.plot(val, label=key, color=color)
     ax.plot(dispersions[key].T, color=color, alpha=0.2)
-    #ax.plot (fitted[key], color='C{}'.format(ii))
+    ax.plot (fitted[key], color=color)
 ax.axvline(300, color='black')
 ax.legend()
 
-#   calculate single value (exponential decay?) for
+# test fit with stereotyped exponential decay
+A0, K0, C0 = 2.5, -4.0, 2.0
+# Generate some data based on these
+tmin, tmax = 0, 3
+num = 300
+t = np.linspace(tmin, tmax, num)
+y = A0 * np.exp(K0 * t) + C0
+# Add noise
+noisy_y = y + 0.5 * (np.random.random(num) - 0.5)
+pred_y = cdisp.disp_exp_decay(y, start=0, prior=0, C=C0)
+
+plt.figure()
+plt.plot(y)
+plt.plot(pred_y[0])
+
+# calculate single value (exponential decay?) for
