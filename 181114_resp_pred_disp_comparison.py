@@ -32,8 +32,7 @@ best_model = 'wc.2x2.c-stp.2-fir.2x15-lvl.1-stategain.18-dexp.1'
 test_path = '/auto/data/nems_db/results/310/BRT037b-39-1/BRT037b-39-1.wc.2x2.c_stp.2_fir.2x15_lvl.1_stategain.18_dexp.1.fit_basic.2018-11-14T093820/'
 
 rerun = False
-# compare cpp dispersion metrics between model predictions
-#   for each model, go through all cells
+# using single cell recording predictions, generates a population recording
 if rerun == True:
     pop_rec_dict = col.defaultdict()
     for model in mod_modelnames:
@@ -172,7 +171,7 @@ fig.suptitle('significant difference over time for for eache probe')
 # plots all signals (resp, and model predictions) side by side. Collapses all different probes by the mean
 
 collapsed = {key: np.nanmean(val, axis=0) for key, val in dispersions.items()}
-    # fits an exponential decay
+# fits an exponential decay. Todo make it work
 fitted = {key: cdisp.disp_exp_decay(val, start=300, prior=1, axis=None)[0] for key, val in collapsed.items()}
 
 fig, ax = plt.subplots()
@@ -183,20 +182,3 @@ for ii, (key, val) in enumerate(collapsed.items()):
     ax.plot (fitted[key], color=color)
 ax.axvline(300, color='black')
 ax.legend()
-
-# test fit with stereotyped exponential decay
-A0, K0, C0 = 2.5, -4.0, 2.0
-# Generate some data based on these
-tmin, tmax = 0, 3
-num = 300
-t = np.linspace(tmin, tmax, num)
-y = A0 * np.exp(K0 * t) + C0
-# Add noise
-noisy_y = y + 0.5 * (np.random.random(num) - 0.5)
-pred_y = cdisp.disp_exp_decay(y, start=0, prior=0, C=C0)
-
-plt.figure()
-plt.plot(y)
-plt.plot(pred_y[0])
-
-# calculate single value (exponential decay?) for

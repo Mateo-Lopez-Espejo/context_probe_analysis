@@ -57,6 +57,7 @@ def make_tidy(DF, pivot_by=None, more_parms=None, values='value'):
     # todo, make documentation, what is this funcion doing? I remember it being a more complex version of pivot
     # todo implement make tidy by a signle column, it should be easier.
     # todo implement pivot by multiple columns
+    # todo move somewhere else, for instance a git repo with usefull funcitons regardless of analysis.
     if pivot_by is None:
         raise NotImplementedError('poke Mateo')
 

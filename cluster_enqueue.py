@@ -14,25 +14,39 @@ script_path = '/auto/users/mateo/context_probe_analysis/cluster_script.py'
 force_rerun = True
 batch = 310
 
-# define cellids
-batch_cells = nd.get_batch_cells(batch=batch).cellid.tolist()
-# batch_cells = ['BRT037b-39-1'] # best cell
-
 # define modelspec_name
 modelnames = ['wc.2x2.c-fir.2x15-lvl.1-dexp.1',
               'wc.2x2.c-stp.2-fir.2x15-lvl.1-dexp.1',
-              'wc.2x2.c-fir.2x15-lvl.1-stategain.18-dexp.1',
-              'wc.2x2.c-stp.2-fir.2x15-lvl.1-stategain.18-dexp.1']
+              'wc.2x2.c-fir.2x15-lvl.1-stategain.S-dexp.1',
+              'wc.2x2.c-stp.2-fir.2x15-lvl.1-stategain.S-dexp.1']
 
-out = nd.enqueue_models(celllist=batch_cells, batch=batch, modellist=modelnames, user='mateo', force_rerun=True,
-                        executable_path=executable_path, script_path=script_path)
+# define cellids
+batch_cells = set(nd.get_batch_cells(batch=batch).cellid)
+full_analysis = nd.get_results_file(batch)
+already_analyzed = full_analysis.cellid.unique().tolist()
+# batch_cells = ['BRT037b-39-1'] # best cell
 
-for oo in out:
-    print(oo)
+
+# iterates over every mode, checks what cells have not been fitted with it and runs the fit command.
+for model in modelnames:
+    ff_model = full_analysis.modelname == model
+    already_fitted_cells = set(full_analysis.loc[ff_model, 'cellid'])
+
+    cells_to_fit = list(batch_cells.difference(already_fitted_cells))
+
+    print('model {}, cells to fit:\n{}'.format(model, cells_to_fit))
+
+    out = nd.enqueue_models(celllist=cells_to_fit, batch=batch, modellist=[model], user='mateo', force_rerun=force_rerun,
+                            executable_path=executable_path, script_path=script_path)
+
+    for oo in out:
+        print(oo)
+
+
 
 DB_pull = False
 if DB_pull is True:
-    results_table = nd.get_results_file(batch, modelnames=modelnames)
+    results_table = nd.get_results_file(batch, cellids=list(batch_cells))
     preds = []
     for cell in batch_cells:
         print(cell)
