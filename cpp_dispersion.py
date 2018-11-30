@@ -734,19 +734,7 @@ def _pairwise_distance_between(matrixes):
 ###  signal wrapers
 
 def signal_single_context_sigdif(signal, epoch_names='single', channels='all', dimensions='cell', fs=None, window=1,
-                                 rolling=False, type='Kruskal', recache=False, signal_name=None):
-    func_args = locals()
-
-    # looks in cache
-    folder = '/home/mateo/mycache/cpp/'
-    name_args = {key: val for key, val in func_args.items() if key not in ['signal', 'signal_name', 'recache']}
-
-    cache_name = cch.set_name(name_args, signal_name=signal_name, onlysig=False)
-    cache_out = cch.cache_wrap(obj_name=cache_name, folder=folder, obj=None,
-                               recache=recache)
-    # if cache exists, returns, else runs the rest of the function
-    if cache_out is not None:
-        return cache_out
+                                 rolling=False, type='Kruskal'):
 
     # handles epoch_names as standard
     epoch_names = hand._epoch_name_handler(signal, epoch_names)
@@ -776,18 +764,17 @@ def signal_single_context_sigdif(signal, epoch_names='single', channels='all', d
     else:
         raise ValueError("dimensions can only be 'cell' or 'population', but '{}' was given".format(dimensions))
 
-    # saves to cache
-    dispersion_over_time = cch.cache_wrap(obj_name=cache_name, folder=folder, obj=dispersion_over_time, recache=recache)
-
     return dispersion_over_time
 
 
-def signal_all_context_sigdif(signal, channels, probes=(1, 2, 3, 4), dimensions='cell', sign_fs=None, window=1,
-                              rolling=True, type='Kruskal', recache=False, signal_name=None, value='pvalue'):
+def signal_all_context_sigdif(signal, channels, signal_name, probes=(1, 2, 3, 4), dimensions='cell', sign_fs=None, window=1,
+                              rolling=True, type='Kruskal', recache=False, value='pvalue'):
     '''
+    todo finish documentation
     calculates the difference pvalue across all cells in all probes
     :param signal: cpp Singal object
     :param channels: channel index, cell name (or a list of the two previous). or kwd 'all' to define which channels to consider
+    :signal_name: unique signal name for proper caching.
     :param probes:
     :param sign_fs:
     :param window:
@@ -805,11 +792,20 @@ def signal_all_context_sigdif(signal, channels, probes=(1, 2, 3, 4), dimensions=
     # calculates dipersion pval for each set of contexts probe.
     for pp in probes:
         this_probe = r'\AC\d_P{}'.format(pp)
-        dispersion_over_time = signal_single_context_sigdif(signal, epoch_names=this_probe, channels=channels,
-                                                            dimensions=dimensions,
-                                                            fs=sign_fs, window=window, rolling=rolling, type=type,
-                                                            recache=recache,
-                                                            signal_name=signal_name)
+
+        disp_func_args = {'signal': signal, 'epoch_names': this_probe, 'channels': channels,
+                          'dimensions': dimensions,
+                          'fs': sign_fs,
+                          'window': window,
+                          'rolling': rolling, 'type': type}
+
+        dispersion_over_time_path = cch.make_cache(function=signal_single_context_sigdif, func_args=disp_func_args,
+                                                   classobj_name=signal_name, recache=recache,
+                                                   cache_folder='/home/mateo/mycache/single_probe_disp')
+
+        dispersion_over_time = cch.get_cache(dispersion_over_time_path)
+
+
 
         if dimensions == 'cell':
             chan_idx = hand._channel_handler(signal, channels)  # heterogeneous "channels" value to indexes
@@ -847,13 +843,14 @@ def signal_all_context_sigdif(signal, channels, probes=(1, 2, 3, 4), dimensions=
 ### complex plotting functions
 
 
-def pseudopop_significance(signal, channels, probes=(1, 2, 3, 4), sign_fs=None, window=1, rolling=True, type='Kruskal',
-                           consecutives=1, hist=False, bins=60, recache=False, signal_name=None, value='pvalue'):
+def pseudopop_significance(signal, channels, signal_name, probes=(1, 2, 3, 4), sign_fs=None, window=1, rolling=True, type='Kruskal',
+                           consecutives=1, hist=False, bins=60, recache=False, value='pvalue'):
     '''
     makes a summary plot of the significance(black dots) over time (x axis) for each combination of cell and
     *[contexts,...]-Probe (y axis).
     :param signal: a signal object with cpp epochs
     :param channels: channel index, cell name (or a list of the two previous). or kwd 'all' to define which channels to consider
+    :signal_name: unique signal name, for proper caching purpose
     :param probes: list of ints, eache one corresponds to the identity of a vocalization used as probe.
     :sign_fs: sampling frequency at which perform the analysis, None uses de native sign_fs of the signal.
     :param sort: boolean. If True sort by last siginificant time bin.
@@ -876,11 +873,17 @@ def pseudopop_significance(signal, channels, probes=(1, 2, 3, 4), sign_fs=None, 
     # calculates dipersion pval for each set of contexts probe.
     for pp in probes:
         this_probe = r'\AC\d_P{}'.format(pp)
-        dispersion_over_time = signal_single_context_sigdif(signal, epoch_names=this_probe, channels=channels,
-                                                            dimensions='cell',
-                                                            fs=sign_fs,
-                                                            window=window, rolling=rolling, type=type, recache=recache,
-                                                            signal_name=signal_name)
+
+        disp_func_args = {'signal': signal, 'epoch_names': this_probe, 'channels': channels,
+                          'dimensions': 'cell',
+                          'fs': sign_fs,
+                          'window': window,
+                          'rolling': rolling, 'type': type}
+
+        dispersion_over_time_path = cch.make_cache(function=signal_single_context_sigdif, func_args=disp_func_args,
+                                                   classobj_name=signal_name, recache=recache,
+                                                   cache_folder='/home/mateo/mycache/single_probe_disp')
+        dispersion_over_time = cch.get_cache(dispersion_over_time_path)
 
         chan_idx = hand._channel_handler(signal, channels)
         cell_names = [name for nn, name in enumerate(signal.chans) if nn in chan_idx]
@@ -977,7 +980,7 @@ def pseudopop_significance(signal, channels, probes=(1, 2, 3, 4), sign_fs=None, 
     return output(all_figs, diff_matrices, cell_orders)
 
 
-def plot_single_probe(signal, channels, epochs, sign_fs=None, raster_fs=None, psth_fs=None, window=1, rolling=False,
+def plot_single_probe(signal, signal_name, channels, epochs, sign_fs=None, raster_fs=None, psth_fs=None, window=1, rolling=False,
                       type='Kruskal', consecutives=1, value='pvalue'):
     '''
     calculates significant difference over time for the specified cells/channels and *[contexts,...]-probe (epochs),
@@ -996,11 +999,18 @@ def plot_single_probe(signal, channels, epochs, sign_fs=None, raster_fs=None, ps
     # todo clean this function
 
     # calculates significant difference between different context across time
-    dispersion_over_time = signal_single_context_sigdif(signal, epoch_names=epochs, channels=channels,
-                                                        dimensions='cell',
-                                                        fs=sign_fs,
-                                                        window=window,
-                                                        rolling=rolling, type=type)
+    disp_func_args = {'signal':signal, 'epoch_names':epochs, 'channels':channels,
+                      'dimensions':'cell',
+                      'fs':sign_fs,
+                      'window':window,
+                      'rolling':rolling, 'type':type}
+
+    dispersion_over_time_path = cch.make_cache(function=signal_single_context_sigdif, func_args=disp_func_args,
+                                               classobj_name=signal_name,
+                                               cache_folder='/home/mateo/mycache/single_probe_disp')
+
+    dispersion_over_time = cch.get_cache(dispersion_over_time_path)
+
 
     all_figs = list()
     if value == 'pvalue':
