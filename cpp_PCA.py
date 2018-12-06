@@ -1,8 +1,7 @@
 from sklearn.decomposition import PCA
 import numpy as np
-import nems.signal
-import pandas as pd
 from nems.signal import SignalBase
+import matplotlib.pyplot as plt
 
 
 def signal_PCA(signal, center=True):

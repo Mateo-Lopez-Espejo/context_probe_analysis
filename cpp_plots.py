@@ -2,6 +2,9 @@ import math
 import warnings
 
 import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d.axes3d import get_test_data
+# This import registers the 3D projection, but is otherwise unused.
+from mpl_toolkits.mplot3d import Axes3D
 import numpy as np
 import scipy.ndimage.filters as sf
 import scipy.signal as ssig
@@ -21,6 +24,9 @@ def _subplot_handler(epoch_names, channels):
 
     rows = int(np.ceil(math.sqrt(ax_num)))
     cols = int(np.floor(math.sqrt(ax_num)))
+
+    if rows*cols < ax_num:
+        rows = rows+1
 
     fig, axes = plt.subplots(rows, cols, sharex=True, sharey=True, squeeze=False)
 

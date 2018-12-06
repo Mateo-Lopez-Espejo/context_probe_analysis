@@ -1,3 +1,4 @@
+import os
 import collections as col
 
 import nems_db.db as nd
@@ -5,6 +6,22 @@ import numpy as np
 
 import nems.modelspec as ms
 import nems.xforms as xforms
+
+
+def _get_result_paths(batch, cellid_list, modelname):
+
+    results_file = nd.get_results_file(batch)
+    ff_cellid = results_file.cellid.isin(cellid_list)
+    ff_modelname = results_file.modelname == modelname
+    result_paths = results_file.loc[ff_cellid & ff_modelname, 'modelpath'].tolist()
+
+    if not result_paths:
+        raise ValueError('no cells in cellid_list fit with this model'.format(modelname))
+    elif len(result_paths) != len(cellid_list):
+        raise ValueError('inconsitent cells in cell_idlist, and in loading paths\n'
+                         'cells')
+
+    return result_paths
 
 
 def get_site_ids(batch):
@@ -26,25 +43,24 @@ def get_site_ids(batch):
 
 
 def reconsitute_rec(batch, cellid_list, modelname):
-    # get the filename of the fitted model for all the cells in the list
-    results_file = nd.get_results_file(batch)
-    ff_cellid = results_file.cellid.isin(cellid_list)
-    ff_modelname = results_file.modelname == modelname
-    result_paths = results_file.loc[ff_cellid & ff_modelname, 'modelpath'].tolist()
+    '''
+    Takes a group of single cell recordings (from cells of a population recording) including their model predictions,
+    and builds a recording withe signals containing the responses and predictions of all the cells in the population
+    This is to make the recordigs compatible with downstream dispersion analisis or any analysis working with signals
+    of neuronal populations
+    :param batch: int batch number
+    :param cellid_list: [str, str ...] list of cell IDs
+    :param modelname: str. modelaname
+    :return: NEMS Recording object
+    '''
 
-    if not result_paths:
-        raise ValueError('no cells in cellid_list fit with this model'.format(modelname))
-    elif len(result_paths) != len(cellid_list):
-        raise ValueError('inconsitent cells in cell_idlist, and in loading paths\n'
-                         'cells')
+    result_paths = _get_result_paths(batch, cellid_list, modelname)
 
     cell_resp_dict = dict()
     cell_pred_dict = col.defaultdict()
 
     for ff, filepath in enumerate(result_paths):
-        print('cell {}, file {}'.format(ff, filepath))
         # use modelsepcs to predict the response of resp
-        # ToDo, there must be a better way of loading the recording and modelspecs to make a prediction
         xfspec, ctx = xforms.load_analysis(filepath=filepath, eval_model=False, only=slice(0, 2, 1))
         modelspecs = ctx['modelspecs'][0]
         cellid = modelspecs[0]['meta']['cellid']
@@ -77,6 +93,54 @@ def reconsitute_rec(batch, cellid_list, modelname):
     del reconstituted_recording.signals['state_raw']
 
     return reconstituted_recording
+
+
+def reconstitute_modelspecs(batch, cellid_list, modelname, module='stp'):
+
+    # Todo, right now it extracts only tau and u for the STP module, make it general
+
+    result_paths = _get_result_paths(batch, cellid_list, modelname)
+
+    cell_resp_dict = dict()
+    cell_pred_dict = col.defaultdict()
+
+    tau = list()
+    u = list()
+    cellids = list()
+
+    for ff, filepath in enumerate(result_paths):
+        # get the modelspecs for this fit
+        mspaths = []
+        for file in os.listdir(filepath):
+            if file.startswith("modelspec"):
+                mspaths.append(filepath + "/" + file)
+        ctx = xforms.load_modelspecs([], uris=mspaths, IsReload=False)
+        modelspecs = ctx['modelspecs'][0]
+        cellid = modelspecs[0]['meta']['cellid']
+
+        # finds the first insntance of the specified module
+        for mod in modelspecs:
+            mod_id = mod['id'].split('.')[0]
+            module = 'stp' # todo delete this override
+            if mod_id == module:
+                selected_module = mod
+                break
+        else:
+            raise ValueError('this modelname does not contain the specified module')
+
+        tau.append(selected_module['phi']['tau'])
+        u.append(selected_module['phi']['u'])
+        cellids.append(cellid)
+
+    tau = np.stack(tau, axis=0)
+    u = np.stack(u, axis=0)
+
+    reconstituted_modelspecs = {'cellid':cellids, 'tau':tau, 'u':u}
+
+    return reconstituted_modelspecs
+
+
+
 
 
 '''

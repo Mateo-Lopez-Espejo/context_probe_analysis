@@ -13,6 +13,14 @@ import matplotlib.pyplot as plt
 import cpp_plots as cplt
 
 
+'''
+A more resent version of this scrip is availabe at
+/home/mateo/code/context_probe_analysis/181129_resp_pred_disp_comp_v2.py
+
+the end word of this script is that
+'''
+
+
 batch = 310
 results_file = nd.get_results_file(batch)
 

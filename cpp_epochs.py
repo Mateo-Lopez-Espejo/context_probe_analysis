@@ -42,20 +42,20 @@ def _set_subepochs(epochs):
     # of subepochs
 
     sub_eps = relevant_eps.name.values
-    sub_eps = [ast.literal_eval(ep_name[18:]) for ep_name in sub_eps]
+    sub_eps = [[int(ss) for ss in ep_name[18:].split('  ')] for ep_name in sub_eps]
     sub_eps = np.asarray(sub_eps)
 
     # calculates the start and end of each subepochs based on the start and end of its mother epoch
     original_times = relevant_eps.loc[:, ['start', 'end']].values
 
-    # initializes a matrix with shape E x S x C where E is the number of original eps, Sis the number of subepochs
-    #  per epoch and C is the DF columns to be: start, end, name
-    split_times = np.zeros((original_times.shape[0], sub_eps.shape[1], 3))
+    # initializes a matrix with shape E x S x C where E is the number of original eps, S is the number of subepochs
+    # per epoch (adding one to include PostStimSilence) and C is the DF columns to be: start, end, name
+    split_times = np.zeros((original_times.shape[0], sub_eps.shape[1] + 1 , 3))
 
-    # iterates over the epoch dimention
+
     for ee, epoch in enumerate(original_times):
+        # defiens the duration of a single vocalization, i.e. step
         step = (epoch[1] - epoch[0] - PreStimSilence - PostStimSilence) / sub_eps.shape[1]
-        #
         for ss in range(sub_eps.shape[1]):
             # start of subepoch ss
             split_times[ee, ss, 0] = epoch[0] + PreStimSilence + (step * ss)
@@ -63,6 +63,16 @@ def _set_subepochs(epochs):
             split_times[ee, ss, 1] = epoch[0] + PreStimSilence + (step * (ss + 1))
             # name
             split_times[ee, ss, 2] = sub_eps[ee, ss]
+
+        # ads PostStimSilence, Todo make it better not a hack
+        # start, equal to the ende of the last subepoch
+        split_times[ee, ss+1, 0] = epoch[0] + PreStimSilence + (step * (ss + 1))
+        # end, equal to start plus PostStimSilence time
+        split_times[ee, ss+1, 1] = epoch[0] + PreStimSilence + (step * (ss + 1)) + PostStimSilence
+        # name, context equal to probe of previous subepoch
+        split_times[ee, ss+1, 2] = 0
+
+
 
     # flatens the matrix by the subepoch dimention into a 2d array and then DF
     newshape = [split_times.shape[0] * split_times.shape[1], split_times.shape[2]]
@@ -236,7 +246,7 @@ def _set_subepoch_pairs(epochs):
 
 def set_signal_subepochs(signal, set_pairs=True):
     if set_pairs == False:
-        new_epochs = _set_subepochs(signal.epochs)
+        new_epochs = _set_subepochs_context(signal.epochs)
     elif set_pairs == True:
         new_epochs = _set_subepoch_pairs(signal.epochs)
     else:
@@ -252,9 +262,32 @@ def set_signal_subepochs(signal, set_pairs=True):
     return new_signal
 
 
-def set_recording_subepochs(recording, **kwargs):
+def set_recording_subepochs(recording, set_pairs=True):
     new_recording = recording.copy()
     for name, signal in recording.signals.items():
-        new_signal = set_signal_subepochs(signal, **kwargs)
+        new_signal = set_signal_subepochs(signal, set_pairs=set_pairs)
         new_recording[name] = new_signal
     return new_recording
+
+def rename_into_part(epochs, context_or_probe='context'):
+    '''
+    replace the composite cpp epoch names of the form Cn_Pn, where n is the number identifiying a particular vocalization,
+    with eithe the context part Cn or the probe part Cn
+    :param epochs: NEMS epochs data frame preformated with CPP epochs
+    :param context_or_probe: str 'context' or 'probe', defines wich part of the name to keep
+    :return: epochs DF with the renamed epochs
+    '''
+
+    cpp_epochs = ne.epoch_names_matching(epochs, r'\AC\d_P\d')
+    if not cpp_epochs:
+        raise ValueError('epochs do not contain context probe formated epochs')
+
+    if context_or_probe == 'context':
+        rename_dict = {old_epoch: old_epoch.split('_')[0] for old_epoch in cpp_epochs}
+    elif context_or_probe == 'probe':
+        rename_dict = {old_epoch: old_epoch.split('_')[1] for old_epoch in cpp_epochs}
+
+    new_epochs = epochs.replace(rename_dict)
+
+    return new_epochs
+
