@@ -184,11 +184,11 @@ def _PSTH(times, values, start=None, end=None, ax=None, ci=False, y_offset=None,
         :times: Array with shape T where T is time bins in seconds
         :values: Array with shape R x T : where R is repetitions, and T is time. the dimention of T must agree with that of T in times.
         :param start: the time of the sound onset in seconds
-        :param end: the time of the stimulus offset in seconds
+        :param end: the time of the stimulus h_offset in seconds
         :param ax: a plt axis
         :param fs: int, the sampling frequncy asociated with the data, used to plot with real time on the x axis
         :param ci: bool, wheter or not to plot athe bootstrap confidence itnernval
-        :param y_offset: 'auto' or a number. when plotting multiple channels, the vertical offset between the PSTH of each
+        :param y_offset: 'auto' or a number. when plotting multiple channels, the vertical h_offset between the PSTH of each
                           cell.
         :param plt_kws: adittional keyword parameters for pyplot.plot()
         :return: the ax used for the plotting

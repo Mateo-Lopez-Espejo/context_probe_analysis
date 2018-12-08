@@ -248,7 +248,7 @@ sig = pop_sigs[best_site]['resp']
 fig, axes = cplot.hybrid(sig,scatter_kws={'alpha': 0.1})
 mng = plt.get_current_fig_manager()
 mng.resize(*mng.window.maxsize())
-fig.suptitle('context independent vocalization PSTH\nsite {}'.format(best_site))
+fig.suptitle('context independent vocalizations PSTH\nsite {}'.format(best_site))
 fig.savefig('/home/mateo/Pictures/DAC1/181205_voc_psth_all_cells_{}.png'.format(best_site), dpi=100)
 fig.savefig('/home/mateo/Pictures/DAC1/181205_voc_psth_all_cells_{}.svg'.format(best_site))
 

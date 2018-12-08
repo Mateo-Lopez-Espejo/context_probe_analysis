@@ -25,11 +25,11 @@ if __name__ == '__main__':
     # parser = argparse.ArgumentParser(description='Generetes the topic vector and block of an author')
     # parser.add_argument('action', metavar='ACTION', type=str, nargs=1, help='action')
     # parser.add_argument('updatecount', metavar='COUNT', type=int, nargs=1, help='pubid count')
-    # parser.add_argument('offset', metavar='OFFSET', type=int, nargs=1, help='pubid offset')
+    # parser.add_argument('h_offset', metavar='OFFSET', type=int, nargs=1, help='pubid h_offset')
     # args = parser.parse_args()
     # action=parser.action[0]
     # updatecount=parser.updatecount[0]
-    # offset=parser.offset[0]
+    # h_offset=parser.h_offset[0]
 
     if 'QUEUEID' in os.environ:
         queueid = os.environ['QUEUEID']
