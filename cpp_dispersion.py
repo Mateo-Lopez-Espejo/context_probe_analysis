@@ -4,7 +4,6 @@ import math
 
 import numpy as np
 import scipy.stats as sst
-import scipy.optimize as so
 from matplotlib import pyplot as plt
 from sklearn.metrics.pairwise import pairwise_distances
 
@@ -515,6 +514,39 @@ def _window_ndim_euclidean(working_window):
     metric = obs_euc
 
     return metric, pvalue
+
+
+### population single trial dispersion calculations
+
+def _pairwise_single_trial_ndim_euclidean(matrix0, matrix1, zero_handling=None):
+    '''
+    base single trial distance calculation function. takes two matrixes with the shape
+    and calculates the n-dimentional euclidean distance betwee each repetition pair (a,b) where a comes from matrix0
+    and b from matrix1. returns an array of these distances over time
+
+    :param matrix0: 3D matrix withe shape Repetitions x Channels x TimeBins
+    :param matrix1: 3D matrix withe shape Repetitions x Channels x TimeBins
+    :zero_handling: how to treat the distance between 0 and 0
+    :return: 2D matrix with shape PairDistnace x TimeBin
+    '''
+    # checks for consisten shape between the Channels and Timebins of the matrixes
+    if matrix0.shape[1:] != matrix1.shape[1:]:
+        raise ValueError('matrixes with unconsisten shapes: {} and {}'.format(matrix0.shape, matrix1.shape))
+
+    # initializes distance array of shape Combinations x TimeBins
+    distance_array = np.empty([matrix0.shape[0] * matrix1.shape[0], matrix0.shape[2]])
+    distance_array1 = np.empty([matrix0.shape[0] * matrix1.shape[0], matrix0.shape[2]])
+
+    # iterates over eache pair of single trial responses
+    for ee, (ii, jj) in enumerate(itt.product(range(matrix0.shape[0]), range(matrix1.shape[0]))):
+
+        x = matrix0[ii, :, :].T
+        y = matrix1[jj, :, :].T
+        x_min_y = x - y
+        distance_array[ee, :] = np.sqrt(np.einsum('ij,ij->i', x_min_y, x_min_y))
+
+    return distance_array
+
 
 
 ### dispersion summary metrics
@@ -1042,35 +1074,3 @@ def plot_single_probe(signal, signal_name, channels, epochs, sign_fs=None, raste
     return fig, axes
 
 
-### test unit
-
-def test_object():
-    # single context params
-    rep_num = 10
-    cell_num = 2
-    bin_num = 20
-
-    cell_std = (0.25, 2)
-    cont_means = (2, 5, 8)
-
-    matrices = dict()
-
-    for context, mean in enumerate(cont_means):
-        matix = np.empty(
-            [rep_num, cell_num, bin_num])  # shape: Repetitions x Channels x TimeBins
-        for cell, std in enumerate(cell_std):
-            for rep in range(rep_num):
-                # generates a silence and signal strech of time, concatenates
-                silence = np.zeros(int(bin_num / 2)) + np.random.normal(0, std, int(bin_num / 2))
-                sound = np.empty(int(bin_num / 2));
-                sound[:] = mean
-                sound = sound + np.random.normal(mean, std, int(bin_num / 2))
-                trial = np.concatenate([silence, sound], axis=0)
-
-                matix[rep, cell, :] = trial
-
-        matrices['C{}'.format(context)] = matix
-
-    return matrices
-
-# out = _single_cell_difsig(test_object(),window=5, rolling=True, type='Pearsons')

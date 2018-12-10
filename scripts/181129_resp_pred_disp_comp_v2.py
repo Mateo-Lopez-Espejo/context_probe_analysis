@@ -237,7 +237,7 @@ plt.close('all')
 
 
 ################################################
-# plots examples of calculation proces
+# plots examples of calculation Process
 best_site = 'BRT056b'
 best_cell = 'BRT056b-58-1'
 best_voc = None
@@ -262,7 +262,7 @@ for ii in range(1,5):
     fig.suptitle('context dependent response to probe {}'.format(ii))
     fig.set_size_inches(9,6)
     fig.savefig('/home/mateo/Pictures/DAC1/181205_CPP_probe{}_PSTH_cell_{}.png'.format(ii, best_cell), dpi=100)
-    fig.savefig('/home/mateo/Pictures/DAC1/181205_CPP_probe{}_PSTH_cell_{}.svg'.format(ii, best_cell))
+    # fig.savefig('/home/mateo/Pictures/DAC1/181205_CPP_probe{}_PSTH_cell_{}.svg'.format(ii, best_cell))
 
 # plots dispersion over time for a single probe with all the contexts
 fig, ax = plt.subplots()
@@ -281,11 +281,46 @@ ax.set_ylabel('euclideand distance\nspike rate')
 fig.suptitle('dispersion over time of response for each probe\nsite {}'.format(best_site))
 fig.set_size_inches(8,5)
 fig.savefig('/home/mateo/Pictures/DAC1/181205_disp_by_probe_{}.png'.format(best_site), dpi=100)
-fig.savefig('/home/mateo/Pictures/DAC1/181205_disp_by_probe_{}.svg'.format(best_site))
+# fig.savefig('/home/mateo/Pictures/DAC1/181205_disp_by_probe_{}.svg'.format(best_site))
+
+
+################################################
+# cleaner version of example for wip talk
+
+sig = pop_sigs[best_site]['resp']
+fig, axes = cplot.hybrid(sig, epoch_names=r'\AC\d_P3', start=3, end=6, scatter_kws={'alpha': 0.1})
+mng = plt.get_current_fig_manager()
+mng.resize(*mng.window.maxsize())
+plt.tight_layout()
+for ax in axes: ax.axis('off')
+fig.suptitle('')
+# fig.suptitle('context independent vocalizations PSTH\nsite {}'.format(best_site))
+fig.savefig('/home/mateo/Pictures/WIP2/181207_eg_cpp_all_cells_{}.png'.format(best_site), dpi=100)
+# fig.savefig('/home/mateo/Pictures/WIP2/181207_eg_cpp_all_cells_{}.svg'.format(best_site))
+
+
+# single cell, one probe, all contexts
+goodprobe = 3
+goodcell = 'BRT056b-58-1'
+fig, axes = cplot.hybrid(sig, epoch_names=r'\AC\d_P{}'.format(goodprobe), channels=[goodcell],
+             start=3, end=6,scatter_kws={'alpha': 0.2})
+ax = axes[0]
+ax.set_xlabel('seconds')
+fig.suptitle('context dependent response to probe {}'.format(goodprobe))
+fig.set_size_inches(13,9)
+fig.savefig('/home/mateo/Pictures/WIP2/181205_CPP_probe{}_PSTH_cell_{}.png'.format(goodprobe, goodcell), dpi=200)
+# fig.savefig('/home/mateo/Pictures/DAC1/181205_CPP_probe{}_PSTH_cell_{}.svg'.format(ii, best_cell))
 
 
 
-
-
-
-
+# single cell, one probe, all contexts, close up in time
+goodprobe = 3
+goodcell = 'BRT056b-58-1'
+fig, axes = cplot.hybrid(sig, epoch_names=r'\AC\d_P{}'.format(goodprobe), channels=[goodcell],
+             start=None, end=None,scatter_kws={'alpha': 0.2}, time_strech=[3, 3.5])
+for ax in axes: ax.axis('off'); ax.set_title('')
+fig.suptitle('')
+fig.set_size_inches(13,9)
+plt.tight_layout()
+fig.savefig('/home/mateo/Pictures/WIP2/181205_CPP_probe{}_PSTH_cell_{}_closeup.png'.format(goodprobe, goodcell), dpi=200)
+# fig.savefig('/home/mateo/Pictures/DAC1/181205_CPP_probe{}_PSTH_cell_{}.svg'.format(ii, best_cell))

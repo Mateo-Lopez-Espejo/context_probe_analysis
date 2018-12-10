@@ -28,7 +28,7 @@ def _subplot_handler(epoch_names, channels):
     if rows*cols < ax_num:
         rows = rows+1
 
-    fig, axes = plt.subplots(rows, cols, sharex=True, sharey=True, squeeze=False)
+    fig, axes = plt.subplots(rows, cols, sharex=False, sharey=False, squeeze=False)
 
     axes = np.ravel(axes)
 
@@ -86,7 +86,7 @@ def _sig_bin_to_time(sign_window, window, fs, unit_overlaping=True):
 ### base plotting functions
 
 
-def _raster(times, values, y_offset=None, ax=None, scatter_kws=None):
+def _raster(times, values, y_offset=None, y_range=None, ax=None, scatter_kws=None):
     '''
     Plots a raster with one line for each pair of
     time and value vectors.
@@ -110,7 +110,11 @@ def _raster(times, values, y_offset=None, ax=None, scatter_kws=None):
 
     i, j = np.where(x > 0)  # finds "spikes"
 
-    if y_offset != None:
+    if y_range != None:
+        # sets the values of i in between the range defiend by y_range
+        i = (i * (y_range[1] - y_range[0]) / np.max(i)) + y_range[0]
+
+    if y_offset != None and y_range == None:
         i += y_offset
 
     if times is not None:
@@ -236,7 +240,7 @@ def _PSTH(times, values, start=None, end=None, ax=None, ci=False, y_offset=None,
 
     ax.set_ylabel('spike rate (Hz)')
 
-    return ax, fig
+    return ax, fig, (np.min(psth), np.max(psth))
 
 
 def _neural_trajectory(matrix, dims=2, downsample=None, smoothing=0, rep_scat=True, rep_line=False,
@@ -596,7 +600,7 @@ def signal_raster(signal, epoch_names='single', channels='all', scatter_kws=None
 
 def hybrid(signal, epoch_names='single', channels='all', start=None, end=None,
            significance=None, raster_fs=None, psth_fs=None, sign_fs=None, sign_kws=None,
-           scatter_kws=None, plot_kws=None, sub_types=(True, True, True)):
+           scatter_kws=None, plot_kws=None, sub_types=(True, True, True), time_strech=None):
     '''
     given a signal, creates a figure where each subplots correspond to a cell in that signal, where each subplot contains
     a raster, psth and indications of siginificant difference over time. different epochs are represented by different
@@ -643,7 +647,16 @@ def hybrid(signal, epoch_names='single', channels='all', start=None, end=None,
         sign_fs = signal.fs
         rast_matrices = signal.rasterize().extract_epochs(epoch_names)
         psth_matrices = signal.rasterize().extract_epochs(epoch_names)
+    # sets the values in Hz
+    psth_matrices = {key: val * psth_fs for key, val in psth_matrices.items()}
 
+    # cuts the specific strech of time to be ploted
+    if time_strech != None:
+        time_strech = np.array(time_strech)
+        psth_strech = np.floor(time_strech*psth_fs).astype(int)
+        rast_strech = np.floor(time_strech*raster_fs).astype(int)
+        psth_matrices = {key: mat[:,:, psth_strech[0]:psth_strech[1]] for key, mat in psth_matrices.items()}
+        rast_matrices = {key: mat[:, :, rast_strech[0]:rast_strech[1]] for key, mat in rast_matrices.items()}
 
     # preprocesing of significance array
     if isinstance(significance, np.ndarray):
@@ -664,31 +677,20 @@ def hybrid(signal, epoch_names='single', channels='all', start=None, end=None,
     # defines the number and distribution of subplots in the figure
     fig, axes = _subplot_handler(epoch_names, channels)
 
-    # scales the PSTH to entirely overlap with the raster
-    max_val = np.max([np.max(np.mean(epoch_matrix, axis=0)) for epoch_matrix in psth_matrices.values()])
-    max_Reps = np.max([epoch_matrix.shape[0] for epoch_matrix in psth_matrices.values()])
-    y_scaling = max_Reps / max_val  # normalizes by max val and scales to max reps
-
     # calculates the vertical_range of the significance areas based on the number of stimuli and repetitionse per stimuli
     # in the second value, the first factor is the number of stimuli, the second is the number of repetitions
     vertical_range = [-0.5, len(psth_matrices) * psth_matrices[epoch_names[0]].shape[0] + 0.5]
 
     # iterates over each cell... plot
-    first = True
     for cc, (chan, ax) in enumerate(zip(channels, axes)):
+        # saves y ofsets for proper y axis labeling
+        y_ticks = list()
+        y_ticklabels = list()
 
+        y_offset = np.max(np.nanmean(np.stack(psth_matrices.values(), axis=3)[:,chan,:,:], axis=0)) * 1.1
         for ss, (epoch_key, epoch_matrix) in enumerate(psth_matrices.items()):
             color = 'C{}'.format(ss % 10)
-            y_offset = epoch_matrix.shape[0] * ss  # offsets subsequent rasters by the number of repetitions
-
-            if sub_types[0] is True:
-                # values for raster plot
-                rast_epoch_matrix = rast_matrices[epoch_key]
-                rast_values = rast_epoch_matrix[:, chan, :]  # holds all Repetitions, for a given Channel, acrossTime
-                rast_times = np.arange(0, rast_epoch_matrix.shape[2]) / raster_fs
-                scatter_kws.update({'color': color})
-                _raster(rast_times, rast_values, y_offset=y_offset,
-                        ax=ax, scatter_kws=scatter_kws)
+            y_off = y_offset * ss  # offsets subsequent rasters by the number of repetitions
 
             if sub_types[1] is True:
 
@@ -696,9 +698,29 @@ def hybrid(signal, epoch_names='single', channels='all', start=None, end=None,
                 values = epoch_matrix[:, chan, :]  # holds all Repetitions, for a given Channel, acrossTime
                 times = np.arange(0, epoch_matrix.shape[2]) / psth_fs
                 plot_kws.update({'color': color,
-                                 'label': epoch_key})
-                _PSTH(times, values, start=start, end=end, ax=ax, ci=False, y_offset=y_offset, y_scaling=y_scaling,
-                      plot_kws=plot_kws)
+                                 'label': 'context {}, probe {}'.format(epoch_key[1], epoch_key[4])})
+                _, _, y_range = _PSTH(times, values, start=start, end=end, ax=ax, ci=False,
+                                      y_offset=y_off, plot_kws=plot_kws)
+
+                y_ticks.extend(y_range)
+                y_ticklabels.extend([yy - y_off for yy in y_range])
+
+            if sub_types[0] is True:
+                # values for raster plot
+                rast_epoch_matrix = rast_matrices[epoch_key]
+                rast_values = rast_epoch_matrix[:, chan, :]  # holds all Repetitions, for a given Channel, acrossTime
+                rast_times = np.arange(0, rast_epoch_matrix.shape[2]) / raster_fs
+                scatter_kws.update({'color': color})
+                if not y_range:
+                    y_range = None
+
+                _raster(rast_times, rast_values, y_offset=y_off, y_range=y_range,
+                        ax=ax, scatter_kws=scatter_kws)
+        # set the y ticks and labels so they match the bottom and top values of PSTHs
+        if sub_types[1] is True:
+            ax.set_yticks(y_ticks)
+            ax.set_yticklabels(['{:.0f}'.format(ylab) for ylab in y_ticklabels])
+
 
         # dispersion significance plotting
 
@@ -707,9 +729,10 @@ def hybrid(signal, epoch_names='single', channels='all', start=None, end=None,
             _significance_bars(start_times[cc], end_times[cc], y_range=vertical_range, ax=ax)
 
         ax.set_title('{}: {}'.format(chan, signal.chans[chan]))
-        if first:
-            first = False
-            ax.legend()
+    else:
+        # ax.legend(bbox_to_anchor=(2, 1))
+        pass
+
     fig.suptitle(signal.name)
 
     return fig, axes
