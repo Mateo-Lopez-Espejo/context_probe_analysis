@@ -4,6 +4,23 @@ from nems.signal import SignalBase
 import matplotlib.pyplot as plt
 
 
+def PSTH_PCA(PSTH, center=True):
+    '''
+
+    :param PSTH: 2D array with shape Channel x TimeBin
+    :param center: Bool, if True, makes the mean response equal to 0
+    :return: projectoion of PSTH into PC space, PCA object
+    '''
+    if center is True:
+        PSTH = PSTH.T - np.mean(PSTH, axis=1)
+
+    pca = PCA()
+    pca.fit(PSTH) # takes the PCs over dimention 1
+    PSTH_PCs = pca.transform(PSTH).T
+
+    return PSTH_PCs, pca
+
+
 def signal_PCA(signal, center=True):
     if not isinstance(signal, SignalBase):
         raise TypeError('sig argument should be nems sig but is {}'.format(type(signal)))

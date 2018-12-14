@@ -12,7 +12,7 @@ def _epoch_name_handler(rec_or_sig, epoch_names):
     the corresponding list of epoch names.
     :param rec_or_sig: nems recording of signal object
     :param epoch_names: epoch name (str), regexp, list of epoch names, 'single', 'pair'. keywords 'single' and 'pair'
-    correspond to all single vocalization, and pair of context probe vocalization pairs.
+    correspond to all single vocalization, and pair of stim_num prb vocalization pairs.
     :return: a list with the apropiate epoch names as found in signal.epoch.name
     '''
     if epoch_names == 'single':  # get eps matching 'voc_x' where x is a positive integer

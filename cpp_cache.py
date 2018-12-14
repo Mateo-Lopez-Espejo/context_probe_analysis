@@ -118,7 +118,7 @@ def make_cache(function, func_args, classobj_name, recache=False, cache_folder='
     unique_name = '{}-{}({})'.format(classobj_name, function.__name__, arg_string)
     name_hash = hashlib.sha1(unique_name.encode()).hexdigest()
 
-    print('\nfunction call (aka unique name):{}\nhash: {}\n '.format(unique_name, name_hash))
+    print('\nfunction call (aka unique name):\n{}\nhash: {}\n '.format(unique_name, name_hash))
 
     if use_hash is True:
         filename = os.path.join(cache_folder, name_hash)

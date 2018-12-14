@@ -35,7 +35,7 @@ else:
     load_URI = nb.baphy_load_recording_uri(**options)
     loaded_rec = recording.load_recording(load_URI)
 
-# sets eps correpsondign to individual sounds as well as context probe pairs
+# sets eps correpsondign to individual sounds as well as stim_num prb pairs
 rec = cpe.set_recording_subepochs(loaded_rec, set_pairs=True)
 sig = rec['resp']
 eps = sig.epochs
@@ -133,14 +133,14 @@ if plot is True:
 
 if plot is True:
     ############################## dispersion analyis
-    # example of full population ploting for a set of all contexts to a probe
+    # example of full population ploting for a set of all contexts to a prb
     epoch_names = r'\AC\d_P3'
     channels = 'all'
     fig, ax = cdisp.plot_single_probe(sig, channels, epoch_names)
-    fig.suptitle('full population example for probe 3')
+    fig.suptitle('full population example for prb 3')
 
     ##############################
-    # considers each combination of cell/probe as an independent recording (disregard cell identity)
+    # considers each combination of cell/prb as an independent recording (disregard cell identity)
     # 1 iterates over all relevant probes i.e. excludes silence
 
     fig, ax = cdisp.pseudopop_significance(sig, channels='all')
@@ -177,7 +177,7 @@ if plot is True:
     epoch_names = r'\AC\d_P3'
     channels = good_cell_index
 
-    # calculates kurskal wallis between different context across time
+    # calculates kurskal wallis between different stim_num across time
     wind_kws = {'window': 5, 'rolling': True, 'type': 'MSD'}
 
     # plots all cells for example cpp
@@ -335,7 +335,7 @@ if plot is True:
             ax.set_ylabel('euclidean distance')
             ax.set_xlabel('seconds')
 
-    # Mean across probes (population) and probe/cell (cell)
+    # Mean across probes (population) and prb/cell (cell)
     mean_dict = {key: np.nanmean(val, axis=0) for key, val in mat_dict.items()}
     # plots
     fig, ax = plt.subplots()

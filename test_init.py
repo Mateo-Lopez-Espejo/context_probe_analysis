@@ -16,7 +16,7 @@ def _window_ndim_MSD(working_window):
         # input array should have shape Repetition x Cell x Context x WindowTimeBin
         # calculates PSTH i.e. mean across repetitions
         psth = working_window.mean(axis=0)  # dimentions Cell x Context x WindowTime
-        # initializes array to hold the calculated metric for all context pairs combinations
+        # initializes array to hold the calculated metric for all stim_num pairs combinations
         combs = int(math.factorial(psth.shape[1]) / (2 * math.factorial(psth.shape[1] - 2)))
         msd_values = np.empty(combs)
         # iterates over every pair of contexts
@@ -33,7 +33,7 @@ def _window_ndim_MSD(working_window):
     obs_msd = _working_window_MSD(working_window)
 
     # 2. shuffles across repetitions a contexts
-    # collapses repetition and context together
+    # collapses repetition and stim_num together
     collapsed = working_window.swapaxes(0, 2)  # makes time the first axis, the only relevant to hold
     t, c, r = collapsed.shape
     collapsed = collapsed.reshape([t, c * r], order='C')

@@ -12,6 +12,7 @@ import numpy as np
 import scipy.signal as ssig
 import scipy.ndimage.filters as sf
 
+import nems.preprocessing as npre
 
 batch = 310
 
@@ -45,6 +46,9 @@ for (site_name, cells), modelname in itt.product(sites.items(), all_models):
                                      recache=False, cache_folder='/home/mateo/mycache/reconstitute_recs',
                                      use_hash=True)
     reconstituted_recording = ccache.get_cache(recons_cache)
+    # rasterizes and takes the PSTH of full length signals (containing multiple contex probes)
+    reconstituted_recording.signals = {key: val.rasterize() for key, val in reconstituted_recording.signals.items()}
+    reconstituted_recording = npre.average_away_epoch_occurrences(reconstituted_recording)
     pop_recs[site_name][modelname] = reconstituted_recording
     
 # removese the flat response of BRT057b todo solve the bug
@@ -84,39 +88,38 @@ for site_key, site_vals in PCA_stats.items():
     fig.set_size_inches(4,4)
     fig.savefig('/home/mateo/Pictures/DAC1/181205_PCA_explained_var_{}.png'.format(site_key), dpi=100)
     fig.savefig('/home/mateo/Pictures/DAC1/181205_PCA_explained_var_{}.svg'.format(site_key))
-    plt.close('all')
-
+########################################################################################################################
 # plot example 3D trajectory for BRT056b PCA
 site = 'BRT056b'
 sig = site_PCA[site]['resp']
 
-# plots all the vocalizations, independent of context
+# plots all the vocalizations, independent of stim_num
 fig = plt.figure()
 ax = fig.gca(projection='3d')
-for context in range(1, 5):
-    if context == 0:
+for ctx in range(1, 5):
+    if ctx == 0:
         epoch = 'PostStimSilence'
     else:
-        epoch = 'voc_{}'.format(context)
+        epoch = 'voc_{}'.format(ctx)
 
     matrix = sig.extract_epoch(epoch)
     matrix = ssig.decimate(matrix, 1, axis=2)
-    matrix_mean = np.mean(matrix, axis=0)
+    psth = np.mean(matrix, axis=0)
 
     # smooths the matrixes  with a gaussian filter along the time dimention
     matrix = sf.gaussian_filter(matrix, [0, 0, 3])
-    matrix_mean = sf.gaussian_filter(matrix_mean, [0, 3])
+    psth = sf.gaussian_filter(psth, [0, 3])
 
     N = matrix.shape[2]
 
     # starts at blue, ends at yellow
-    cm = plt.cm.get_cmap(voc_cmpat['voc_{}'.format(context)]+'_r')
+    cm = plt.cm.get_cmap(voc_cmpat['voc_{}'.format(ctx)] + '_r')
     cmap = cm(np.linspace(0, 1, N))
 
     # plot the mean
-    x = matrix_mean[0, :]
-    y = matrix_mean[1, :]
-    z = matrix_mean[2, :]
+    x = psth[0, :]
+    y = psth[1, :]
+    z = psth[2, :]
 
     for ii in range(N - 1):
         p = ax.plot(x[ii:ii + 2], y[ii:ii + 2], z[ii:ii + 2], color=cmap[ii, :], alpha=1)
@@ -124,92 +127,114 @@ for context in range(1, 5):
 ax.set_xlabel('component 1')
 ax.set_ylabel('component 2')
 ax.set_zlabel('component 3')
-fig.suptitle('{} all vocalizations, context independent'.format(site))
+fig.suptitle('{} all vocalizations, stim_num independent'.format(site))
 fig.set_size_inches(10,10)
-fig.savefig('/home/mateo/Pictures/DAC1/181205_3D_{}_all_vocs.png'.format(site), dpi=100)
-fig.savefig('/home/mateo/Pictures/DAC1/181205_3D_{}_all_vocs.svg'.format(site))
-plt.close('all')
+# fig.savefig('/home/mateo/Pictures/DAC1/181205_3D_{}_all_vocs.png'.format(site), dpi=100)
+# fig.savefig('/home/mateo/Pictures/DAC1/181205_3D_{}_all_vocs.svg'.format(site))
 
-# probes after different context
-for probe in range(5):
+########################################################################################################################
+# probes after different stim_num
+site = 'BRT056b'
+sig = site_PCA[site]['resp']
+context = [0, 1, 2, 3, 4]
+probe = [2]
+
+for prb in probe:
     fig = plt.figure()
     ax = fig.gca(projection='3d')
-    for context in range(5):
-        if probe ==0:
-            if context == 0:
+    for ctx in context:
+        if prb ==0:
+            if ctx == 0:
                 continue
-        matrix = sig.extract_epoch('C{}_P{}'.format(context, probe))
-        matrix = ssig.decimate(matrix, 1, axis=2)
-        matrix_mean = np.mean(matrix, axis=0)
+        matrix = sig.extract_epoch('C{}_P{}'.format(ctx, prb))
+        psth = np.mean(matrix, axis=0)
 
         # smooths the matrixes  with a gaussian filter along the time dimention
-        matrix = sf.gaussian_filter(matrix, [0, 0, 3])
-        matrix_mean = sf.gaussian_filter(matrix_mean, [0, 3])
+        psth = sf.gaussian_filter(psth, [0, 2])
 
-        N = matrix.shape[2]
+        N = psth.shape[1]
 
         # starts at blue, ends at yellow
-        cm = plt.cm.get_cmap(voc_cmpat['voc_{}'.format(context)]+'_r')
+        cm = plt.cm.get_cmap(voc_cmpat['voc_{}'.format(ctx)] + '_r')
         cmap = cm(np.linspace(0, 1, N))
 
         # plot the mean
-        x = matrix_mean[0, :]
-        y = matrix_mean[1, :]
-        z = matrix_mean[2, :]
+        x = psth[0, :]
+        y = psth[1, :]
+        z = psth[2, :]
 
         for ii in range(N - 1):
             p = ax.plot(x[ii:ii + 2], y[ii:ii + 2], z[ii:ii + 2], color=cmap[ii, :], alpha=1)
 
-    ax.set_xlabel('component 1')
-    ax.set_ylabel('component 2')
-    ax.set_zlabel('component 3')
-    fig.suptitle('{} vocalization {}, context dependent'.format(site, probe))
+    ax.set_xlabel('component 0', fontsize=15)
+    ax.set_ylabel('component 1', fontsize=15)
+    ax.set_zlabel('component 2', fontsize=15)
+    fig.suptitle('{} all contexts, stimulus {}'.format(site, prb))
     fig.set_size_inches(10,10)
-    fig.savefig('/home/mateo/Pictures/DAC1/181205_3D_{}_probe{}.png'.format(site,probe), dpi=100)
-    fig.savefig('/home/mateo/Pictures/DAC1/181205_3D_{}_probe{}.svg'.format(site,probe))
-    plt.close('all')
-
-# repreats the context figures but onlye the initial 500 ms, i.e first 50 time bins
-
-for probe in range(5):
-    fig = plt.figure()
-    ax = fig.gca(projection='3d')
-    for context in range(5):
-        if probe ==0:
-            if context == 0:
-                continue
-        matrix = sig.extract_epoch('C{}_P{}'.format(context, probe))
-        matrix = matrix[:, :, :50]
-        matrix = ssig.decimate(matrix, 1, axis=2)
-        matrix_mean = np.mean(matrix, axis=0)
-
-        # smooths the matrixes  with a gaussian filter along the time dimention
-        matrix = sf.gaussian_filter(matrix, [0, 0, 3])
-        matrix_mean = sf.gaussian_filter(matrix_mean, [0, 3])
-
-        N = matrix.shape[2]
-
-        # starts at blue, ends at yellow
-        cm = plt.cm.get_cmap(voc_cmpat['voc_{}'.format(context)]+'_r')
-        cmap = cm(np.linspace(0, 1, N))
-
-        # plot the mean
-        x = matrix_mean[0, :]
-        y = matrix_mean[1, :]
-        z = matrix_mean[2, :]
-
-        for ii in range(N - 1):
-            p = ax.plot(x[ii:ii + 2], y[ii:ii + 2], z[ii:ii + 2], color=cmap[ii, :], alpha=1)
-
-    ax.set_xlabel('component 1')
-    ax.set_ylabel('component 2')
-    ax.set_zlabel('component 3')
-    fig.suptitle('{} vocalization {}, context dependent'.format(site, probe))
-    fig.set_size_inches(10,10)
-    fig.savefig('/home/mateo/Pictures/DAC1/181205_3D_start_{}_probe{}.png'.format(site,probe), dpi=100)
-    fig.savefig('/home/mateo/Pictures/DAC1/181205_3D_start_{}_probe{}.svg'.format(site,probe))
-    plt.close('all')
+    plt.tick_params(axis='both', which='major', labelsize=13)
+    fig.savefig('/home/mateo/Pictures/WIP2/181210_3D_PSTH_PCs_{}_probe{}_.png'.format(site,prb), dpi=300)
 
 
+
+########################################################################################################################
+# repreats the stim_num figures but onlye the initial s, i.e first 100 time bins
     
+site = 'BRT056b'
+sig = site_PCA[site]['resp']
+context = [0, 1, 2, 3, 4]
+probe = [2]
+
+for prb in probe:
+    fig = plt.figure()
+    ax = fig.gca(projection='3d')
+    for ctx in context:
+        if prb ==0:
+            if ctx == 0:
+                continue
+        matrix = sig.extract_epoch('C{}_P{}'.format(ctx, prb))
+        psth = np.mean(matrix, axis=0)
+
+        # smooths the matrixes  with a gaussian filter along the time dimention
+        psth = sf.gaussian_filter(psth, [0, 2])
+        psth = psth[:, 0:100]
+
+        N = psth.shape[1]
+
+        # starts at blue, ends at yellow
+        cm = plt.cm.get_cmap(voc_cmpat['voc_{}'.format(ctx)] + '_r')
+        cmap = cm(np.linspace(0, 1, N))
+
+        # plot the mean
+        x = psth[0, :]
+        y = psth[1, :]
+        z = psth[2, :]
+
+        for ii in range(N - 1):
+            p = ax.plot(x[ii:ii + 2], y[ii:ii + 2], z[ii:ii + 2], color=cmap[ii, :], alpha=1)
+
+    ax.set_xlabel('component 0', fontsize=15)
+    ax.set_ylabel('component 1', fontsize=15)
+    ax.set_zlabel('component 2', fontsize=15)
+    fig.suptitle('{} all conxtexts, stimulus {}, first second'.format(site, prb))
+    fig.set_size_inches(10,10)
+    plt.tick_params(axis='both', which='major', labelsize=13)
+    fig.savefig('/home/mateo/Pictures/WIP2/181210_3D_PSTH_PCs_{}_probe{}_1s.png'.format(site,prb), dpi=200)
+
+
+########################################################################################################################
+# plots the variance explained by PCs for example site
+site = 'BRT056b'
+
+pca_stats = PCA_stats[site]['resp']
+fig, ax = plt.subplots()
+toplot = np.cumsum(pca_stats.explained_variance_ratio_)
+ax.plot(toplot, '.-', color='black')
+ax.set_xlabel('Principal Component', fontsize=15)
+ax.set_ylabel('cumulative variance explained', fontsize=15)
+ax.set_title('site {}'.format(site), fontsize=15)
+plt.tick_params(axis='both', which='major', labelsize=13)
+
+fig.set_size_inches(5,5)
+plt.tight_layout()
+fig.savefig('/home/mateo/Pictures/WIP2/181210_PCA_explained_var_{}.png'.format(site_key), dpi=200)
 

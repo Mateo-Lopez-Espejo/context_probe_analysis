@@ -7,7 +7,7 @@ import ast
 from nems.signal import TiledSignal, RasterizedSignal
 
 '''
-This is a "temporary" cludge. The context probe pari (CPP) sound objects have both the usual events (eps) defined 
+This is a "temporary" cludge. The stim_num prb pari (CPP) sound objects have both the usual events (eps) defined 
 by the baphy convention "Stim , <whatever> , Reference", wich specify the sequences of individual speech modulated noises. 
 The events coresponding to these individual sounds are stored as "SubPreStimSilence, SubStim, SubPostStimSilence" 
 and therefore at not being automatically pulled by NEMS into eps.
@@ -69,7 +69,7 @@ def _set_subepochs(epochs):
         split_times[ee, ss+1, 0] = epoch[0] + PreStimSilence + (step * (ss + 1))
         # end, equal to start plus PostStimSilence time
         split_times[ee, ss+1, 1] = epoch[0] + PreStimSilence + (step * (ss + 1)) + PostStimSilence
-        # name, context equal to probe of previous subepoch
+        # name, stim_num equal to prb of previous subepoch
         split_times[ee, ss+1, 2] = 0
 
 
@@ -95,9 +95,9 @@ def _set_subepochs(epochs):
 
 def _set_subepochs_context(epochs):
     '''
-    adds a set of epoch names containing both the context and probe identity in the format Cx_Py, where x is the id number
-    of the contex, and y that of the probe. by convention, x = 0 corresponds to silence as context. The epoch point only
-    to the response to the probe, this only adds the information of what preceded the probe i.e. the context.
+    adds a set of epoch names containing both the stim_num and prb identity in the format Cx_Py, where x is the id number
+    of the contex, and y that of the prb. by convention, x = 0 corresponds to silence as stim_num. The epoch point only
+    to the response to the prb, this only adds the information of what preceded the prb i.e. the stim_num.
     :param epochs: a sig eps DF
     :return: a new sig eps with the aditional CPP eps.
     '''
@@ -175,7 +175,7 @@ def _set_subepoch_pairs(epochs):
     # and DF is the DF columns to be: start and end
 
     total_subepochs = (sub_epochs.size * 2) + sub_epochs.shape[0]  # first terms includes bot signle and pair vocs
-    # second term is for PostStimSilence as probe in pairs
+    # second term is for PostStimSilence as prb in pairs
     splited_times = np.zeros([total_subepochs, 2])
     new_names = np.empty([total_subepochs, 1], dtype='object')
 
@@ -201,8 +201,8 @@ def _set_subepoch_pairs(epochs):
 
             # second add as a pair
             cc += 1
-            # context start time
-            if ss == 0:  # special case for PreStimSilence as context
+            # stim_num start time
+            if ss == 0:  # special case for PreStimSilence as stim_num
                 context = start - PreStimSilence
                 name = 'C0_P{}'.format(sub_ep)
             else:
@@ -214,7 +214,7 @@ def _set_subepoch_pairs(epochs):
             new_names[cc, 0] = name
             cc += 1
 
-        # finally add the PostStimSilences as probe in a pair
+        # finally add the PostStimSilences as prb in a pair
 
         context = start
         end = end + PostStimSilence
@@ -269,22 +269,22 @@ def set_recording_subepochs(recording, set_pairs=True):
         new_recording[name] = new_signal
     return new_recording
 
-def rename_into_part(epochs, context_or_probe='context'):
+def rename_into_part(epochs, context_or_probe='stim_num'):
     '''
     replace the composite cpp epoch names of the form Cn_Pn, where n is the number identifiying a particular vocalization,
-    with eithe the context part Cn or the probe part Cn
+    with eithe the stim_num part Cn or the prb part Cn
     :param epochs: NEMS epochs data frame preformated with CPP epochs
-    :param context_or_probe: str 'context' or 'probe', defines wich part of the name to keep
+    :param context_or_probe: str 'stim_num' or 'prb', defines wich part of the name to keep
     :return: epochs DF with the renamed epochs
     '''
 
     cpp_epochs = ne.epoch_names_matching(epochs, r'\AC\d_P\d')
     if not cpp_epochs:
-        raise ValueError('epochs do not contain context probe formated epochs')
+        raise ValueError('epochs do not contain stim_num prb formated epochs')
 
-    if context_or_probe == 'context':
+    if context_or_probe == 'stim_num':
         rename_dict = {old_epoch: old_epoch.split('_')[0] for old_epoch in cpp_epochs}
-    elif context_or_probe == 'probe':
+    elif context_or_probe == 'prb':
         rename_dict = {old_epoch: old_epoch.split('_')[1] for old_epoch in cpp_epochs}
 
     new_epochs = epochs.replace(rename_dict)

@@ -157,7 +157,7 @@ fig.savefig('/home/mateo/Pictures/DAC1/181205_dist_over_time_all_mod_resp.svg')
 plt.close('all')
 
 ################################################
-# plots the dispersion over time for each site predictions, excluding the response and the context
+# plots the dispersion over time for each site predictions, excluding the response and the stim_num
 for site_ID, models in site_disps.items():
     # fits an exponential decay. Todo make it work
     # fitted = {key: cdisp.disp_exp_decay(val, start=300, prior=1, axis=None)[0] for key, val in collapsed.items()}
@@ -243,12 +243,12 @@ best_cell = 'BRT056b-58-1'
 best_voc = None
 best_cont = None
 
-# full population, context independent PSTH vocalization
+# full population, stim_num independent PSTH vocalization
 sig = pop_sigs[best_site]['resp']
 fig, axes = cplot.hybrid(sig,scatter_kws={'alpha': 0.1})
 mng = plt.get_current_fig_manager()
 mng.resize(*mng.window.maxsize())
-fig.suptitle('context independent vocalizations PSTH\nsite {}'.format(best_site))
+fig.suptitle('stim_num independent vocalizations PSTH\nsite {}'.format(best_site))
 fig.savefig('/home/mateo/Pictures/DAC1/181205_voc_psth_all_cells_{}.png'.format(best_site), dpi=100)
 fig.savefig('/home/mateo/Pictures/DAC1/181205_voc_psth_all_cells_{}.svg'.format(best_site))
 
@@ -259,12 +259,12 @@ cpp_eps = nep.epoch_names_matching(sig.epochs, r'\AC\d_P\d$')
 for ii in range(1,5):
     fig, axes = cplot.hybrid(sig, epoch_names=r'\AC\d_P{}'.format(ii), channels=[best_cell],
                  start=3, end=6,scatter_kws={'alpha': 0.2})
-    fig.suptitle('context dependent response to probe {}'.format(ii))
+    fig.suptitle('stim_num dependent response to prb {}'.format(ii))
     fig.set_size_inches(9,6)
     fig.savefig('/home/mateo/Pictures/DAC1/181205_CPP_probe{}_PSTH_cell_{}.png'.format(ii, best_cell), dpi=100)
     # fig.savefig('/home/mateo/Pictures/DAC1/181205_CPP_probe{}_PSTH_cell_{}.svg'.format(ii, best_cell))
 
-# plots dispersion over time for a single probe with all the contexts
+# plots dispersion over time for a single prb with all the contexts
 fig, ax = plt.subplots()
 labels = site_cnames[best_site]['resp']
 matrix = site_disps[best_site]['resp']
@@ -278,7 +278,7 @@ ax.axvline(0, color='black')
 ax.legend()
 ax.set_xlabel('Time S')
 ax.set_ylabel('euclideand distance\nspike rate')
-fig.suptitle('dispersion over time of response for each probe\nsite {}'.format(best_site))
+fig.suptitle('dispersion over time of response for each prb\nsite {}'.format(best_site))
 fig.set_size_inches(8,5)
 fig.savefig('/home/mateo/Pictures/DAC1/181205_disp_by_probe_{}.png'.format(best_site), dpi=100)
 # fig.savefig('/home/mateo/Pictures/DAC1/181205_disp_by_probe_{}.svg'.format(best_site))
@@ -294,26 +294,26 @@ mng.resize(*mng.window.maxsize())
 plt.tight_layout()
 for ax in axes: ax.axis('off')
 fig.suptitle('')
-# fig.suptitle('context independent vocalizations PSTH\nsite {}'.format(best_site))
+# fig.suptitle('stim_num independent vocalizations PSTH\nsite {}'.format(best_site))
 fig.savefig('/home/mateo/Pictures/WIP2/181207_eg_cpp_all_cells_{}.png'.format(best_site), dpi=100)
 # fig.savefig('/home/mateo/Pictures/WIP2/181207_eg_cpp_all_cells_{}.svg'.format(best_site))
 
 
-# single cell, one probe, all contexts
+# single cell, one prb, all contexts
 goodprobe = 3
 goodcell = 'BRT056b-58-1'
 fig, axes = cplot.hybrid(sig, epoch_names=r'\AC\d_P{}'.format(goodprobe), channels=[goodcell],
              start=3, end=6,scatter_kws={'alpha': 0.2})
 ax = axes[0]
 ax.set_xlabel('seconds')
-fig.suptitle('context dependent response to probe {}'.format(goodprobe))
+fig.suptitle('stim_num dependent response to prb {}'.format(goodprobe))
 fig.set_size_inches(13,9)
 fig.savefig('/home/mateo/Pictures/WIP2/181205_CPP_probe{}_PSTH_cell_{}.png'.format(goodprobe, goodcell), dpi=200)
 # fig.savefig('/home/mateo/Pictures/DAC1/181205_CPP_probe{}_PSTH_cell_{}.svg'.format(ii, best_cell))
 
 
 
-# single cell, one probe, all contexts, close up in time
+# single cell, one prb, all contexts, close up in time
 goodprobe = 3
 goodcell = 'BRT056b-58-1'
 fig, axes = cplot.hybrid(sig, epoch_names=r'\AC\d_P{}'.format(goodprobe), channels=[goodcell],
@@ -324,3 +324,6 @@ fig.set_size_inches(13,9)
 plt.tight_layout()
 fig.savefig('/home/mateo/Pictures/WIP2/181205_CPP_probe{}_PSTH_cell_{}_closeup.png'.format(goodprobe, goodcell), dpi=200)
 # fig.savefig('/home/mateo/Pictures/DAC1/181205_CPP_probe{}_PSTH_cell_{}.svg'.format(ii, best_cell))
+
+
+# single cell, one prb, all contexts, close up in time. Similar as previous plot but with only two overlayed examples

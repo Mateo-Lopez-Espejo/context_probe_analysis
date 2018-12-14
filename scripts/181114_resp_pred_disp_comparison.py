@@ -148,7 +148,7 @@ for ii, (key, value) in enumerate(dispersions.items()):
     ax.set_yticks([0,1,2,3], minor=False)
     ax.set_yticklabels(stim_names)
     ax.axvline(300, color='red')
-fig.suptitle('euclidean distance over time for for eache probe')
+fig.suptitle('euclidean distance over time for for eache prb')
 
 # plot difference pval over time
 fig, axes = plt.subplots(3,2)
@@ -160,7 +160,7 @@ for ii, (key, value) in enumerate(pvals.items()):
     ax.set_yticks([0,1,2,3], minor=False)
     ax.set_yticklabels(stim_names)
     ax.axvline(300, color='red')
-fig.suptitle('pvalue (of euclidean) over time for for eache probe')
+fig.suptitle('pvalue (of euclidean) over time for for eache prb')
 
 # plots significant difference over time
 significnaces = {key: cdisp._significance_criterion(val, axis=1, window=1, threshold=0.05, comp='<=')
@@ -174,7 +174,7 @@ for ii, (key, value) in enumerate(significnaces.items()):
     ax.set_yticks([0,1,2,3], minor=False)
     ax.set_yticklabels(stim_names)
     ax.axvline(300, color='red')
-fig.suptitle('significant difference over time for for eache probe')
+fig.suptitle('significant difference over time for for eache prb')
 
 # plots all signals (resp, and model predictions) side by side. Collapses all different probes by the mean
 

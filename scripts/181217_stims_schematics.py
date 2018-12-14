@@ -146,13 +146,13 @@ for tt in range (1, 5):
 
 ax1.axis('off')
 
-# plots an example in which all the instnaces of a probe are ploted with the preceding context
+# plots an example in which all the instnaces of a prb are ploted with the preceding stim_num
 for cpp, (context, wave) in enumerate(new_stims.items()):
-    # if context == eg_probe:
+    # if stim_num == eg_probe:
     #     continue
     v_off = v_offset * cpp
     xx = np.arange(stim_len, stim_len*2)
-    label = 'context {}, probe {}'.format(context.split('_')[-1], eg_probe.split('_')[-1])
+    label = 'stim_num {}, prb {}'.format(context.split('_')[-1], eg_probe.split('_')[-1])
     ax2.plot(wave - v_off, color=voc_color[context], label=label)
     ax2.plot(xx, new_stims[eg_probe] - v_off, color=voc_color[eg_probe])
 
@@ -169,15 +169,30 @@ sig = rec['resp'].rasterize()
 
 arr = sig.extract_epoch('C2_P1')
 arr = np.mean(arr, axis=0)
+first = arr[:,0:300]
+second = arr[:,300:]
+
+time_first = np.linspace(-3, 0, 300)
+time_second = np.linspace(0, 3, 300)
+
 fig, ax = plt.subplots()
-
-
+ticks = list()
 for ii in range(arr.shape[0]):
-    ax.plot(arr[ii,:].T + (ii * 1.5), color='black')
+    y_off = ii * 1.5
+    ticks.append(y_off)
+    ax.plot(time_first, first[ii,:].T + y_off, color='C2')
+    ax.plot(time_second, second[ii,:].T + y_off, color='C1')
 
-ax.axis('off')
+ax.set_yticks(ticks)
+ax.set_yticklabels(['cell {}'.format(ii) for ii in range(len(ticks))])
+plt.tick_params(axis='both', which='major', labelsize=15)
+
+# ax.axis('off')
 fig.set_size_inches(10,10)
 plt.tight_layout()
+for ss, spine in enumerate(plt.gca().spines.values()):
+    spine.set_visible(False)
+
 fig.savefig('/home/mateo/Pictures/WIP2/181209_example_firing_rate.png', dpi=300)
 
 

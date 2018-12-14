@@ -191,7 +191,7 @@ def _window_pearsons(working_window):
     obs_rval = _working_window_rval(working_window)
 
     # 2. shuffles across repetitions a contexts
-    # collapses repetition and context together
+    # collapses repetition and stim_num together
     collapsed = working_window.swapaxes(0, 2)  # maktes time the first axis, the only relevant to hold
     t, c, r = collapsed.shape
     collapsed = collapsed.reshape([t, c * r], order='C')
@@ -239,7 +239,7 @@ def _window_MSD(working_window):
         # input array should have shape Repetitions x Context x Time
         # calculates PSTH i.e. mean across repetitions
         psth = working_window.mean(axis=0)  # dimentions Context x WindowTime
-        # initializes array to hold the calculated metric for all context pairs combinations
+        # initializes array to hold the calculated metric for all stim_num pairs combinations
         combs = int(math.factorial(psth.shape[0]) / (2 * math.factorial(psth.shape[0] - 2)))
         msd_values = np.empty(combs)
         # iterates over every pair of contexts
@@ -256,7 +256,7 @@ def _window_MSD(working_window):
     obs_msd = _working_window_MSD(working_window)
 
     # 2. shuffles across repetitions a contexts
-    # collapses repetition and context together
+    # collapses repetition and stim_num together
     collapsed = working_window.swapaxes(0, 2)  # makes time the first axis, the only relevant to hold
     t, c, r = collapsed.shape
     collapsed = collapsed.reshape([t, c * r], order='C')
@@ -303,7 +303,7 @@ def _window_euclidean(working_window):
         # input array should have shape Repetitions x Context x Time
         # calculates PSTH i.e. mean across repetitions
         psth = working_window.mean(axis=0)  # dimentions Context x WindowTime
-        # initializes array to hold the calculated metric for all context pairs combinations
+        # initializes array to hold the calculated metric for all stim_num pairs combinations
         combs = int(math.factorial(psth.shape[0]) / (2 * math.factorial(psth.shape[0] - 2)))
         euc_values = np.empty(combs)
         # iterates over every pair of contexts
@@ -324,7 +324,7 @@ def _window_euclidean(working_window):
     obs_msd = _working_window_euclidean(working_window)
 
     # 2. shuffles across repetitions a contexts
-    # collapses repetition and context together
+    # collapses repetition and stim_num together
     collapsed = working_window.swapaxes(0, 2)  # makes time the first axis, the only relevant to hold
     t, c, r = collapsed.shape
     collapsed = collapsed.reshape([t, c * r], order='C')
@@ -374,7 +374,7 @@ def _window_ndim_MSD(working_window):
         # input array should have shape Repetition x Unit x Context x WindowTimeBin
         # calculates PSTH i.e. mean across repetitions
         psth = working_window.mean(axis=0)  # dimentions Unit x Context x WindowTime
-        # initializes array to hold the calculated metric for all context pairs combinations
+        # initializes array to hold the calculated metric for all stim_num pairs combinations
         combs = int(math.factorial(psth.shape[1]) / (2 * math.factorial(psth.shape[1] - 2)))
         msd_values = np.empty(combs)
         # iterates over every pair of contexts
@@ -391,7 +391,7 @@ def _window_ndim_MSD(working_window):
     obs_msd = _working_window_MSD(working_window)
 
     # 2. shuffles across repetitions a contexts
-    # collapses repetition and context together
+    # collapses repetition and stim_num together
     # first two axes remain unaltered, swaps axes to shape WindowTimeBin x Unit x Context x repetition
     collapsed = working_window.swapaxes(0, 3)
     t, u, c, r = collapsed.shape
@@ -429,7 +429,7 @@ def _window_ndim_MSD(working_window):
 
 def _window_ndim_STD(working_window):
     '''
-    todo this function is shit. I cannot figure out a proper manner of considering standard deviation across the dimentions of context, and cells
+    todo this function is shit. I cannot figure out a proper manner of considering standard deviation across the dimentions of stim_num, and cells
     calculates standard deviation of the PSTH between contexts , binning by time with the mean,
     for an array of shape Repetition x Context x Time
     :param working_window: 3d ndarray with dims Repetition x Context x Time
@@ -440,7 +440,7 @@ def _window_ndim_STD(working_window):
     # calculates PSTH
     psth = np.mean(working_window, axis=0)  # PSTH with shape Unit x Context x Time
 
-    # calculates the cell-specific context-driven dispersion
+    # calculates the cell-specific stim_num-driven dispersion
     cell_std = np.std(psth, axis=1)  # cell STD with shape Unit x Time
 
     # mean of the std across cells, and bins by meaning in time
@@ -463,7 +463,7 @@ def _window_ndim_euclidean(working_window):
         # input array should have shape Repetition x Unit x Context x WindowTimeBin
         # calculates PSTH i.e. mean across repetitions
         psth = working_window.mean(axis=0)  # dimentions Unit x Context x WindowTime
-        # initializes array to hold the calculated metric for all context pairs combinations
+        # initializes array to hold the calculated metric for all stim_num pairs combinations
         combs = int(math.factorial(psth.shape[1]) / (2 * math.factorial(psth.shape[1] - 2)))
         msd_values = np.empty(combs)
         # iterates over every pair of contexts
@@ -479,8 +479,8 @@ def _window_ndim_euclidean(working_window):
     # 1. calculates the mean of the pairwise correlation coefficient between all differente contexts
     obs_euc = _working_window_ndim_euclidean(working_window)
 
-    # 2. shuffles across repetitions a contexts
-    # collapses repetition and context together
+    # 2. shuffles across repetitions and contexts
+    # collapses repetition and stim_num together
     # first two axes remain unaltered, swaps axes to shape WindowTimeBin x Unit x Context x repetition
     collapsed = working_window.swapaxes(0, 3)
     t, u, c, r = collapsed.shape
@@ -518,7 +518,7 @@ def _window_ndim_euclidean(working_window):
 
 ### population single trial dispersion calculations
 
-def _pairwise_single_trial_ndim_euclidean(matrix0, matrix1, zero_handling=None):
+def _pairwise_single_trial_ndim_euclidean(matrix0, matrix1, matrices_equal, trial_combinations=True):
     '''
     base single trial distance calculation function. takes two matrixes with the shape
     and calculates the n-dimentional euclidean distance betwee each repetition pair (a,b) where a comes from matrix0
@@ -533,20 +533,43 @@ def _pairwise_single_trial_ndim_euclidean(matrix0, matrix1, zero_handling=None):
     if matrix0.shape[1:] != matrix1.shape[1:]:
         raise ValueError('matrixes with unconsisten shapes: {} and {}'.format(matrix0.shape, matrix1.shape))
 
-    # initializes distance array of shape Combinations x TimeBins
-    distance_array = np.empty([matrix0.shape[0] * matrix1.shape[0], matrix0.shape[2]])
-    distance_array1 = np.empty([matrix0.shape[0] * matrix1.shape[0], matrix0.shape[2]])
+    if trial_combinations is True:
+        # initializes distance array of shape Combinations x TimeBins
+        distance_array = np.empty([matrix0.shape[0] * matrix1.shape[0], matrix0.shape[2]])
+        distance_array[:] = np.nan
+        # iterates over eache pair of single trial responses
+        for ee, (ii, jj) in enumerate(itt.product(range(matrix0.shape[0]), range(matrix1.shape[0]))):
+            # when calculating pairwised disntance of the same matrix, avoids calculating the distance of the exact
+            # same repetition, wich is zero, and would bias the whole collection of pariwise distances
+            if matrices_equal is True and ii == jj:
+                continue
 
-    # iterates over eache pair of single trial responses
-    for ee, (ii, jj) in enumerate(itt.product(range(matrix0.shape[0]), range(matrix1.shape[0]))):
+            x = matrix0[ii, :, :].T
+            y = matrix1[jj, :, :].T
+            x_min_y = x - y
+            distance_array[ee, :] = np.sqrt(np.einsum('ij,ij->i', x_min_y, x_min_y))
+    elif trial_combinations is False:
 
-        x = matrix0[ii, :, :].T
-        y = matrix1[jj, :, :].T
-        x_min_y = x - y
-        distance_array[ee, :] = np.sqrt(np.einsum('ij,ij->i', x_min_y, x_min_y))
+        distance_array = np.empty([matrix0.shape[0], matrix0.shape[2]])
+
+        for ii in range(matrix0.shape[0]):
+
+            if matrices_equal is True:
+                # ofset the matrix with itself by one to avoid difference of the same trial
+                jj = (ii + 1) % matrix0.shape[0]
+            elif matrices_equal is False:
+                jj = ii
+
+            x = matrix0[ii, :, :].T
+            y = matrix1[jj, :, :].T
+
+            x_min_y = x - y
+            distance_array[ii, :] = np.sqrt(np.einsum('ij,ij->i', x_min_y, x_min_y))
+
+    else:
+        raise ValueError('all pairs must be bool')
 
     return distance_array
-
 
 
 ### dispersion summary metrics
@@ -562,7 +585,7 @@ def disp_exp_decay(matrix, start=None, prior=None, C=None, axis=None):
         if prior is None:
             C = 0
         else:
-            C = np.mean(matrix[start-prior:start])
+            C = np.mean(matrix[start - prior:start])
     elif isinstance(C, (float, int)):
         pass
 
@@ -661,7 +684,7 @@ def _population_difsig(matrices, channels='all', window=1, rolling=False, type='
     these calculations are done over time i.e. for each time bin and considering all cells together
 
     :param matrices: a dictionary of matrices of dimensions Repetitions x Cells x Time. Each keywords corresponds to a
-    stimulus with a different context.
+    stimulus with a different stim_num.
     :param channels: the channels/cells to consider (second dimension of input matrices)
     :param window: window size in time bins over which to perform the calculations.
     :param rolling: boolena, wheather to use rolling windows or non overlapping juxtaposed windows
@@ -767,7 +790,6 @@ def _pairwise_distance_between(matrixes):
 
 def signal_single_context_sigdif(signal, epoch_names='single', channels='all', dimensions='cell', fs=None, window=1,
                                  rolling=False, type='Kruskal'):
-
     # handles epoch_names as standard
     epoch_names = hand._epoch_name_handler(signal, epoch_names)
 
@@ -799,7 +821,8 @@ def signal_single_context_sigdif(signal, epoch_names='single', channels='all', d
     return dispersion_over_time
 
 
-def signal_all_context_sigdif(signal, channels, signal_name, probes=(1, 2, 3, 4), dimensions='cell', sign_fs=None, window=1,
+def signal_all_context_sigdif(signal, channels, signal_name, probes=(1, 2, 3, 4), dimensions='cell', sign_fs=None,
+                              window=1,
                               rolling=True, type='Kruskal', recache=False, value='pvalue'):
     '''
     todo finish documentation
@@ -821,7 +844,7 @@ def signal_all_context_sigdif(signal, channels, signal_name, probes=(1, 2, 3, 4)
     # handlese sign_fs
     sign_fs = hand._fs_handler(signal, sign_fs)
 
-    # calculates dipersion pval for each set of contexts probe.
+    # calculates dipersion pval for each set of contexts prb.
     for pp in probes:
         this_probe = r'\AC\d_P{}'.format(pp)
 
@@ -836,8 +859,6 @@ def signal_all_context_sigdif(signal, channels, signal_name, probes=(1, 2, 3, 4)
                                                    cache_folder='/home/mateo/mycache/single_probe_disp')
 
         dispersion_over_time = cch.get_cache(dispersion_over_time_path)
-
-
 
         if dimensions == 'cell':
             chan_idx = hand._channel_handler(signal, channels)  # heterogeneous "channels" value to indexes
@@ -872,10 +893,422 @@ def signal_all_context_sigdif(signal, channels, signal_name, probes=(1, 2, 3, 4)
     return population_dispersion(disp_val, compound_names)
 
 
+### single trial approaches
+
+def probe_single_trial_distance(signal, probe, context_names, shuffle_neurons):
+    '''
+    simply extracts from the signal the two CPPs as matrixes, then computes the pairwise signle trial euclidean distance
+    This fucntions so it can be used with the CPP cache systems, given that its arguments are pretty simple
+    :param signal: NEMS signal object with epochs formated into CPP style
+    :param CPP0: the name of CPP with form 'Cn_Pm' where n and m are integers
+    :param CPP1: the name of CPP with form 'Cn_Pm' where n and m are integers
+    :return: 3D array with shape ContextPair x PairComparison x TimeBins
+    '''
+
+    contexts_pairs = list()
+    probe_all_contexts = list()
+
+    for ctx0, ctx1 in itt.product(context_names, repeat=2):
+
+        if probe == 0 and (ctx0 == 0 or ctx1 == 0):
+            # avoids calling C0_P0 epoch, which is not defined
+            continue
+
+        if ctx1 < ctx0:
+            # avoids renruning the same pair of contexts in different order
+            continue
+        elif ctx0 == ctx1:
+            matrices_equals = True
+        else:
+            matrices_equals = False
+
+        mat0 = signal.extract_epoch('C{}_P{}'.format(ctx0, probe))
+        mat1 = signal.extract_epoch('C{}_P{}'.format(ctx1, probe))
+
+        if shuffle_neurons is True:
+            # shuffle test array
+            # test_arr = np.array([[['R0_C0_T0', 'R0_C0_T1'],
+            #                       ['R0_C1_T0', 'R0_C1_T1']],
+            #                      [['R1_C0_T0', 'R1_C0_T1'],
+            #                       ['R1_C1_T0', 'R1_C1_T1']],
+            #                      [['R2_C0_T0', 'R2_C0_T1'],
+            #                       ['R2_C1_T0', 'R2_C1_T1']]], dtype='<U8')
+            # shuf_arr = np.stack([test_arr[np.random.permutation(test_arr.shape[0]), cell, :]
+            #                      for cell in range(test_arr.shape[1])], axis=1)
+
+            matrices_equals = False
+            mat0 = np.stack([mat0[np.random.permutation(mat0.shape[0]), cell, :] for cell in range(mat0.shape[1])],
+                            axis=1)
+            mat1 = np.stack([mat1[np.random.permutation(mat1.shape[0]), cell, :] for cell in range(mat1.shape[1])],
+                            axis=1)
+
+        elif shuffle_neurons == 'PSTH':
+            mat0 = np.expand_dims(np.nanmean(mat0, axis=0),axis=0)
+            mat1 = np.expand_dims(np.nanmean(mat1, axis=0),axis=0)
+
+        else: raise ValueError("invalid value in shuffle_neurons, use boolean or 'PSTH'")
+
+        contexts_pairs.append('C{}_vs_C{}'.format(ctx0, ctx1))
+        probe_all_contexts.append(_pairwise_single_trial_ndim_euclidean(mat0, mat1, matrices_equal=matrices_equals))
+
+    probe_all_contexts = np.stack(probe_all_contexts, axis=0)
+
+    return probe_all_contexts, contexts_pairs
+
+
+def two_probes_single_trial_distance(signal, probes, context_names, shuffle_neurons):
+    '''
+    modified version of probe_single_trial_distance, but intead of having the same probe, different probes are used.
+    This serves as controll as defines a ceiling level of dispersion
+    simply extracts from the signal the two CPPs as matrixes, then computes the pairwise signle trial euclidean distance
+    This fucntions so it can be used with the CPP cache systems, given that its arguments are pretty simple
+    :param signal: NEMS signal object with epochs formated into CPP style
+    :param CPP0: the name of CPP with form 'Cn_Pm' where n and m are integers
+    :param CPP1: the name of CPP with form 'Cn_Pm' where n and m are integers
+    :return: 3D array with shape ContextPair x PairComparison x TimeBins
+    '''
+
+    cpp_pairs = list()
+    probe_all_contexts = list()
+
+    for ctx0, ctx1 in itt.product(context_names, repeat=2):
+
+        name0 = 'C{}_P{}'.format(ctx0, probes[0])
+        name1 = 'C{}_P{}'.format(ctx1, probes[1])
+        cpp_pair_name = '{}_vs_{}'.format(name0, name1)
+
+        if name0 == 'C0_P0' or name1 == 'C0_P0':
+            # avoids calling C0_P0 epoch, which is not defined
+            continue
+
+        if cpp_pair_name in cpp_pairs:
+            # avoids renruning the same pair of CPPs, if that ever happens
+            print('skipping repeated CPP pair {}'.format(cpp_pair_name))
+            continue
+        elif name0 == name1:
+            matrices_equals = True
+        else:
+            matrices_equals = False
+
+        mat0 = signal.extract_epoch(name0)
+        mat1 = signal.extract_epoch(name1)
+
+        if shuffle_neurons is True:
+            # shuffle test array
+            # test_arr = np.array([[['R0_C0_T0', 'R0_C0_T1'],
+            #                       ['R0_C1_T0', 'R0_C1_T1']],
+            #                      [['R1_C0_T0', 'R1_C0_T1'],
+            #                       ['R1_C1_T0', 'R1_C1_T1']],
+            #                      [['R2_C0_T0', 'R2_C0_T1'],
+            #                       ['R2_C1_T0', 'R2_C1_T1']]], dtype='<U8')
+            # shuf_arr = np.stack([test_arr[np.random.permutation(test_arr.shape[0]), cell, :]
+            #                      for cell in range(test_arr.shape[1])], axis=1)
+
+            matrices_equals = False
+            mat0 = np.stack([mat0[np.random.permutation(mat0.shape[0]), cell, :] for cell in range(mat0.shape[1])],
+                            axis=1)
+            mat1 = np.stack([mat1[np.random.permutation(mat1.shape[0]), cell, :] for cell in range(mat1.shape[1])],
+                            axis=1)
+
+        elif shuffle_neurons == 'PSTH':
+            mat0 = np.expand_dims(np.nanmean(mat0, axis=0),axis=0)
+            mat1 = np.expand_dims(np.nanmean(mat1, axis=0),axis=0)
+
+        else:
+            raise ValueError("invalid value in shuffle_neurons, use boolean or 'PSTH'")
+
+        cpp_pairs.append(cpp_pair_name)
+        probe_all_contexts.append(_pairwise_single_trial_ndim_euclidean(mat0, mat1, matrices_equal=matrices_equals))
+
+    probe_all_contexts = np.stack(probe_all_contexts, axis=0)
+
+    return probe_all_contexts, cpp_pairs
+
+
+def signal_single_trial_dispersion_digest(signal, probe_names, context_names, shuffle_neurons, signal_name, recache):
+    signal = signal.rasterize()
+
+    distance_over_time = dict()
+    error_over_time = dict()
+    context_pairs = dict()
+
+    for prb in probe_names:
+        p_name = 'P{}'.format(prb)
+
+        disp_func_args = {'signal': signal,
+                          'probe': prb,
+                          'context_names': context_names,
+                          'shuffle_neurons': shuffle_neurons}
+
+        dispersion_over_time_path = cch.make_cache(function=probe_single_trial_distance, func_args=disp_func_args,
+                                                   classobj_name=signal_name, recache=recache,
+                                                   cache_folder='/home/mateo/mycache/single_trial_ccpp_disp',
+                                                   use_hash=False)
+
+        full_array, context_pairs[p_name] = cch.get_cache(dispersion_over_time_path)
+
+        distance_over_time[p_name] = np.nanmean(full_array, axis=1)
+        error_over_time[p_name] = sst.sem(full_array, axis=1, nan_policy='omit')
+
+    return distance_over_time, error_over_time, context_pairs
+
+
+def signal_single_trial_dispersion_pooled(signal, probe_names, context_names, shuffle_neurons, signal_name, recache):
+    signal = signal.rasterize()
+
+    probes_dict = coll.defaultdict(lambda: coll.defaultdict(dict))
+    probes_pools_dict = coll.defaultdict(list)
+
+    for prb in probe_names:
+        p_name = 'P{}'.format(prb)
+
+        disp_func_args = {'signal': signal,
+                          'probe': prb,
+                          'context_names': context_names,
+                          'shuffle_neurons': shuffle_neurons}
+
+        dispersion_over_time_path = cch.make_cache(function=probe_single_trial_distance, func_args=disp_func_args,
+                                                   classobj_name=signal_name, recache=recache,
+                                                   cache_folder='/home/mateo/mycache/single_trial_ccpp_disp',
+                                                   use_hash=False)
+
+        distance_over_time, context_pairs = cch.get_cache(dispersion_over_time_path)
+
+        # pools by same pair constexts or different pair contexts to set base noise level
+        pools_dict = coll.defaultdict(list)
+        for ii, name in enumerate(context_pairs):
+            # looks at the contexts being compared, name has the form Cn_vs_Cm where n and m are contexts
+            # pools them in different categories, see anotations
+
+            # ani contexts pair.
+            pools_dict['all_ctx'].append(distance_over_time[ii, :, :])
+            probes_pools_dict['all_ctx'].append(distance_over_time[ii, :, :])
+
+            if name[1] != name[-1]:
+                # different context pair
+                pools_dict['diff_ctx'].append(distance_over_time[ii, :, :])
+                probes_pools_dict['diff_ctx'].append(distance_over_time[ii, :, :])
+
+            if (name[1] == '1' and name[-1] == '2') or (name[1] == '3' and name[-1] == '4'):
+                # contexts pairs have different carriers
+                pools_dict['diff_car'].append(distance_over_time[ii, :, :])
+                probes_pools_dict['diff_car'].append(distance_over_time[ii, :, :])
+            elif (name[1] == '1' and name[-1] == '3') or (name[1] == '2' and name[-1] == '4'):
+                # contexts pairs have different envelopes
+                pools_dict['diff_env'].append(distance_over_time[ii, :, :])
+                probes_pools_dict['diff_env'].append(distance_over_time[ii, :, :])
+            elif (name[1] == '1' and name[-1] == '4') or (name[1] == '2' and name[-1] == '3'):
+                # contexts pairs have different carrier and envelope
+                pools_dict['diff_all'].append(distance_over_time[ii, :, :])
+                probes_pools_dict['diff_all'].append(distance_over_time[ii, :, :])
+            elif name[1] == name[-1]:
+                # same context pair
+                pools_dict['same_ctx'].append(distance_over_time[ii, :, :])
+                probes_pools_dict['same_ctx'].append(distance_over_time[ii, :, :])
+            elif name[1] == '0':
+                # context is silence,
+                pools_dict['none_ctx'].append(distance_over_time[ii, :, :])
+                probes_pools_dict['none_ctx'].append(distance_over_time[ii, :, :])
+            else:
+                raise SystemError('this error should never happen, {} caused it'.format(name))
+
+        # flattes the array across the ContextsPairs, and repetition dimensions. takes the mean and sem across this common dim
+        for pool_name, pool in pools_dict.items():
+            pool = np.stack(pool, axis=0)
+            shape = pool.shape
+            pool = np.reshape(pool, [shape[0] * shape[1], shape[2]])
+
+            probes_dict[p_name][pool_name]['mean'] = np.nanmean(pool, axis=0)
+            probes_dict[p_name][pool_name]['sem'] = sst.sem(pool, axis=0, nan_policy='omit')
+
+    for pool_name, pool in probes_pools_dict.items():
+        pool = np.stack(pool, axis=0)
+        shape = pool.shape
+        pool = np.reshape(pool, [shape[0] * shape[1], shape[2]])
+
+        probes_dict['P_all'][pool_name]['mean'] = np.nanmean(pool, axis=0)
+        probes_dict['P_all'][pool_name]['sem'] = sst.sem(pool, axis=0, nan_policy='omit')
+
+    return probes_dict
+
+
+def signal_single_trial_dispersion_diff_probe_pooled(signal, probe_names, context_names, shuffle_neurons, signal_name,
+                                                     recache):
+    signal = signal.rasterize()
+
+    probes_dict = coll.defaultdict(lambda: coll.defaultdict(dict))
+    probes_pools_dict = coll.defaultdict(list)
+
+    for prb0, prb1 in itt.combinations(probe_names, 2):
+        p_name = 'P{}_vs_P{}'.format(prb0, prb1)
+
+        disp_func_args = {'signal': signal,
+                          'probes': [prb0, prb1],
+                          'context_names': context_names,
+                          'shuffle_neurons': shuffle_neurons}
+
+        dispersion_over_time_path = cch.make_cache(function=two_probes_single_trial_distance, func_args=disp_func_args,
+                                                   classobj_name=signal_name, recache=recache,
+                                                   cache_folder='/home/mateo/mycache/single_trial_ccpp_disp',
+                                                   use_hash=False)
+
+        distance_over_time, context_pairs = cch.get_cache(dispersion_over_time_path)
+
+        # pools by same pair constexts or different pair contexts to set base noise level
+        pools_dict = coll.defaultdict(list)
+        for ii, name in enumerate(context_pairs):
+            # looks at the contexts being compared, name has the form C2_P0_vs_C0_P1
+            name = 'C{}_C{}'.format(name[1], name[10])
+
+            # any contexts pair.
+            pools_dict['all_ctx'].append(distance_over_time[ii, :, :])
+            probes_pools_dict['all_ctx'].append(distance_over_time[ii, :, :])
+
+            if name[1] != name[-1]:
+                # different context pair
+                pools_dict['diff_ctx'].append(distance_over_time[ii, :, :])
+                probes_pools_dict['diff_ctx'].append(distance_over_time[ii, :, :])
+
+            if ((name[1] == '1' and name[-1] == '2') or (name[1] == '3' and name[-1] == '4') or
+            (name[1] == '2' and name[-1] == '1') or (name[1] == '4' and name[-1] == '3')):
+                # contexts pairs have different carriers
+                pools_dict['diff_car'].append(distance_over_time[ii, :, :])
+                probes_pools_dict['diff_car'].append(distance_over_time[ii, :, :])
+            elif ((name[1] == '1' and name[-1] == '3') or (name[1] == '2' and name[-1] == '4') or
+            (name[1] == '3' and name[-1] == '1') or (name[1] == '4' and name[-1] == '2')):
+                # contexts pairs have different envelopes
+                pools_dict['diff_env'].append(distance_over_time[ii, :, :])
+                probes_pools_dict['diff_env'].append(distance_over_time[ii, :, :])
+            elif ((name[1] == '1' and name[-1] == '4') or (name[1] == '2' and name[-1] == '3') or
+            (name[1] == '4' and name[-1] == '1') or (name[1] == '3' and name[-1] == '2')):
+                # contexts pairs have different carrier and envelope
+                pools_dict['diff_all'].append(distance_over_time[ii, :, :])
+                probes_pools_dict['diff_all'].append(distance_over_time[ii, :, :])
+            elif name[1] == name[-1]:
+                # same context pair
+                pools_dict['same_ctx'].append(distance_over_time[ii, :, :])
+                probes_pools_dict['same_ctx'].append(distance_over_time[ii, :, :])
+            elif name[1] == '0' or name[-1] == '0':
+                # context is silence,
+                pools_dict['none_ctx'].append(distance_over_time[ii, :, :])
+                probes_pools_dict['none_ctx'].append(distance_over_time[ii, :, :])
+            else:
+                raise SystemError('this error should never happen, {} caused it'.format(name))
+
+        # flattes the array across the ContextsPairs, and repetition dimensions. takes the mean and sem across this common dim
+        for pool_name, pool in pools_dict.items():
+            pool = np.stack(pool, axis=0)
+            shape = pool.shape
+            pool = np.reshape(pool, [shape[0] * shape[1], shape[2]])
+
+            probes_dict[p_name][pool_name]['mean'] = np.nanmean(pool, axis=0)
+            probes_dict[p_name][pool_name]['sem'] = sst.sem(pool, axis=0, nan_policy='omit')
+
+    for pool_name, pool in probes_pools_dict.items():
+        pool = np.stack(pool, axis=0)
+        shape = pool.shape
+        pool = np.reshape(pool, [shape[0] * shape[1], shape[2]])
+
+        probes_dict['PvP_all'][pool_name]['mean'] = np.nanmean(pool, axis=0)
+        probes_dict['PvP_all'][pool_name]['sem'] = sst.sem(pool, axis=0, nan_policy='omit')
+
+    return probes_dict
+
+
+def signal_single_trial_dispersion_pooled_shuffled(signal, probe_names, context_names, shuffle_num=100, trial_combinations=False):
+    # todo documentation
+    signal = signal.rasterize()
+    # extracts and organizes all the data in a 5 dim array with shape Context x Probe x Repetition x Unit x Time
+    R, U, T = signal.extract_epoch('C1_P1').shape
+    C = len(context_names)
+    P = len(probe_names)
+
+    full_array = np.empty([C, P, R, U, T])
+    full_array[:] = np.nan
+
+    for pp, cc in itt.product(range(len(probe_names)), range(len(context_names))):
+        cpp = 'C{}_P{}'.format(context_names[cc], probe_names[pp])
+        if cpp == 'C0_P0':  # todo this should be solverd by either escluding silences or defining C0_P0
+            # single exeption, both context and probe a silence
+            continue
+        full_array[cc, pp, :, :, :] = signal.extract_epoch(cpp)
+
+    # generates indexing masks to call proper paris of CPPs for distance calculation.
+    same_slicers = list()
+    diff_slicers = list()
+    for pp in range(len(probe_names)):
+        for cc0, cc1 in itt.product(range(len(context_names)), repeat=2):
+            if cc0 > cc1:
+                continue
+
+            slicer = np.s_[np.array([cc0, cc1]), pp, :, :]
+
+            if cc0 == cc1:
+                same_slicers.append(slicer)
+            else:
+                diff_slicers.append(slicer)
+
+    # calculates mean distance betwee CPP pairs for eache pair, by their independent groups
+    same_ctx_dist = np.empty([len(same_slicers), T])
+    for ii, sc in enumerate(same_slicers):
+        same_ctx_dist[ii, :] = np.nanmean(_pairwise_single_trial_ndim_euclidean(full_array[sc][0], full_array[sc][1],
+                                                                                matrices_equal=True,
+                                                                                trial_combinations=trial_combinations),
+                                          axis=0)
+
+    diff_ctx_dist = np.empty([len(diff_slicers), T])
+    for ii, dc in enumerate(diff_slicers):
+        diff_ctx_dist[ii, :] = np.nanmean(_pairwise_single_trial_ndim_euclidean(full_array[dc][0], full_array[dc][1],
+                                                                                matrices_equal=False,
+                                                                                trial_combinations=trial_combinations),
+                                          axis=0)
+
+    # takes the mean across pairs of context-probes for each pool, and takes the difference between pools
+    # end result is a 1 dim array of shape TimeBins
+    real_diff_min_same = np.nanmean(diff_ctx_dist, axis=0) - np.nanmean(same_ctx_dist, axis=0)
+
+    # shuffles n times across the context dimention to generate the bootstrap distribution
+ # copy the array to keep the original unchanged. Todo is this necesary??
+    shuffled_same_ctx_dist = np.empty([shuffle_num, real_diff_min_same.shape[0]])
+
+    for jj in range(shuffle_num):
+        shuffle_arr = full_array.copy()
+        shuffle_arr = np.swapaxes(shuffle_arr,1,2)
+        s=shuffle_arr.shape
+        shuffle_arr = np.reshape(shuffle_arr,(s[0]*s[1],s[2],s[3],s[4]))
+        np.random.shuffle(shuffle_arr)
+        shuffle_arr = np.reshape(shuffle_arr, s)
+        shuffle_arr = np.swapaxes(shuffle_arr,1,2)
+
+        # calculates mean distance betwee CPP pairs for eache pair, by their independent groups
+        shuff_same_ctx_dist = np.empty([len(same_slicers), T])
+        for ii, sc in enumerate(same_slicers):
+            shuff_same_ctx_dist[ii, :] = np.nanmean(
+                _pairwise_single_trial_ndim_euclidean(shuffle_arr[sc][0], shuffle_arr[sc][1],
+                                                      matrices_equal=True, trial_combinations=trial_combinations),
+                axis=0)
+
+        shuff_diff_ctx_dist = np.empty([len(diff_slicers), T])
+        for ii, dc in enumerate(diff_slicers):
+            shuff_diff_ctx_dist[ii, :] = np.nanmean(
+                _pairwise_single_trial_ndim_euclidean(shuffle_arr[dc][0], shuffle_arr[dc][1],
+                                                      matrices_equal=False, trial_combinations=trial_combinations),
+                axis=0)
+
+        # takes the mean across pairs of context-probes, end result is a 1 dim array of shape TimeBins
+        # calculates the difference
+        shuffled_same_ctx_dist[jj, :] = np.nanmean(shuff_diff_ctx_dist, axis=0) - \
+                                        np.nanmean(shuff_same_ctx_dist, axis=0)
+
+    return real_diff_min_same, shuffled_same_ctx_dist
+
+
+
 ### complex plotting functions
 
 
-def pseudopop_significance(signal, channels, signal_name, probes=(1, 2, 3, 4), sign_fs=None, window=1, rolling=True, type='Kruskal',
+def pseudopop_significance(signal, channels, signal_name, probes=(1, 2, 3, 4), sign_fs=None, window=1, rolling=True,
+                           type='Kruskal',
                            consecutives=1, hist=False, bins=60, recache=False, value='pvalue'):
     '''
     makes a summary plot of the significance(black dots) over time (x axis) for each combination of cell and
@@ -883,7 +1316,7 @@ def pseudopop_significance(signal, channels, signal_name, probes=(1, 2, 3, 4), s
     :param signal: a signal object with cpp epochs
     :param channels: channel index, cell name (or a list of the two previous). or kwd 'all' to define which channels to consider
     :signal_name: unique signal name, for proper caching purpose
-    :param probes: list of ints, eache one corresponds to the identity of a vocalization used as probe.
+    :param probes: list of ints, eache one corresponds to the identity of a vocalization used as prb.
     :sign_fs: sampling frequency at which perform the analysis, None uses de native sign_fs of the signal.
     :param sort: boolean. If True sort by last siginificant time bin.
     :param window: time window size, in time bins, over which calculate significant difference metrics
@@ -891,7 +1324,7 @@ def pseudopop_significance(signal, channels, signal_name, probes=(1, 2, 3, 4), s
     :param type: keyword defining what metric to use. 'Kruskal' for Kurscal Wallis,
     'Pearsons' for mean of pairwise correlation coefficient, 'MSD' for mean standard difference
     :consecutives: int number of consecutive significant time bins to consider "real" significance
-    :param hist: Boolean, If True, draws a histogram of significance over time (cololapsing by cell-probe identity)
+    :param hist: Boolean, If True, draws a histogram of significance over time (cololapsing by cell-prb identity)
     :param bins: number of bins of the histogram
     :return: figure, axis
     '''
@@ -902,7 +1335,7 @@ def pseudopop_significance(signal, channels, signal_name, probes=(1, 2, 3, 4), s
     # handlese sign_fs
     sign_fs = hand._fs_handler(signal, sign_fs)
 
-    # calculates dipersion pval for each set of contexts probe.
+    # calculates dipersion pval for each set of contexts prb.
     for pp in probes:
         this_probe = r'\AC\d_P{}'.format(pp)
 
@@ -1012,15 +1445,16 @@ def pseudopop_significance(signal, channels, signal_name, probes=(1, 2, 3, 4), s
     return output(all_figs, diff_matrices, cell_orders)
 
 
-def plot_single_probe(signal, signal_name, channels, epochs, sign_fs=None, raster_fs=None, psth_fs=None, window=1, rolling=False,
+def plot_single_probe(signal, signal_name, channels, epochs, sign_fs=None, raster_fs=None, psth_fs=None, window=1,
+                      rolling=False,
                       type='Kruskal', consecutives=1, value='pvalue'):
     '''
-    calculates significant difference over time for the specified cells/channels and *[contexts,...]-probe (epochs),
+    calculates significant difference over time for the specified cells/channels and *[contexts,...]-prb (epochs),
     overlays gray vertical bars to hybrid plot (raster + PSTH) on time bins with significante difference between
     contexts
     :param channels: channel index, cell name (or a list of the two previos). or kwd 'all' to define which channels to consider
     :param epochs:  epoch name (str), regexp, list of epoch names, 'single', 'pair'. keywords 'single' and 'pair'
-    correspond to all single vocalization, and pair of context probe vocalizations.
+    correspond to all single vocalization, and pair of stim_num prb vocalizations.
     :param window: time window size, in time bins, over which calculate significant difference metrics
     :param rolling: boolean, If True, uses rolling window of stride 1. If False uses non overlapping juxtaposed windows
     :param type: keyword defining what metric to use. 'Kruskal' for Kurskal Wallis,
@@ -1030,19 +1464,18 @@ def plot_single_probe(signal, signal_name, channels, epochs, sign_fs=None, raste
     '''
     # todo clean this function
 
-    # calculates significant difference between different context across time
-    disp_func_args = {'signal':signal, 'epoch_names':epochs, 'channels':channels,
-                      'dimensions':'cell',
-                      'fs':sign_fs,
-                      'window':window,
-                      'rolling':rolling, 'type':type}
+    # calculates significant difference between different stim_num across time
+    disp_func_args = {'signal': signal, 'epoch_names': epochs, 'channels': channels,
+                      'dimensions': 'cell',
+                      'fs': sign_fs,
+                      'window': window,
+                      'rolling': rolling, 'type': type}
 
     dispersion_over_time_path = cch.make_cache(function=signal_single_context_sigdif, func_args=disp_func_args,
                                                classobj_name=signal_name,
                                                cache_folder='/home/mateo/mycache/single_probe_disp')
 
     dispersion_over_time = cch.get_cache(dispersion_over_time_path)
-
 
     all_figs = list()
     if value == 'pvalue':
@@ -1059,7 +1492,7 @@ def plot_single_probe(signal, signal_name, channels, epochs, sign_fs=None, raste
             significance = _significance_criterion(dispersion_over_time.pvalue, axis=1, window=con, threshold=0.01,
                                                    comp='<=')  # array with shape Cell x Time
 
-            # overlays significatn times on the raster and PSTH for the specified cells and context probe pairs
+            # overlays significatn times on the raster and PSTH for the specified cells and stim_num prb pairs
             scat_key = {'s': 5, 'alpha': 0.5}
             fig, axes = cplt.hybrid(signal, epoch_names=epochs, channels=channels, start=3, end=6, scatter_kws=scat_key,
                                     significance=significance, raster_fs=raster_fs, psth_fs=psth_fs, sign_fs=sign_fs)
@@ -1072,5 +1505,3 @@ def plot_single_probe(signal, signal_name, channels, epochs, sign_fs=None, raste
         raise NotImplementedError('ups')
 
     return fig, axes
-
-
