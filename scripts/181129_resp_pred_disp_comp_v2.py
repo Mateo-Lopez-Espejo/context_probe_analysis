@@ -12,9 +12,6 @@ import numpy as np
 
 import nems.epoch as nep
 
-
-
-
 batch = 310
 
 all_models = ['wc.2x2.c-stp.2-fir.2x15-lvl.1-stategain.S-dexp.1', 'wc.2x2.c-stp.2-fir.2x15-lvl.1-dexp.1',
@@ -317,7 +314,7 @@ fig.savefig('/home/mateo/Pictures/WIP2/181205_CPP_probe{}_PSTH_cell_{}.png'.form
 goodprobe = 3
 goodcell = 'BRT056b-58-1'
 fig, axes = cplot.hybrid(sig, epoch_names=r'\AC\d_P{}'.format(goodprobe), channels=[goodcell],
-             start=None, end=None,scatter_kws={'alpha': 0.2}, time_strech=[3, 3.5])
+             start=None, end=None,scatter_kws={'alpha': 0.4}, time_strech=[3, 3.5])
 for ax in axes: ax.axis('off'); ax.set_title('')
 fig.suptitle('')
 fig.set_size_inches(13,9)
@@ -327,3 +324,10 @@ fig.savefig('/home/mateo/Pictures/WIP2/181205_CPP_probe{}_PSTH_cell_{}_closeup.p
 
 
 # single cell, one prb, all contexts, close up in time. Similar as previous plot but with only two overlayed examples
+
+
+
+
+
+
+

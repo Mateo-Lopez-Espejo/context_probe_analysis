@@ -217,14 +217,6 @@ axes[1].fill_between(t, -sem_sum, sem_sum, alpha=0.5, color='gray')
 axes[1].legend()
 fig.suptitle('site {}, {}, probe {}'.format(site, modelname, probe))
 
-
-########################################################################################################################
-# old difference over time
-'''
-def signal_all_context_sigdif(signal, channels, signal_name, probes=(1, 2, 3, 4), dimensions='cell', sign_fs=None, window=1,
-                              rolling=True, type='Kruskal', recache=False, value='pvalue')
-'''
-
 ########################################################################################################################
 # good examples, first single
 site = 'BRT056b'
@@ -476,7 +468,7 @@ fig.savefig('/home/mateo/Pictures/WIP2/181213_all_sites_diff_min_same_ctx_all_pr
 ########################################################################################################################
 # new significance calculation, using shuffle test across contexts
 ctxs = [0, 1, 2, 3, 4]
-prbs = [0, 1, 2, 3, 4]
+prbs = [1, 2, 3, 4]
 modelname = 'resp'
 
 site_shuffled_disp = coll.defaultdict(dict)
@@ -512,11 +504,6 @@ t2 = (end / 100) - 3
 
 fig, ax = plt.subplots()
 
-plt.figure();plt.plot(np.mean(distribution,axis=0)+np.std(distribution,axis=0)*2);plt.plot(real,'k',lw=3)
-plt.title(site + 'C{} P{}'.format(ctxs, prbs))
-
-
-
 for ii,(site, vals) in enumerate(site_shuffled_disp.items()):
 
     line = vals['real'][start:end]
@@ -535,7 +522,7 @@ for ii,(site, vals) in enumerate(site_shuffled_disp.items()):
     y_lab.append('{:.2f}'.format(np.nanmax(line)))
 
     t = np.linspace(t1, t2, len(line))
-    ax.plot(t, line + y_off, label='{}'.format(key), color='C{}'.format(ii+5))
+    ax.plot(t, line + y_off, label='{}'.format(site), color='C{}'.format(ii+5))
     ax.fill_between(t, -shade + y_off, shade + y_off, alpha=0.5, color='C{}'.format(ii+5))
     ax.axvline(0, color='black', linestyle='--')
     ax.legend(prop={'size': 15})

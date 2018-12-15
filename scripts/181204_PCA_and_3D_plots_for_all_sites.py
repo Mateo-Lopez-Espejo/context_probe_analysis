@@ -136,43 +136,45 @@ fig.set_size_inches(10,10)
 # probes after different stim_num
 site = 'BRT056b'
 sig = site_PCA[site]['resp']
-context = [0, 1, 2, 3, 4]
+
 probe = [2]
 
-for prb in probe:
-    fig = plt.figure()
-    ax = fig.gca(projection='3d')
-    for ctx in context:
-        if prb ==0:
-            if ctx == 0:
-                continue
-        matrix = sig.extract_epoch('C{}_P{}'.format(ctx, prb))
-        psth = np.mean(matrix, axis=0)
+for ccc in range(5):
+    context = list(range(ccc+1))
+    for prb in probe:
+        fig = plt.figure()
+        ax = fig.gca(projection='3d')
+        for ctx in context:
+            if prb ==0:
+                if ctx == 0:
+                    continue
+            matrix = sig.extract_epoch('C{}_P{}'.format(ctx, prb))
+            psth = np.mean(matrix, axis=0)
 
-        # smooths the matrixes  with a gaussian filter along the time dimention
-        psth = sf.gaussian_filter(psth, [0, 2])
+            # smooths the matrixes  with a gaussian filter along the time dimention
+            psth = sf.gaussian_filter(psth, [0, 2])
 
-        N = psth.shape[1]
+            N = psth.shape[1]
 
-        # starts at blue, ends at yellow
-        cm = plt.cm.get_cmap(voc_cmpat['voc_{}'.format(ctx)] + '_r')
-        cmap = cm(np.linspace(0, 1, N))
+            # starts at blue, ends at yellow
+            cm = plt.cm.get_cmap(voc_cmpat['voc_{}'.format(ctx)] + '_r')
+            cmap = cm(np.linspace(0, 1, N))
 
-        # plot the mean
-        x = psth[0, :]
-        y = psth[1, :]
-        z = psth[2, :]
+            # plot the mean
+            x = psth[0, :]
+            y = psth[1, :]
+            z = psth[2, :]
 
-        for ii in range(N - 1):
-            p = ax.plot(x[ii:ii + 2], y[ii:ii + 2], z[ii:ii + 2], color=cmap[ii, :], alpha=1)
+            for ii in range(N - 1):
+                p = ax.plot(x[ii:ii + 2], y[ii:ii + 2], z[ii:ii + 2], color=cmap[ii, :], alpha=1)
 
-    ax.set_xlabel('component 0', fontsize=15)
-    ax.set_ylabel('component 1', fontsize=15)
-    ax.set_zlabel('component 2', fontsize=15)
-    fig.suptitle('{} all contexts, stimulus {}'.format(site, prb))
-    fig.set_size_inches(10,10)
-    plt.tick_params(axis='both', which='major', labelsize=13)
-    fig.savefig('/home/mateo/Pictures/WIP2/181210_3D_PSTH_PCs_{}_probe{}_.png'.format(site,prb), dpi=300)
+        ax.set_xlabel('component 0', fontsize=15)
+        ax.set_ylabel('component 1', fontsize=15)
+        ax.set_zlabel('component 2', fontsize=15)
+        fig.suptitle('{}, {} contexts, stimulus {}'.format(site, context, prb))
+        fig.set_size_inches(10,10)
+        plt.tick_params(axis='both', which='major', labelsize=13)
+        fig.savefig('/home/mateo/Pictures/WIP2/181213_3D_PSTH_PCs_{}_ctx{}_prb{}_.png'.format(site,context, prb), dpi=300)
 
 
 
@@ -218,7 +220,7 @@ for prb in probe:
     fig.suptitle('{} all conxtexts, stimulus {}, first second'.format(site, prb))
     fig.set_size_inches(10,10)
     plt.tick_params(axis='both', which='major', labelsize=13)
-    fig.savefig('/home/mateo/Pictures/WIP2/181210_3D_PSTH_PCs_{}_probe{}_1s.png'.format(site,prb), dpi=200)
+    fig.savefig('/home/mateo/Pictures/WIP2/181213_3D_PSTH_PCs_{}_probe{}_1s.png'.format(site,prb), dpi=200)
 
 
 ########################################################################################################################

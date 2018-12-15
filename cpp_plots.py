@@ -600,7 +600,7 @@ def signal_raster(signal, epoch_names='single', channels='all', scatter_kws=None
 
 def hybrid(signal, epoch_names='single', channels='all', start=None, end=None,
            significance=None, raster_fs=None, psth_fs=None, sign_fs=None, sign_kws=None,
-           scatter_kws=None, plot_kws=None, sub_types=(True, True, True), time_strech=None):
+           scatter_kws=None, plot_kws=None, sub_types=(True, True, True), time_strech=None, time_offset=None):
     '''
     given a signal, creates a figure where each subplots correspond to a cell in that signal, where each subplot contains
     a raster, psth and indications of siginificant difference over time. different epochs are represented by different
@@ -657,6 +657,8 @@ def hybrid(signal, epoch_names='single', channels='all', start=None, end=None,
         rast_strech = np.floor(time_strech*raster_fs).astype(int)
         psth_matrices = {key: mat[:,:, psth_strech[0]:psth_strech[1]] for key, mat in psth_matrices.items()}
         rast_matrices = {key: mat[:, :, rast_strech[0]:rast_strech[1]] for key, mat in rast_matrices.items()}
+    # offsets the x axis time
+    if time_offset == None: time_offset = 0
 
     # preprocesing of significance array
     if isinstance(significance, np.ndarray):
@@ -696,7 +698,7 @@ def hybrid(signal, epoch_names='single', channels='all', start=None, end=None,
 
                 # values for psth
                 values = epoch_matrix[:, chan, :]  # holds all Repetitions, for a given Channel, acrossTime
-                times = np.arange(0, epoch_matrix.shape[2]) / psth_fs
+                times = (np.arange(0, epoch_matrix.shape[2]) / psth_fs) + time_offset
                 plot_kws.update({'color': color,
                                  'label': 'stim_num {}, prb {}'.format(epoch_key[1], epoch_key[4])})
                 _, _, y_range = _PSTH(times, values, start=start, end=end, ax=ax, ci=False,
@@ -709,7 +711,7 @@ def hybrid(signal, epoch_names='single', channels='all', start=None, end=None,
                 # values for raster plot
                 rast_epoch_matrix = rast_matrices[epoch_key]
                 rast_values = rast_epoch_matrix[:, chan, :]  # holds all Repetitions, for a given Channel, acrossTime
-                rast_times = np.arange(0, rast_epoch_matrix.shape[2]) / raster_fs
+                rast_times = (np.arange(0, rast_epoch_matrix.shape[2]) / raster_fs) + time_offset
                 scatter_kws.update({'color': color})
                 if not y_range:
                     y_range = None
