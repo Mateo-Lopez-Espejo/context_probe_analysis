@@ -269,7 +269,7 @@ def set_recording_subepochs(recording, set_pairs=True):
         new_recording[name] = new_signal
     return new_recording
 
-def rename_into_part(epochs, context_or_probe='stim_num'):
+def rename_into_part(epochs, context_or_probe='probe'):
     '''
     replace the composite cpp epoch names of the form Cn_Pn, where n is the number identifiying a particular vocalization,
     with eithe the stim_num part Cn or the prb part Cn
@@ -282,9 +282,9 @@ def rename_into_part(epochs, context_or_probe='stim_num'):
     if not cpp_epochs:
         raise ValueError('epochs do not contain stim_num prb formated epochs')
 
-    if context_or_probe == 'stim_num':
+    if context_or_probe == 'context':
         rename_dict = {old_epoch: old_epoch.split('_')[0] for old_epoch in cpp_epochs}
-    elif context_or_probe == 'prb':
+    elif context_or_probe == 'probe':
         rename_dict = {old_epoch: old_epoch.split('_')[1] for old_epoch in cpp_epochs}
 
     new_epochs = epochs.replace(rename_dict)
