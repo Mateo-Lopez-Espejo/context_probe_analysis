@@ -1,7 +1,7 @@
 import os
 import sys
 
-import nems_db.db as nd
+import nems.db as nd
 
 import nems.xforms as xforms
 

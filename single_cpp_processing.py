@@ -1,6 +1,6 @@
 import nems.xforms as xforms
 import nems.modelspec as ms
-import nems_db.db as nd
+import nems.db as nd
 
 def single_cpp_processing(cellid, batch, modelspec_name):
     loadkey = "env.fs100.cst"

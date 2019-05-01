@@ -2,13 +2,13 @@ import single_cpp_processing as csp
 import nems.utils
 import sys
 import os
-import nems_db.db as nd
+import nems.db as nd
 import logging
 
 log = logging.getLogger(__name__)
 
 try:
-    import nems_db.db as nd
+    import nems.db as nd
 
     db_exists = True
 except Exception as e:

@@ -9,9 +9,18 @@ import nems.epoch as ne
 import numpy as np
 import matplotlib.pyplot as plt
 
+'''
+This script explore how active are all the cells recordes with natural sounds, to specific natural sounds in the library.
+It serves to select a set of the most driving sounds to generate the new soundobject CPN (context probe natural), which
+is the second iteration of CPP
+'''
+
+
+
 # cellid="AMT003c-11-1"
 batch=289
 loadkey="ozgf.fs100.ch18"
+
 
 
 # I need to figure out a better way of  getting this values than copy them from matlab

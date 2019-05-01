@@ -1,7 +1,7 @@
 import collections as col
 
 import joblib as jl
-import nems_db.db as nd
+import nems.db as nd
 import numpy as np
 import pandas as pd
 

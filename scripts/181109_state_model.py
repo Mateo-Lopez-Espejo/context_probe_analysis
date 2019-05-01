@@ -7,7 +7,7 @@ import joblib as jl
 import matplotlib.pyplot as plt
 import numpy as np
 import nems_lbhb
-import nems_db.db as nd
+import nems.db as nd
 
 # from nems.gui.recording_browser import browse_recording, browse_context
 log = logging.getLogger(__name__)

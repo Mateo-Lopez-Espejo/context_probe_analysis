@@ -715,9 +715,14 @@ def hybrid(signal, epoch_names='single', channels='all', start=None, end=None,
                 scatter_kws.update({'color': color})
                 if not y_range:
                     y_range = None
+                try:
+                    # this will break if the raster is empty
+                    _raster(rast_times, rast_values, y_offset=y_off, y_range=y_range,
+                            ax=ax, scatter_kws=scatter_kws)
+                except:
+                    continue
 
-                _raster(rast_times, rast_values, y_offset=y_off, y_range=y_range,
-                        ax=ax, scatter_kws=scatter_kws)
+
         # set the y ticks and labels so they match the bottom and top values of PSTHs
         if sub_types[1] is True:
             ax.set_yticks(y_ticks)

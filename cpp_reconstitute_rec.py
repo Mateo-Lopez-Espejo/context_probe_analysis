@@ -1,7 +1,7 @@
 import os
 import collections as col
 
-import nems_db.db as nd
+import nems.db as nd
 import numpy as np
 
 import nems.modelspec as ms

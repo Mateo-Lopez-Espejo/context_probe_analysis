@@ -146,6 +146,25 @@ def _set_subepoch_pairs(epochs):
        :return: epochs including subepochs
        '''
 
+    # kludge: some experimetns contain both 'all permutations' and 'tripplets sequences'. renames the tripplets
+    # sequence to contain numbers different from those in the all permutation site.
+    # since the sequence structure is invariant, here its hardwired
+
+    # sequences of triplets as numbered by matlab, and their transformation
+    permutations ={'STIM_sequence001: 1 , 3 , 2 , 4 , 4' : 'STIM_Psequence001: 1 , 3 , 2 , 4 , 4',
+                   'STIM_sequence002: 3 , 4 , 1 , 1 , 2' : 'STIM_Psequence002: 3 , 4 , 1 , 1 , 2',
+                   'STIM_sequence003: 4 , 2 , 3 , 3 , 1' : 'STIM_Psequence003: 4 , 2 , 3 , 3 , 1',
+                   'STIM_sequence004: 2 , 2 , 1 , 4 , 3' : 'STIM_Psequence004: 2 , 2 , 1 , 4 , 3'}
+
+
+    triplets = {'STIM_sequence001: 5 , 6 , 2 , 3 , 5' : 'STIM_Tsequence001: 9 , 10 , 6 , 7 , 9',
+                'STIM_sequence002: 6 , 5 , 3 , 2 , 6' : 'STIM_Tsequence002: 10 , 9 , 7 , 6 , 10',
+                'STIM_sequence003: 2 , 4 , 5 , 4 , 6' : 'STIM_Tsequence003: 6 , 8 , 9 , 8 , 10',
+                'STIM_sequence004: 3 , 1 , 2 , 1 , 3' : 'STIM_Tsequence004: 7 , 5 , 6 , 5 , 7',}
+
+    epochs = epochs.replace(permutations)
+    epochs = epochs.replace(triplets)
+
     # selects the subset of eps corresponding to sound sequences
     seq_names = [ep_name for ep_name in epochs.name.unique() if ep_name[0:4] == 'STIM']
     if len(seq_names) == 0:
@@ -165,7 +184,7 @@ def _set_subepoch_pairs(epochs):
 
     sub_epochs = relevant_eps.name.values
     # indexes in the 'list' part of the name and split into a list of integers by double space '  '
-    sub_epochs = [[int(ss) for ss in ep_name[18:].split('  ')] for ep_name in sub_epochs]
+    sub_epochs = [[int(ss) for ss in ep_name[19:].split(',')] for ep_name in sub_epochs]
     sub_epochs = np.asarray(sub_epochs)
 
     # calculates the start and end of each subepochs based on the start and end of its mother epoch
