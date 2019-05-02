@@ -1,20 +1,22 @@
 import nems.recording as recording
 import nems_lbhb.baphy as nb
+import nems.preprocessing as preproc
+import nems.epoch as nep
+
 import cpp_epochs as cpe
 import cpn_triplets as tp
-import matplotlib.pyplot as plt
-
 import cpp_dispersion as cdisp
 import cpp_cache as cch
+import cpp_plots as cplot
+from cpn_triplets import make_full_array, calculate_pairwise_distance
+import cpp_PCA as cpca
 
 import  numpy as np
 import scipy.stats as sst
 import itertools as itt
 import math
+import matplotlib.pyplot as plt
 
-import cpp_plots as cplot
-import nems.epoch as nep
-from cpn_triplets import make_full_array, calculate_pairwise_distance
 
 '''
 first attempt of addapting the old CPP analisie to the new datasets using runclass CPN (context probe natural sound)
@@ -193,6 +195,52 @@ CT_pool = np.stack(CT_pool, axis=0)
 toplot = np.sum(np.sum(CT_pool, axis=1), axis=0)  # cumulative sum across
 ax.plot(toplot)
 
+########################################################################################################################
+# tehre is a lot of  on reponsive cells, since we are using PSTHs and single cells, it is reasobale to do the analyss
+# over the PCs
+
+# averages away repetitios of STIM
+psth_rec = preproc.average_away_epoch_occurrences(loaded_rec, epoch_regex='^STIM_')
+# defines subepochs
+psth_rec = cpe.set_recording_subepochs(psth_rec, set_pairs=True)
+# signal PCA
+sig_pcs, stats = cpca.signal_PCA(psth_rec['resp'])
+# extract the all
+
+
+###########################
+# select top PC
+
+fig, axes = plt.subplots(6, 1)
+axes = np.ravel(axes)
+for aa, (ct1, ct2) in enumerate(itt.combinations(context_transitions, 2)):
+    ctrans1 = context_transitions.index(ct1)
+    ctrans2 = context_transitions.index(ct2)
+    slice = diff_arr[:, ctrans1, ctrans2, cell, :, 1]
+
+    axes[aa].imshow(slice, aspect='auto')
+
+# plots significance for each type of transition (color)
+# plots the significance over time pooled across probes (y ax, offset)
+fig, ax = plt.subplots()
+for aa, (ct1, ct2) in enumerate(itt.combinations(context_transitions, 2)):
+    ctrans1 = context_transitions.index(ct1)
+    ctrans2 = context_transitions.index(ct2)
+    slice = diff_arr[:, ctrans1, ctrans2, cell, :, 1]
+    cum_sig = np.sum(slice, axis=0) #cumulative sum across
+    ax.plot(cum_sig+(4*aa))
+
+# plots significance for pooled transition plots the significance over time pooled across probes (y ax)
+fig, ax = plt.subplots()
+CT_pool = list()
+for aa, (ct1, ct2) in enumerate(itt.combinations(context_transitions, 2)):
+    ctrans1 = context_transitions.index(ct1)
+    ctrans2 = context_transitions.index(ct2)
+    CT_pool.append(diff_arr[:, ctrans1, ctrans2, cell, :, 1])
+
+CT_pool = np.stack(CT_pool, axis=0)
+toplot = np.sum(np.sum(CT_pool, axis=1), axis=0)  # cumulative sum across
+ax.plot(toplot)
 
 
 
