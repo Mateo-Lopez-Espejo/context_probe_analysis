@@ -600,7 +600,7 @@ def signal_raster(signal, epoch_names='single', channels='all', scatter_kws=None
 
 def hybrid(signal, epoch_names='single', channels='all', start=None, end=None,
            significance=None, raster_fs=None, psth_fs=None, sign_fs=None, sign_kws=None,
-           scatter_kws=None, plot_kws=None, sub_types=(True, True, True), time_strech=None, time_offset=None):
+           scatter_kws=None, plot_kws=None, sub_types=(True, True, True), time_strech=None, time_offset=None, legend=True):
     '''
     given a signal, creates a figure where each subplots correspond to a cell in that signal, where each subplot contains
     a raster, psth and indications of siginificant difference over time. different epochs are represented by different
@@ -700,7 +700,7 @@ def hybrid(signal, epoch_names='single', channels='all', start=None, end=None,
                 values = epoch_matrix[:, chan, :]  # holds all Repetitions, for a given Channel, acrossTime
                 times = (np.arange(0, epoch_matrix.shape[2]) / psth_fs) + time_offset
                 plot_kws.update({'color': color,
-                                 'label': 'stim_num {}, prb {}'.format(epoch_key[1], epoch_key[4])})
+                                 'label': epoch_key})
                 _, _, y_range = _PSTH(times, values, start=start, end=end, ax=ax, ci=False,
                                       y_offset=y_off, plot_kws=plot_kws)
 
@@ -737,7 +737,13 @@ def hybrid(signal, epoch_names='single', channels='all', start=None, end=None,
 
         ax.set_title('{}: {}'.format(chan, signal.chans[chan]))
     else:
-        # ax.legend(bbox_to_anchor=(2, 1))
+        #ax.legend(bbox_to_anchor=(2, 1))
+        if legend == True:
+            ax.legend()
+        elif legend == False:
+            pass
+        else:
+            raise ValueError('legend must be boolean')
         pass
 
     fig.suptitle(signal.name)
