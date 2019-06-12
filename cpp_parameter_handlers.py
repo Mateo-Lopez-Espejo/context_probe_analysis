@@ -45,7 +45,7 @@ def _channel_handler(mat_or_sig, channels):
     all channels/cells in the signal/matrix.
     :return: list of channels indexes.
     '''
-    # chekcs the object type of the parameters
+    # checks the object type of the parameters
     if isinstance(mat_or_sig, np.ndarray):
         max_chan = mat_or_sig.shape[1]
 
@@ -53,7 +53,7 @@ def _channel_handler(mat_or_sig, channels):
         is_signal = True
         max_chan = mat_or_sig.nchans
 
-    # returns a different list of channles depending on the keywords or channels specified. add keywords here!
+    # returns a different list of channels depending on the keywords or channels specified. add keywords here!
     if channels == 'all':
         plot_chans = list(range(max_chan))
     elif isinstance(channels, int):
@@ -82,7 +82,7 @@ def _channel_handler(mat_or_sig, channels):
             raise ValueError('can only use cell names when indexing from a signal object')
         plot_chans = [mat_or_sig.chans.index(channels)]
 
-    return plot_chans
+    return np.array(plot_chans)
 
 
 def _fs_handler(signal, fs):

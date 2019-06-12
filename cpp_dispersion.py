@@ -520,13 +520,15 @@ def _window_ndim_euclidean(working_window):
 
 def _pairwise_single_trial_ndim_euclidean(matrix0, matrix1, matrices_equal, trial_combinations=True):
     '''
-    base single trial distance calculation function. takes two matrixes with the shape
+    base single trial distance calculation function. takes two matrices with shape Repetitions x Channels x Time
     and calculates the n-dimentional euclidean distance betwee each repetition pair (a,b) where a comes from matrix0
     and b from matrix1. returns an array of these distances over time
 
     :param matrix0: 3D matrix withe shape Repetitions x Channels x TimeBins
     :param matrix1: 3D matrix withe shape Repetitions x Channels x TimeBins
-    :zero_handling: how to treat the distance between 0 and 0
+    :trial_combinations:: bool. If true calculates distance for all a-b trial pairs where a comes from matrix0 and b
+    from matrix1. If false calculate only one a-b distance for every a and b. In both cases avoids calculating the distance
+    of a trial with itself
     :return: 2D matrix with shape PairDistnace x TimeBin
     '''
     # checks for consisten shape between the Channels and Timebins of the matrixes
@@ -1216,6 +1218,16 @@ def signal_single_trial_dispersion_diff_probe_pooled(signal, probe_names, contex
 
 
 def signal_single_trial_dispersion_pooled_shuffled(signal, probe_names, context_names, shuffle_num=100, trial_combinations=False):
+    '''
+
+    :param signal: signal object with CPP formated epochs
+    :param probe_names: list of ints where the numbers correspond to different sounds ranging from 0 (silence) to 4
+    :param context_names: list of ints where the numbers correspond to different sounds ranging from 0 (silence) to 4
+    :param shuffle_num: int numbre of suffles for the significant test
+    :trial_combinations:: bool. If true calculates distance for all a-b trial pairs where a comes from matrix0 and b
+    from matrix1. If false calculate only one a-b distance for every a and b. In both cases avoids calculating the distance
+    :return:
+    '''
     # todo documentation
     signal = signal.rasterize()
     # extracts and organizes all the data in a 5 dim array with shape Context x Probe x Repetition x Unit x Time

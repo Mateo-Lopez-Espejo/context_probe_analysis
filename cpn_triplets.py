@@ -7,6 +7,14 @@ from scipy import stats as sst
 from nems import epoch as nep
 
 
+def cells_sanitizer(cellids):
+    '''
+    takes str, int, or lists of str or int specifying what cells to su
+    :param cellids:
+    :return:
+    '''
+
+
 def make_full_array(signal, experiment='CPN'):
     # extracts and organizes all the data in a 5 dim array with shape Context x Probe x Repetition x Unit x Time
     signal = signal.rasterize()

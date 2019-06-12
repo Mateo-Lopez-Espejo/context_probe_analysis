@@ -8,7 +8,6 @@ import cpn_triplets as tp
 import cpp_dispersion as cdisp
 import cpp_cache as cch
 import cpp_plots as cplot
-from cpn_triplets import make_full_array, calculate_pairwise_distance
 import cpp_PCA as cpca
 
 import  numpy as np
@@ -16,7 +15,6 @@ import scipy.stats as sst
 import itertools as itt
 import math
 import matplotlib.pyplot as plt
-
 
 '''
 first attempt of addapting the old CPP analisie to the new datasets using runclass CPN (context probe natural sound)
@@ -32,9 +30,16 @@ different natural sounds
 
 # find cells/site
 # CPN
-site = 'AMT031a'
-modelname = 'resp'
+site = 'AMT031a' # low response, bad
+site = 'AMT032a' # great site. PEG
+site = 'ley070a' # good site. A1
+site = 'AMT030a' # low responses, Ok but not as good
+site = 'ley072b' # Primary looking responses with strong contextual effects
+site = 'AMT029a' # Strong response, somehow visible contextual effects
+site = 'AMT028b' # good site
 
+
+modelname = 'resp'
 options = {'batch': 316,
            'siteid': site,
            'stimfmt': 'envelope',
@@ -51,8 +56,56 @@ loaded_rec = recording.load_recording(load_URI)
 rec = cpe.set_recording_subepochs(loaded_rec, set_pairs=True)
 sig = rec['resp']
 eps = sig.epochs
+
+
+site = 'AMT031a' # low response, bad
+site = 'AMT032a' # great site. PEG
+site = 'ley070a' # good site. A1
+site = 'AMT030a' # low responses, Ok but not as good
+site = 'ley072b' # Primary looking responses with strong contextual effects
+site = 'AMT029a' # Strong response, somehow visible contextual effects
+site = 'AMT028b' # good site
+
+# ley070a
+goodcells = ['ley070a-01-1', 'ley070a-01-2', 'ley070a-07-1', 'ley070a-12-3', 'ley070a-18-2', 'ley070a-19-1',
+             'ley070a-19-2', 'ley070a-23-1', 'ley070a-27-1', 'ley070a-37-1', 'ley070a-42-1']
+best_cell = 'ley070a-37-1'
+
+# ley072b
+goodcells = ['ley072b-11-1', 'ley072b-18-1', 'ley072b-25-1', 'ley072b-27-1', 'ley072b-32-1', 'ley072b-34-1']
+best_cell = 'ley072b-25-1'
+
+# AMT028b
+goodcells = ['AMT028b-06-1', 'AMT028b-13-1', 'AMT028b-20-1', 'AMT028b-22-1', 'AMT028b-28-2', 'AMT028b-30-1',
+             'AMT028b-34-1', 'AMT028b-37-2', 'AMT028b-40-1', 'AMT028b-43-1', 'AMT028b-48-1', 'AMT028b-55-1']
+best_cell = 'AMT028b-40-1'
+
+# AMT029a
+goodcells = ['AMT029a-09-1', 'AMT029a-10-1', 'AMT029a-19-1', 'AMT029a-23-1', 'AMT029a-26-1', 'AMT029a-30-1',
+             'AMT029a-35-1', 'AMT029a-40-1', 'AMT029a-40-3', 'AMT029a-43-1', 'AMT029a-49-1', 'AMT029a-52-1']
+best_cell = 'AMT029a-49-1'
+
+# AMT030a
+goodcells = ['AMT030a-21-1', 'AMT030a-21-3', 'AMT030a-22-1', 'AMT030a-22-2', 'AMT030a-24-1', 'AMT030a-27-1',
+             'AMT030a-27-2', 'AMT030a-28-1', 'AMT030a-28-3', 'AMT030a-30-2']
+best_cell = 'AMT030a-21-3'
+
+# AMT031a
 goodcells = ['AMT031a-03-1', 'AMT031a-20-1', 'AMT031a-50-1', 'AMT031a-51-1', 'AMT031a-53-1', 'AMT031a-57-2']
 best_cell = 'AMT031a-50-1'
+
+# AMT032a
+goodcells = ['AMT032a-12-1', 'AMT032a-15-1', 'AMT032a-17-1', 'AMT032a-21-1', 'AMT032a-26-2', 'AMT032a-28-1',
+             'AMT032a-34-2', 'AMT032a-38-1', 'AMT032a-38-2', 'AMT032a-40-1', 'AMT032a-40-2', 'AMT032a-41-1',
+             'AMT032a-44-1']
+best_cell = 'AMT032a-40-2'
+
+
+
+
+
+
+
 cellorder = sig.chans
 # map of transitin types, which change form probe to probe. the outer key is probe, the inner key is transition type
 # the value is context identity
@@ -67,33 +120,29 @@ transitions = {6: {'silence': 0,'continuous': 5,'similar': 7,'sharp': 10},
 # test plot
 fig, axes = cplot.hybrid(sig, ['C0_P6', 'C0_P7', 'C0_P9', 'C0_P10'])
 fig, axes = cplot.hybrid(sig, epoch_names = ['REFERENCE'])
-fig, axes = cplot.hybrid(sig, epoch_names = ['REFERENCE'], channels='AMT031a-53-1')
+fig, axes = cplot.hybrid(sig, epoch_names = ['REFERENCE'], channels=goodcells)
 
-# data plotes withe this approahc corresponds witha that ploted with baphy_remote. It seesm that the epoch naming is
+# data plotes withe this approach corresponds with that plotted with baphy_remote. It seems that the epoch naming is
 # properly aligned.
 epoch_names = nep.epoch_names_matching(sig.epochs, r'\ASTIM_Tsequence.*')
-fig, axes = cplot.hybrid(sig, epoch_names=epoch_names, channels='AMT031a-03-1')
-fig, axes = cplot.hybrid(sig, epoch_names='C7_P9', channels='AMT031a-03-1')
-fig, axes = cplot.hybrid(sig, epoch_names='C0_P9', channels='AMT031a-03-1')
+fig, axes = cplot.hybrid(sig, epoch_names=epoch_names, channels=goodcells)
+fig, axes = cplot.hybrid(sig, epoch_names='C7_P9', channels=goodcells)
+fig, axes = cplot.hybrid(sig, epoch_names='C0_P9', channels=goodcells)
 
 # for good cells, all the relevant probes after silence
 fig, axes = cplot.hybrid(sig, epoch_names=r'\AC0_P([679]|10)\Z', channels=goodcells)
 fig, axes = cplot.hybrid(sig, epoch_names=r'\AC0_P([679]|10)\Z', channels=best_cell)
 
 # best cell, best probe, all the contexts
-fig, axes = cplot.hybrid(sig, epoch_names=r'\AC\d_P10\Z', channels=best_cell)
+fig, axes = cplot.hybrid(sig, epoch_names=r'\AC(\d|10)_P7\Z', channels=goodcells)
+fig, axes = cplot.hybrid(sig, epoch_names=r'\AC(\d|10)_P7\Z', channels=best_cell)
 
-# best cell, second best probe, all contexts
-fig, axes = cplot.hybrid(sig, epoch_names=r'\AC(\d|10)_P9\Z', channels=best_cell)
 
 
 ########################################################################################################################
 
-# organizes relevnat data in array with dimentions Context x Probe x Repetition x Unit x Time
-
+# organizes relevant data in array with dimensions Context x Probe x Repetition x Unit x Time
 full_array, bad_cpp, good_cpp, context_names, probe_names = tp.make_full_array(sig, 'CPN')
-# ['C0', 'C10', 'C5', 'C6', 'C7', 'C8', 'C9']
-# ['P10', 'P5', 'P6', 'P7', 'P8', 'P9']
 
 # now calculate pairwise difference between context types
 valid_probes = [6, 7, 9, 10]
@@ -103,9 +152,9 @@ diff_arr = tp.calculate_pairwise_distance(valid_probes, context_transitions, ful
 ########################################################################################################################
 # plot the PSTHs of a probe given two contexts transitions, compares,
 
-p = 10
-ct1 = 'silence'
-ct2 = 'similar'
+p = 7
+ct1 = 'continuous'
+ct2 = 'sharp'
 cell = cellorder.index(best_cell)
 
 arr1 = tp.extract_sub_arr(p, ct1, full_array, context_names, probe_names) # shape Rep x Unit x Time
@@ -196,53 +245,81 @@ toplot = np.sum(np.sum(CT_pool, axis=1), axis=0)  # cumulative sum across
 ax.plot(toplot)
 
 ########################################################################################################################
-# tehre is a lot of  on reponsive cells, since we are using PSTHs and single cells, it is reasobale to do the analyss
+# there  is a lot of  on reponsive cells, since we are using PSTHs and single cells, it is reasobale to do the analyss
 # over the PCs
 
 # averages away repetitios of STIM
+
+loaded_rec['resp'] = loaded_rec['resp'].rasterize()
 psth_rec = preproc.average_away_epoch_occurrences(loaded_rec, epoch_regex='^STIM_')
 # defines subepochs
 psth_rec = cpe.set_recording_subepochs(psth_rec, set_pairs=True)
 # signal PCA
 sig_pcs, stats = cpca.signal_PCA(psth_rec['resp'])
-# extract the all
+# check explained variance
+fig, ax = plt.subplots()
+toplot = np.cumsum(stats.explained_variance_ratio_)
+ax.plot(toplot, '.-', color='black')
+ax.set_xlabel('Principal Component')
+ax.set_ylabel('cumulative variance explained')
+ax.legend()
+ax.set_title('PSTH PCA site {}'.format(site))
+
+# check how the PCs look
+# response to sound. there is something in PC3
+fig, axes = cplot.hybrid(sig_pcs, epoch_names=['REFERENCE'], channels='all')
+# response to the CPN triplet stimuli
+epoch_names = nep.epoch_names_matching(sig_pcs.epochs, r'\ASTIM_Tsequence.*')
+fig, axes = cplot.hybrid(sig_pcs, epoch_names=epoch_names, channels='all')
+# plot response of all relevant probes after silence for top PCs
+fig, axes = cplot.hybrid(sig_pcs, epoch_names=r'\AC0_P([679]|10)\Z', channels=[0,1,2,3,4,5])
 
 
 ###########################
-# select top PC
+
+# organizes relevnat data in array with dimentions Context x Probe x Repetition x Unit x Time
+full_array, bad_cpp, good_cpp, context_names, probe_names = tp.make_full_array(sig_pcs, 'CPN')
+
+# now calculate pairwise difference between context types
+valid_probes = [6, 7, 9, 10]
+context_transitions = ['silence', 'continuous', 'similar', 'sharp']
+diff_arr = tp.calculate_pairwise_distance(valid_probes, context_transitions, full_array, context_names, probe_names,)
+
+
+###########################
+# select top PC to plot
+PC = 2
 
 fig, axes = plt.subplots(6, 1)
 axes = np.ravel(axes)
 for aa, (ct1, ct2) in enumerate(itt.combinations(context_transitions, 2)):
     ctrans1 = context_transitions.index(ct1)
     ctrans2 = context_transitions.index(ct2)
-    slice = diff_arr[:, ctrans1, ctrans2, cell, :, 1]
+    slice = diff_arr[:, ctrans1, ctrans2, PC, :, 0]
 
     axes[aa].imshow(slice, aspect='auto')
 
-# plots significance for each type of transition (color)
-# plots the significance over time pooled across probes (y ax, offset)
+# plots difference for each type of transition (color)
+# plots the difference over time pooled across probes (y ax, offset)
 fig, ax = plt.subplots()
 for aa, (ct1, ct2) in enumerate(itt.combinations(context_transitions, 2)):
     ctrans1 = context_transitions.index(ct1)
     ctrans2 = context_transitions.index(ct2)
-    slice = diff_arr[:, ctrans1, ctrans2, cell, :, 1]
+    slice = diff_arr[:, ctrans1, ctrans2, PC, :, 0]
     cum_sig = np.sum(slice, axis=0) #cumulative sum across
     ax.plot(cum_sig+(4*aa))
 
-# plots significance for pooled transition plots the significance over time pooled across probes (y ax)
+# plots difference for pooled transition plots the significance over time pooled across probes (y ax)
 fig, ax = plt.subplots()
 CT_pool = list()
 for aa, (ct1, ct2) in enumerate(itt.combinations(context_transitions, 2)):
     ctrans1 = context_transitions.index(ct1)
     ctrans2 = context_transitions.index(ct2)
-    CT_pool.append(diff_arr[:, ctrans1, ctrans2, cell, :, 1])
+    CT_pool.append(diff_arr[:, ctrans1, ctrans2, PC, :, 0])
 
 CT_pool = np.stack(CT_pool, axis=0)
 toplot = np.sum(np.sum(CT_pool, axis=1), axis=0)  # cumulative sum across
 ax.plot(toplot)
-
-
 
 ########################################################################################################################
 # population analisys as done for WIP talk 2
