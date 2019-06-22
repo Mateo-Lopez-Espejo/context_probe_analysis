@@ -74,7 +74,6 @@ def _sanitize_transitions(transitions):
     return transitions
 
 
-
 def signal_single_trial_dispersion_pooled_shuffled(signal, probe_names, context_transitions=None, channels='all',
                                                    shuffle_num=100, trial_combinations=False):
     # todo documentation

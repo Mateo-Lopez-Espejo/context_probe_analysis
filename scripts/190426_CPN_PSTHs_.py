@@ -13,7 +13,6 @@ import cpp_PCA as cpca
 import  numpy as np
 import scipy.stats as sst
 import itertools as itt
-import math
 import matplotlib.pyplot as plt
 
 '''
@@ -26,46 +25,23 @@ response
 
 2. All permutations: variation on the first iteration of CPP, instead of using artificial vocalization, it uses 4 
 different natural sounds
+
+this was a first pass with no discrimination of context transitions. a good startign point to see the raw data.
 '''
 
 # find cells/site
 # CPN
+
+site = 'ley070a' # good site. A1
+site = 'ley072b' # Primary looking responses with strong contextual effects
+site = 'AMT028b' # good site
+site = 'AMT029a' # Strong response, somehow visible contextual effects
+site = 'AMT030a' # low responses, Ok but not as good
 site = 'AMT031a' # low response, bad
 site = 'AMT032a' # great site. PEG
-site = 'ley070a' # good site. A1
-site = 'AMT030a' # low responses, Ok but not as good
-site = 'ley072b' # Primary looking responses with strong contextual effects
-site = 'AMT029a' # Strong response, somehow visible contextual effects
-site = 'AMT028b' # good site
 
 
-modelname = 'resp'
-options = {'batch': 316,
-           'siteid': site,
-           'stimfmt': 'envelope',
-           'rasterfs': 100,
-           'recache': False,
-           'runclass': 'CPN',
-           'stim': False}  #ToDo chace stims, spectrograms???
-
-load_URI = nb.baphy_load_recording_uri(**options)
-loaded_rec = recording.load_recording(load_URI)
-
-# load experimetn params # ToDo, proper experimet  read
-# rename epochs taking into account source: CPN and CPPv2 (ie. triplests and all permutations)
-rec = cpe.set_recording_subepochs(loaded_rec, set_pairs=True)
-sig = rec['resp']
-eps = sig.epochs
-
-
-site = 'AMT031a' # low response, bad
-site = 'AMT032a' # great site. PEG
-site = 'ley070a' # good site. A1
-site = 'AMT030a' # low responses, Ok but not as good
-site = 'ley072b' # Primary looking responses with strong contextual effects
-site = 'AMT029a' # Strong response, somehow visible contextual effects
-site = 'AMT028b' # good site
-
+# ToDo check visual inspection
 # ley070a
 goodcells = ['ley070a-01-1', 'ley070a-01-2', 'ley070a-07-1', 'ley070a-12-3', 'ley070a-18-2', 'ley070a-19-1',
              'ley070a-19-2', 'ley070a-23-1', 'ley070a-27-1', 'ley070a-37-1', 'ley070a-42-1']
@@ -95,16 +71,28 @@ goodcells = ['AMT031a-03-1', 'AMT031a-20-1', 'AMT031a-50-1', 'AMT031a-51-1', 'AM
 best_cell = 'AMT031a-50-1'
 
 # AMT032a
-goodcells = ['AMT032a-12-1', 'AMT032a-15-1', 'AMT032a-17-1', 'AMT032a-21-1', 'AMT032a-26-2', 'AMT032a-28-1',
-             'AMT032a-34-2', 'AMT032a-38-1', 'AMT032a-38-2', 'AMT032a-40-1', 'AMT032a-40-2', 'AMT032a-41-1',
-             'AMT032a-44-1']
-best_cell = 'AMT032a-40-2'
+goodcells = ['AMT032a-23-1', 'AMT032a-26-1', 'AMT032a-28-1', 'AMT032a-32-1', 'AMT032a-39-1', 'AMT032a-45-2',
+             'AMT032a-49-1', 'AMT032a-51-2', 'AMT032a-55-1']
+best_cell = 'AMT032a-51-2'
 
 
+modelname = 'resp'
+options = {'batch': 316,
+           'siteid': site,
+           'stimfmt': 'envelope',
+           'rasterfs': 100,
+           'recache': False,
+           'runclass': 'CPN',
+           'stim': False}  #ToDo chace stims, spectrograms???
 
+load_URI = nb.baphy_load_recording_uri(**options)
+loaded_rec = recording.load_recording(load_URI)
 
-
-
+# load experimetn params # ToDo, proper experimet  read
+# rename epochs taking into account source: CPN and CPPv2 (ie. triplests and all permutations)
+rec = cpe.set_recording_subepochs(loaded_rec)
+sig = rec['resp']
+eps = sig.epochs
 
 cellorder = sig.chans
 # map of transitin types, which change form probe to probe. the outer key is probe, the inner key is transition type
@@ -122,7 +110,7 @@ fig, axes = cplot.hybrid(sig, ['C0_P6', 'C0_P7', 'C0_P9', 'C0_P10'])
 fig, axes = cplot.hybrid(sig, epoch_names = ['REFERENCE'])
 fig, axes = cplot.hybrid(sig, epoch_names = ['REFERENCE'], channels=goodcells)
 
-# data plotes withe this approach corresponds with that plotted with baphy_remote. It seems that the epoch naming is
+# data plots withe this approach corresponds with that plotted with baphy_remote. It seems that the epoch naming is
 # properly aligned.
 epoch_names = nep.epoch_names_matching(sig.epochs, r'\ASTIM_Tsequence.*')
 fig, axes = cplot.hybrid(sig, epoch_names=epoch_names, channels=goodcells)
@@ -134,8 +122,8 @@ fig, axes = cplot.hybrid(sig, epoch_names=r'\AC0_P([679]|10)\Z', channels=goodce
 fig, axes = cplot.hybrid(sig, epoch_names=r'\AC0_P([679]|10)\Z', channels=best_cell)
 
 # best cell, best probe, all the contexts
-fig, axes = cplot.hybrid(sig, epoch_names=r'\AC(\d|10)_P7\Z', channels=goodcells)
-fig, axes = cplot.hybrid(sig, epoch_names=r'\AC(\d|10)_P7\Z', channels=best_cell)
+fig, axes = cplot.hybrid(sig, epoch_names=r'\AC(\d|10)_P6\Z', channels=goodcells)
+fig, axes = cplot.hybrid(sig, epoch_names=r'\AC(\d|10)_P6\Z', channels=best_cell)
 
 
 
@@ -322,7 +310,8 @@ toplot = np.sum(np.sum(CT_pool, axis=1), axis=0)  # cumulative sum across
 ax.plot(toplot)
 
 ########################################################################################################################
-# population analisys as done for WIP talk 2
+# population analisys as done for WIP talk 2, there is a better approach in
+# scripts/190529_select_single_cells_with_high_variation.py
 ctxs = [0, 1, 2, 3, 4]
 prbs = [1, 2, 3 ,4]
 modelname = 'resp'

@@ -36,7 +36,7 @@ else:
     loaded_rec = recording.load_recording(load_URI)
 
 # sets eps correpsondign to individual sounds as well as stim_num prb pairs
-rec = cpe.set_recording_subepochs(loaded_rec, set_pairs=True)
+rec = cpe.set_recording_subepochs(loaded_rec)
 sig = rec['resp']
 eps = sig.epochs
 

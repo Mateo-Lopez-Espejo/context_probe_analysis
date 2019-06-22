@@ -16,6 +16,8 @@ dispersion_over_time = coll.namedtuple('dispersion_over_time', 'metric pvalue')
 population_dispersion = coll.namedtuple('population_dispersion', 'matrix good_unit_names')
 
 
+# ToDO clean up useless parts: make graveyard copy, then delete unused functions.
+
 ### helper funtions
 
 def _into_windows(array, window, axis=-1, rolling=True, padding=np.nan, ):

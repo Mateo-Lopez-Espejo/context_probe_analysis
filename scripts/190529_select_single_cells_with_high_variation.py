@@ -2,16 +2,16 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-import cpn_triplets as tp
 import cpp_epochs as cpe
-import nems.db as nd
 import nems.recording as recording
 import nems_lbhb.baphy as nb
 
-import cpp_dispersion as cdisp
-import cpp_cache as cch
-import cpp_plots as cplot
-import cpp_PCA as cpca
+import cpn_triplets as tp
+
+'''
+rough selection of good cells based on arbitrary threshold on their response amplitude (mean)
+and response variation (std) dependent on context. for each probe for each site 
+'''
 
 site = 'AMT032a'  # great site. PEG
 
@@ -42,7 +42,8 @@ best_cell = 'AMT032a-40-2'
 all_sites = ['ley070a', 'ley072b', 'AMT028b', 'AMT029a', 'AMT030a', 'AMT031a', 'AMT032a']
 
 df = list()
-import cpn_triplets as tp
+
+
 for site in all_sites:
     modelname = 'resp'
     options = {'batch': 316,
@@ -65,12 +66,10 @@ for site in all_sites:
     eps = sig.epochs
 
     # define wich cells present more context induced variability
-    full_array, bad_cpp, good_cpp, context_names, probe_names = tp.make_full_array(sig,
-                                                                                   'CPN')  # Context x Probe x Repetition x Unit x Time
+    # Context x Probe x Repetition x Unit x Time
+    full_array, bad_cpp, good_cpp, context_names, probe_names = tp.make_full_array(sig, 'CPN')
     full_PSTH = np.nanmean(full_array, axis=2)  # collapses across repetitions
-    probe_PSTH = full_PSTH[:, :, :,
-                 int(np.floor(full_PSTH.shape[-1] / 2)):]  # looks only at the repsonse to the probe i.e. second half
-
+    probe_PSTH = full_PSTH[:, :, :, int(np.floor(full_PSTH.shape[-1] / 2)):]  # takes probe response i.e second half
     # calculates probe wise values
     # calculates cell single number context driven probe response variation
     ctx_vars = np.nanstd(probe_PSTH, axis=0)  # collapses across contexts
@@ -125,8 +124,7 @@ for site in all_sites:
 
     zscore_PSTH = np.nanmean(full_zscores, axis=2)  # collapses across repetitions
     z_probe_PSTH = zscore_PSTH[:, :, :,
-                   int(np.floor(
-                       zscore_PSTH.shape[-1] / 2)):]  # looks only at the repsonse to the probe i.e. second half
+                               int(np.floor(zscore_PSTH.shape[-1] / 2)):]  # takes probe response i.e second half
 
     # calculates probe wise values
     # calculates cell single number context driven probe response variation
@@ -182,7 +180,7 @@ for ss, site in enumerate(sites):
     X = np.mean(p_amps, axis=0)
     Y = np.mean(p_vars, axis=0)
 
-    sss = X.index.values[(X>=x_thr) & (Y>=y_thr)]
+    sss = X.index.values[(X >= x_thr) & (Y >= y_thr)]
     selected_cells.extend(sss)
 
     # defines error bars a the range of the data i.e. min and max values

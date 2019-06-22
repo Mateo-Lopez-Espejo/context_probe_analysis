@@ -1,32 +1,155 @@
+import collections as col
 import itertools as itt
+from math import log, sqrt
 
-import matplotlib.pyplot as plt
 import numpy as np
 from scipy import stats as sst
+from scipy.ndimage import gaussian_filter1d
 
 from nems import epoch as nep
+from nems.recording import Recording
+from nems.signal import PointProcess, RasterizedSignal, TiledSignal
+
+from cpp_parameter_handlers import _channel_handler
 
 
-def cells_sanitizer(cellids):
+def _detect_type(epoch):
     '''
-    takes str, int, or lists of str or int specifying what cells to su
-    :param cellids:
+    Based on the name of stimuli epochs, defines if the experiment was 'triplets' or all 'permutations'
+    :param epoch: pandas DF. NEMS epochs
+    :return: str. 'trip' or 'perm'
+    '''
+
+    # hardwired sequences names, since they are invariant across experiments
+    permutations = {'STIM_sequence001: 1 , 3 , 2 , 4 , 4',
+                    'STIM_sequence002: 3 , 4 , 1 , 1 , 2',
+                    'STIM_sequence003: 4 , 2 , 3 , 3 , 1',
+                    'STIM_sequence004: 2 , 2 , 1 , 4 , 3',}
+
+    triplets = {'STIM_sequence001: 5 , 6 , 2 , 3 , 5',
+                'STIM_sequence002: 6 , 5 , 3 , 2 , 6',
+                'STIM_sequence003: 2 , 4 , 5 , 4 , 6',
+                'STIM_sequence004: 3 , 1 , 2 , 1 , 3'}
+
+    names = set(epoch.name.unique())
+
+    if names.issuperset(permutations):
+        exp_type = 'perm'
+    elif names.issuperset(triplets):
+        exp_type = 'trip'
+    else:
+        raise ValueError('unknown epoch type, not permutations nor triplets')
+
+    return exp_type
+
+
+def _split_signal(signal):
+    # finds in epochs the transition between one experiment and the next
+    if isinstance(signal, PointProcess):
+        pass
+    elif isinstance(signal, RasterizedSignal):
+        raise NotImplementedError('signal must be a PointPorcess')
+    elif isinstance(signal, TiledSignal):
+        raise NotImplementedError('signal must be a PointPorcess')
+    else:
+        raise ValueError('First argument must be a NEMS signal')
+
+    epochs = signal.epochs
+    epoch_names = nep.epoch_names_matching(signal.epochs, '\AFILE_[a-zA-Z]{3}\d{3}[a-z]\d{2}_p_CPN\Z')
+    file_epochs = epochs.loc[epochs.name.isin(epoch_names), :]
+
+    sub_signals = dict()
+    trip_counter = 0
+    perm_counter = 0
+
+    for ff, (_, file) in enumerate(file_epochs.iterrows()):
+
+        # extract relevant epochs and data
+        sub_epochs = epochs.loc[(epochs.start >= file.start) & (epochs.end <= file.end), :].copy()
+        sub_epochs[['start', 'end']] = sub_epochs[['start', 'end']] - file.start
+
+        sub_data = {cell: spikes[np.logical_and(spikes >= file.start, spikes < file.end)] - file.start
+                    for cell, spikes in signal._data.copy().items()}
+
+        meta = signal.meta.copy()
+        meta['rawid'] = [meta['rawid'][ff]]
+
+        sub_signal = signal._modified_copy(data=sub_data, epochs=sub_epochs, meta=meta)
+
+        # checks names of epochs to define triples or permutation
+        # keeps track of number of trip of perm experiments
+        # names the signal with the experiment type and number in case of repeated trip and/or perm
+        exp_type = _detect_type(sub_epochs)
+        if exp_type == 'perm':
+            exp_type = f'{exp_type}{perm_counter}'
+            perm_counter += 1
+        elif exp_type == 'trip':
+            exp_type = f'{exp_type}{trip_counter}'
+            trip_counter += 1
+        else:
+            raise ValueError('not Permutations or Triplets')
+
+        sub_signals[exp_type] = sub_signal
+
+    return sub_signals
+
+
+def split_recording(recording):
+    '''
+    split recording into independent recordings for CPP and CPN, does this to all composing signals
+    :param recording: a nems.Recording object
     :return:
     '''
 
+    sub_recordings = col.defaultdict(dict)
+    metas = dict()
+    for signame, signal in recording.signals.items():
 
-def make_full_array(signal, experiment='CPN'):
-    # extracts and organizes all the data in a 5 dim array with shape Context x Probe x Repetition x Unit x Time
-    signal = signal.rasterize()
+        sub_signals = _split_signal(signal)
 
-    if experiment == 'CPP':
-        reg_ex = r'\AC[0-4]_P[0-4]\Z' # contexts 0 to 4, probes 0 to 4
+        for sig_type, sub_signal in sub_signals.items():
+            sub_recordings[sig_type][signame] = sub_signal
+            metas[sig_type] = sub_signal.meta
 
-    elif experiment == 'CPN':
-        reg_ex = r'\AC(0|([5-9]|10))_P([5-9]|10)\Z' # contexts 0 or 5 to 10, probes 5 to 10, not all contexts exists
+        pass
 
-    else:
-        raise ValueError("experiment must be 'CPP' or 'CPN'")
+    sub_recordings = {sig_type: Recording(signals, meta=metas[sig_type]) for sig_type, signals in
+                      sub_recordings.items()}
+
+    return sub_recordings
+
+
+def raster_smooth(raster, fs, win_ms, axis):
+    '''
+    Smooths using a gaussian kernele of the specified window size in ms across one axis, usually time
+    :param raster: ndarray. spike raster
+    :param fs: fequency of samplig for the spike raster
+    :param win_ms: kernel size in ms
+    :param axis: axis along with to perform the smoothing. Most likely time
+    :return:
+    '''
+    samples = win_ms * fs / 1000
+    sigma = samples / sqrt(8 * log(2))  # this is the magic line to convert from samples to sigma
+    smooth = gaussian_filter1d(raster, sigma, axis=axis)
+
+    return smooth
+
+
+def make_full_array(signal, channels='all', smooth_window=None, raster_fs=None):
+    '''
+    given a CPP/CPN signal, extract rasters and organizes in a 5D array with axes Context x Probe x Repetition x Unit x Time
+    :param signal:
+    :param channels:
+    :param smooth_window:
+    :param raster_fs:
+    :return:
+    '''
+
+    channels = _channel_handler(signal, channels)
+
+    signal = signal.rasterize(fs=raster_fs)
+
+    reg_ex = r'\AC\d_P\d\Z'
 
     epoch_names = nep.epoch_names_matching(signal.epochs, (reg_ex))
     context_names = list(set([cp.split('_')[0] for cp in epoch_names]))
@@ -35,7 +158,8 @@ def make_full_array(signal, experiment='CPN'):
     probe_names.sort()
 
     # gets the dimentions of the full array
-    R, U, T = signal.extract_epoch(epoch_names[0]).shape
+    R, _, T = signal.extract_epoch(epoch_names[0]).shape
+    U = len(channels)
     C = len(context_names)
     P = len(probe_names)
 
@@ -48,70 +172,80 @@ def make_full_array(signal, experiment='CPN'):
     for pp, cc in itt.product(range(len(probe_names)), range(len(context_names))):
         cpp = '{}_{}'.format(context_names[cc], probe_names[pp])
         try:
-            full_array[cc, pp, :, :, :] = signal.extract_epoch(cpp)
+            full_array[cc, pp, :, :, :] = signal.extract_epoch(cpp)[:,channels,:]
             valid_cp.append(cpp)
         except:
             invalid_cp.append(cpp)
             # print('{} does not exist, skipping'.format(cpp))
 
+    # gaussian window smooth
+    if smooth_window is not None:
+        full_array = raster_smooth(full_array, signal.fs, smooth_window, axis=4)
+        pass
+
     return full_array, invalid_cp, valid_cp, context_names, probe_names
 
 
-def extract_sub_arr(probe, context_type, full_array, context_names, probe_names):
+def extract_sub_arr(probe, context_types, full_array, context_names, probe_names):
     '''
     short function to extract the adecuate slices of the full array given a probe and the specified context transitions
     :param probe: 5 to 10
-    :param context_type: str silence, continuous, similar, sharp
+    :param context_types: str silence, continuous, similar. list of these strings
     :param full_array: nd array with dimensions Context x Probe x Repetition x Unit x Time
     :context_names: list of context names with order consitent with that of full array (output of make make_full_array)
     :probe_names: list of probe names with order consistent with that of full array (output of make make_full_array)
+    :channels:
     :return:
     '''
-    '''
-    original order of sequences
-    array([[ 9, 10,  6,  7,  9],
-           [10,  9,  7,  6, 10],
-           [ 6,  8,  9,  8, 10],
-           [ 7,  5,  6,  5,  7]])
+    '''           
+    array([[5, 6, 2, 3, 5],
+           [6, 5, 3, 2, 6],
+           [2, 4, 5, 4, 6],
+           [3, 1, 2, 1, 3]])
+           
     '''
 
-    if probe in [5, 8]:
-        raise ValueError('probe cannot be 5 o 8')
+    if probe in [1, 4]:
+        raise ValueError('probe cannot be 1 o 4')
 
-    transitions = {'P5': {'silence': 0,
-                          'continuous': None,
-                          'similar': [6, 7],
-                          'sharp': None},
+    if context_types == 'all':
+        context_types = ['silence', 'continuous', 'similar', 'sharp']
+    elif isinstance(context_types, str):
+        context_types = [context_types]
+    elif isinstance(context_types, list):
+        context_types = context_types
+
+    for ct in context_types:
+        if ct not in ['silence', 'continuous', 'similar', 'sharp']:
+            raise ValueError(f'{ct} is not a valid keyword')
+
+    transitions = {'P2': {'silence': 0,
+                          'continuous': 1,
+                          'similar': 3,
+                          'sharp': 6},
+                   'P3': {'silence': 0,
+                          'continuous': 2,
+                          'similar': 1,
+                          'sharp': 5},
+                   'P5': {'silence': 0,
+                          'continuous': 4,
+                          'similar': 6,
+                          'sharp': 3},
                    'P6': {'silence': 0,
                           'continuous': 5,
-                          'similar': 7,
-                          'sharp': 10},
-                   'P7': {'silence': 0,
-                          'continuous': 6,
-                          'similar': 5,
-                          'sharp': 9},
-                   'P8': {'silence': 0,
-                          'continuous': None,
-                          'similar': 9,
-                          'sharp': 6},
-                   'P9': {'silence': 0,
-                          'continuous': 8,
-                          'similar': 10,
-                          'sharp': 7},
-                   'P10': {'silence': 0,
-                           'continuous': 9,
-                           'similar': 8,
-                           'sharp': 6}}
+                          'similar': 4,
+                          'sharp': 2}}
 
     # find array indexes based on probe and context transition names
     p = 'P' + str(probe)
     probe_index = probe_names.index(p)
-    c = 'C' + str(transitions[p][context_type])
-    context_index = context_names.index(c)
 
-    sliced_array = full_array[context_index, probe_index, :, : , :]
+    C_names = ['C' + str(transitions[p][ct]) for ct in context_types]
+    context_indices = np.asarray([context_names.index(c) for c in C_names])
 
-    return sliced_array # array with shape Repetitions Units Time
+    sliced_array = full_array[context_indices, probe_index, :, :, :].copy()
+
+    return sliced_array  # array with shape Repetitions Units Time
 
 
 def calculate_pairwise_distance(probes, context_transitions, full_array, context_names, probe_names):
@@ -141,11 +275,10 @@ def calculate_pairwise_distance(probes, context_transitions, full_array, context
     for pp, probe in enumerate(probes):
         # interates over pairs of contexts
         for ((c1, ctx1), (c2, ctx2)) in itt.product(enumerate(context_transitions), repeat=2):
-
-            arr1 = extract_sub_arr(probe, ctx1, full_array, context_names, probe_names) # shape Rep x Unit x Time
+            arr1 = extract_sub_arr(probe, ctx1, full_array, context_names, probe_names)  # shape Rep x Unit x Time
             arr2 = extract_sub_arr(probe, ctx2, full_array, context_names, probe_names)
 
-            psth1 = np.mean(arr1, axis=0) # shape Unit x Time
+            psth1 = np.mean(arr1, axis=0)  # shape Unit x Time
             psth2 = np.mean(arr2, axis=0)
             SEM1 = sst.sem(arr1, axis=0)
             SEM2 = sst.sem(arr2, axis=0)
@@ -155,6 +288,5 @@ def calculate_pairwise_distance(probes, context_transitions, full_array, context
 
             pair_diff_arr[pp, c1, c2, :, :, 0] = distance
             pair_diff_arr[pp, c1, c2, :, :, 1] = significance
-
 
     return pair_diff_arr
