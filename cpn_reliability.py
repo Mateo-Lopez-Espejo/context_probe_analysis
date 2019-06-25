@@ -1,5 +1,6 @@
 import numpy as np
 import scipy.stats as sst
+from warnings import warn
 from cpp_parameter_handlers import _epoch_name_handler
 
 # # Some test data
@@ -61,6 +62,9 @@ def signal_reliability(signal, epoch_names, threshold=0.1):
 
     r = _base_reliability(matrixes, rep_dim=1, protect_dim=2)
     goodcells = np.asarray(signal.chans)[r>threshold]
+
+    if len(goodcells) == 0:
+        warn(f'no reliable cells found with r > {threshold}')
 
     return r, goodcells
 
