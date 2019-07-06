@@ -2,6 +2,7 @@ import math
 import warnings
 
 import matplotlib.pyplot as plt
+from matplotlib import pyplot as plt
 from mpl_toolkits.mplot3d.axes3d import get_test_data
 # This import registers the 3D projection, but is otherwise unused.
 from mpl_toolkits.mplot3d import Axes3D
@@ -751,141 +752,39 @@ def hybrid(signal, epoch_names='single', channels='all', start=None, end=None,
     return fig, axes
 
 
-def hybrid_data(signal, epoch_names='single', channels='all', start=None, end=None,
-           significance=None, raster_fs=None, psth_fs=None, sign_fs=None, sign_kws=None,
-           scatter_kws=None, plot_kws=None, sub_types=(True, True, True), time_strech=None):
+def plot_dist_with_CI(real, shuffled, start, end, fs, ax=None, labels=False):
     '''
-    given a signal, creates a figure where each subplots correspond to a cell in that signal, where each subplot contains
-    a raster, psth and indications of siginificant difference over time. different epochs are represented by different
-    colors within each subplot
-    :param signal: A nems signals with epochs formated under for stim_num prb pairs, see cpp_epochs
-    :param epoch_names: str, regexp or keyword(str) to select what epochs to extract and use to plot. the keyword 'single'
-    indicated use of a the ressponse of to a sound regardles of the preceding stim_num. Keyword 'pair' independently plots
-    all possible different stim_num-prb pairs
-    :param channels: int, str, [int, ...], [str, ...], Keyword(str). Selects what cells in the population to plot,
-    and therefore controlls the number of subplots. specific cells can be specified by their index or name, and multiple
-    cells can be specified as list of the previous. Keyword 'all' uses all cells available in the signal
-    :param start: float, in seconds. Specify where to draw a vertical line to indicate start of the stimulus
-    :param end: float, in seconds. Specify where to draw a vertical line to indicate end of the stimulus
-    :param significance: array of shape Cell x time. both dimensions must be consistent with the dimensions of the the
-    number of cells ploted and the time of the raster/PSTH bein ploted, in units of time bins.
-    :param raster_fs: float, None. Samplig frequency for the raster. None specifies native resolution(recomended)
-    :param psth_fs: float, None. Samplig frequency for the raster. None specifies native resolution, downsampling recomended
-    :param sign_fs: float, None. Samplig frequency for the raster. None specifies native resolution(recomended)
-    :param sign_kws: aditional kwargs to pass into _sig_bin_to_time
-    :param scatter_kws: aditional kwargs to pass into _raster
-    :param plot_kws: aditional kwargs to pass into _PSTH
-    :param sub_types: [bool, bool, bool], defines whether to use or not any of the plot subtypes: [raster, psth, significance]
-    :return:
+    plot the output of signal_single_trial_dispersion_pooled_shuffled, shows the distance over time with the
+    confidence interval, between the specified start and end times
+    :param real: vector, time series of distance over tieme
+    :param shuffled: 2d array of time series vectors, the first dimension corresponds with the shape of real
+    :param start: start time in seconds to plot from
+    :param end: end time in seconds to plot until
+    :param fs: sampling frequency in Hz
+    :param suptitle: figure suptitle
+    :return: figure and ax handles
     '''
-    if not isinstance(signal, PointProcess):
-        warnings.warn('signal is not a PointProcess, resampling not implemented')
-        can_resample = False
-    else: can_resample = True
 
-    # formats epoch naems
-    epoch_names = _epoch_name_handler(signal, epoch_names)
-
-    # formats fs paramter
-    if can_resample is True:
-        raster_fs = _fs_handler(signal, raster_fs)
-        psth_fs = _fs_handler(signal, psth_fs)
-        sign_fs = _fs_handler(signal, sign_fs)
-        rast_matrices = signal._modified_copy(signal._data, fs=raster_fs).rasterize().extract_epochs(epoch_names)
-        psth_matrices = signal._modified_copy(signal._data, fs=psth_fs).rasterize().extract_epochs(epoch_names)
-    elif can_resample is False:
-        # uses native samplitng frequecy
-        raster_fs = signal.fs
-        psth_fs = signal.fs
-        sign_fs = signal.fs
-        rast_matrices = signal.rasterize().extract_epochs(epoch_names)
-        psth_matrices = signal.rasterize().extract_epochs(epoch_names)
-    # sets the values in Hz
-    psth_matrices = {key: val * psth_fs for key, val in psth_matrices.items()}
-
-    # cuts the specific strech of time to be ploted
-    if time_strech != None:
-        time_strech = np.array(time_strech)
-        psth_strech = np.floor(time_strech*psth_fs).astype(int)
-        rast_strech = np.floor(time_strech*raster_fs).astype(int)
-        psth_matrices = {key: mat[:,:, psth_strech[0]:psth_strech[1]] for key, mat in psth_matrices.items()}
-        rast_matrices = {key: mat[:, :, rast_strech[0]:rast_strech[1]] for key, mat in rast_matrices.items()}
-
-    # preprocesing of significance array
-    if isinstance(significance, np.ndarray):
-        # handles significance keywords
-        sign_kws = {} if sign_kws is None else sign_kws
-        # some preprocesing of the significance matrix
-        defaults = {'window': 1}
-        for key, val in defaults.items(): sign_kws.setdefault(key, val)
-
-        start_times, end_times = _sig_bin_to_time(significance, fs=sign_fs, **sign_kws)
-
-    # handles scatter and psth keywords
-    scatter_kws = {} if scatter_kws is None else scatter_kws
-    plot_kws = {} if plot_kws is None else plot_kws
-
-    channels = _channel_handler(signal, channels=channels)
-
-    # defines the number and distribution of subplots in the figure
-    fig, axes = _subplot_handler(epoch_names, channels)
-
-    # calculates the vertical_range of the significance areas based on the number of stimuli and repetitionse per stimuli
-    # in the second value, the first factor is the number of stimuli, the second is the number of repetitions
-    vertical_range = [-0.5, len(psth_matrices) * psth_matrices[epoch_names[0]].shape[0] + 0.5]
-
-    # iterates over each cell... plot
-    for cc, (chan, ax) in enumerate(zip(channels, axes)):
-        # saves y ofsets for proper y axis labeling
-        y_ticks = list()
-        y_ticklabels = list()
-
-        y_offset = np.max(np.nanmean(np.stack(psth_matrices.values(), axis=3)[:,chan,:,:], axis=0)) * 1.1
-        for ss, (epoch_key, epoch_matrix) in enumerate(psth_matrices.items()):
-            color = 'C{}'.format(ss % 10)
-            y_off = y_offset * ss  # offsets subsequent rasters by the number of repetitions
-
-            if sub_types[1] is True:
-
-                # values for psth
-                values = epoch_matrix[:, chan, :]  # holds all Repetitions, for a given Channel, acrossTime
-                times = np.arange(0, epoch_matrix.shape[2]) / psth_fs
-                plot_kws.update({'color': color,
-                                 'label': 'stim_num {}, prb {}'.format(epoch_key[1], epoch_key[4])})
-                _, _, y_range = _PSTH(times, values, start=start, end=end, ax=ax, ci=False,
-                                      y_offset=y_off, plot_kws=plot_kws)
-
-                y_ticks.extend(y_range)
-                y_ticklabels.extend([yy - y_off for yy in y_range])
-
-            if sub_types[0] is True:
-                # values for raster plot
-                rast_epoch_matrix = rast_matrices[epoch_key]
-                rast_values = rast_epoch_matrix[:, chan, :]  # holds all Repetitions, for a given Channel, acrossTime
-                rast_times = np.arange(0, rast_epoch_matrix.shape[2]) / raster_fs
-                scatter_kws.update({'color': color})
-                if not y_range:
-                    y_range = None
-
-                _raster(rast_times, rast_values, y_offset=y_off, y_range=y_range,
-                        ax=ax, scatter_kws=scatter_kws)
-        # set the y ticks and labels so they match the bottom and top values of PSTHs
-        if sub_types[1] is True:
-            ax.set_yticks(y_ticks)
-            ax.set_yticklabels(['{:.0f}'.format(ylab) for ylab in y_ticklabels])
-
-
-        # dispersion significance plotting
-
-        if isinstance(significance, np.ndarray) and sub_types[2] is True:
-            # draws the dispersion significance across time
-            _significance_bars(start_times[cc], end_times[cc], y_range=vertical_range, ax=ax)
-
-        ax.set_title('{}: {}'.format(chan, signal.chans[chan]))
+    if ax is None:
+        fig, ax = plt.subplots()
     else:
-        # ax.legend(bbox_to_anchor=(2, 1))
-        pass
+        fig = ax.figure
 
-    fig.suptitle(signal.name)
+    t1 = (start / fs) - 1
+    t2 = (end / fs) - 1
 
-    return fig, axes, arrays
+    line = real[start:end]
+    shade = shuffled[:, start:end]
+    shade = np.mean(shade, axis=0) + np.std(shade, axis=0) * 2
+    t = np.linspace(t1, t2, len(line))
+
+    ax.plot(t, line, color='C0')
+    ax.fill_between(t, -shade, shade, alpha=0.5, color='C0')
+    ax.axvline(0, color='black', linestyle='--')
+
+    if labels:
+        ax.set_xlabel('time (s)')
+        ax.set_ylabel('euclidean distance')
+        ax.tick_params(axis='both', which='major')
+
+    return fig, ax

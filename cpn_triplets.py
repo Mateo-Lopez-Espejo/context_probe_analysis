@@ -186,11 +186,12 @@ def make_full_array(signal, channels='all', smooth_window=None, raster_fs=None):
     return full_array, invalid_cp, valid_cp, context_names, probe_names
 
 
-def extract_sub_arr(probe, context_types, full_array, context_names, probe_names):
+def extract_sub_arr(probe, context_types, full_array, context_names, probe_names, squeeze=True):
     '''
     short function to extract the adecuate slices of the full array given a probe and the specified context transitions
-    :param probe: 5 to 10
-    :param context_types: str silence, continuous, similar. list of these strings
+    returns a copy not a view.
+    :param probe: int. for permutations any of [1,2,3,4]. for triplets any of [2,3,5,6]
+    :param context_types: str, [str,]. silence, continuous, similar, sharp. 'all' for default order of the four transitions
     :param full_array: nd array with dimensions Context x Probe x Repetition x Unit x Time
     :context_names: list of context names with order consitent with that of full array (output of make make_full_array)
     :probe_names: list of probe names with order consistent with that of full array (output of make make_full_array)
@@ -244,6 +245,8 @@ def extract_sub_arr(probe, context_types, full_array, context_names, probe_names
     context_indices = np.asarray([context_names.index(c) for c in C_names])
 
     sliced_array = full_array[context_indices, probe_index, :, :, :].copy()
+
+    if squeeze == False: sliced_array = np.expand_dims(sliced_array,1)
 
     return sliced_array  # array with shape Repetitions Units Time
 
