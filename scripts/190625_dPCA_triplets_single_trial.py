@@ -116,7 +116,7 @@ for site in all_sites:
                                                       func_args=func_args,
                                                       classobj_name=signal_name, recache=False,
                                                       cache_folder=f'/home/mateo/mycache/transitions_dPCA/{analysis_parameters}')
-            real, shuffled = get_cache(shuffled_dispersion_time)
+            real, shuffled, scrambled = get_cache(shuffled_dispersion_time)
 
             fig, ax = plot.plot_dist_with_CI(real, shuffled, start=100, end=200, fs=100, ax=PairAx)
 
