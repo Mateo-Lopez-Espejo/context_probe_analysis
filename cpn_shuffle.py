@@ -4,10 +4,10 @@ import numpy as np
 def shuffle_along_axis(array, shuffle_axis, indie_axis=None):
     '''
     shuffles in place an array along the selected axis or group of axis .
-    :param array:
-    :param shuffle_axis:
-    :param indie_axis:
-    :return:
+    :param array: ndarray
+    :param shuffle_axis: int or int list. axis along wich to perform the shuffle
+    :param indie_axis: int or int list. shuffling will be done independently across positions in these axis.
+    :return: shuffled array of the same shape as input array.
     '''
     # sanitize the shuffle_axis value, it can either be an integer or a list of integers
     if isinstance(shuffle_axis, int):
