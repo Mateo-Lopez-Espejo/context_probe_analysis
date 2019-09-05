@@ -48,10 +48,11 @@ def _channel_handler(mat_or_sig, channels):
     # checks the object type of the parameters
     if isinstance(mat_or_sig, np.ndarray):
         max_chan = mat_or_sig.shape[1]
-
     elif isinstance(mat_or_sig, SignalBase):
         is_signal = True
         max_chan = mat_or_sig.nchans
+    else:
+        raise ValueError(f'mat_or_sig should be a matrix or singal but is {type(mat_or_sig)}')
 
     # returns a different list of channels depending on the keywords or channels specified. add keywords here!
     if channels == 'all':

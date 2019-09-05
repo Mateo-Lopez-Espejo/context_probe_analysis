@@ -601,7 +601,8 @@ def signal_raster(signal, epoch_names='single', channels='all', scatter_kws=None
 
 def hybrid(signal, epoch_names='single', channels='all', start=None, end=None,
            significance=None, raster_fs=None, psth_fs=None, sign_fs=None, sign_kws=None,
-           scatter_kws=None, plot_kws=None, sub_types=(True, True, True), time_strech=None, time_offset=None, legend=True):
+           scatter_kws=None, plot_kws=None, sub_types=(True, True, True), time_strech=None, time_offset=None, legend=True,
+           colors=None):
     '''
     given a signal, creates a figure where each subplots correspond to a cell in that signal, where each subplot contains
     a raster, psth and indications of siginificant difference over time. different epochs are represented by different
@@ -692,7 +693,7 @@ def hybrid(signal, epoch_names='single', channels='all', start=None, end=None,
 
         y_offset = np.max(np.nanmean(np.stack(psth_matrices.values(), axis=3)[:,chan,:,:], axis=0)) * 1.1
         for ss, (epoch_key, epoch_matrix) in enumerate(psth_matrices.items()):
-            color = 'C{}'.format(ss % 10)
+            color = colors[ss] if colors is not None else 'C{}'.format(ss % 10)
             y_off = y_offset * ss  # offsets subsequent rasters by the number of repetitions
 
             if sub_types[1] is True:
@@ -752,12 +753,12 @@ def hybrid(signal, epoch_names='single', channels='all', start=None, end=None,
     return fig, axes
 
 
-def plot_dist_with_CI(real, shuffled, start, end, fs, ax=None, labels=False):
+def plot_dist_with_CI(real, shuffled, shuf_lab, colors, smp_start, smp_end, smp_line, fs, ax=None, labels=False):
     '''
     plot the output of signal_single_trial_dispersion_pooled_shuffled, shows the distance over time with the
     confidence interval, between the specified start and end times
-    :param real: vector, time series of distance over tieme
-    :param shuffled: 2d array of time series vectors, the first dimension corresponds with the shape of real
+    :param real: vector, time series of distance over time
+    :param shuffled: list of 2d array of time series vectors, with dimensions Repetition x Time, Time must be equal to 'real'
     :param start: start time in seconds to plot from
     :param end: end time in seconds to plot until
     :param fs: sampling frequency in Hz
@@ -770,17 +771,22 @@ def plot_dist_with_CI(real, shuffled, start, end, fs, ax=None, labels=False):
     else:
         fig = ax.figure
 
-    t1 = (start / fs) - 1
-    t2 = (end / fs) - 1
+    t1 = (smp_start / fs)
+    t2 = (smp_end / fs)
+    t = np.linspace(t1, t2, smp_end-smp_start)
 
-    line = real[start:end]
-    shade = shuffled[:, start:end]
-    shade = np.mean(shade, axis=0) + np.std(shade, axis=0) * 2
-    t = np.linspace(t1, t2, len(line))
+    line = real[smp_start:smp_end]
+    ax.plot(t, line, color='black')
 
-    ax.plot(t, line, color='C0')
-    ax.fill_between(t, -shade, shade, alpha=0.5, color='C0')
-    ax.axvline(0, color='black', linestyle='--')
+    colors = colors if colors is not None else [f'C{x}' for x in range(len(shuffled))]
+
+    for ii, (label, array, color) in enumerate(zip(shuf_lab, shuffled, colors)):
+        shade = array[:, smp_start:smp_end]
+        shade = np.mean(shade, axis=0) + np.std(shade, axis=0) * 2
+        ax.fill_between(t, -shade, shade, alpha=0.5, color=color,label=label)
+
+    if smp_line is not None:
+        ax.axvline(smp_line/fs, color='black', linestyle='--')
 
     if labels:
         ax.set_xlabel('time (s)')

@@ -138,11 +138,11 @@ def raster_smooth(raster, fs, win_ms, axis):
 def make_full_array(signal, channels='all', smooth_window=None, raster_fs=None):
     '''
     given a CPP/CPN signal, extract rasters and organizes in a 5D array with axes Context x Probe x Repetition x Unit x Time
-    :param signal:
-    :param channels:
-    :param smooth_window:
-    :param raster_fs:
-    :return:
+    :param signal: nems signal. It should have the context probe epochs defined.
+    :param channels: str, int, list, 'all'.  Defines what cells to consider
+    :param smooth_window: float. gausian kernel size in ms
+    :param raster_fs: int. sampling frequency of the output
+    :return: nd array.
     '''
 
     channels = _channel_handler(signal, channels)
@@ -186,11 +186,11 @@ def make_full_array(signal, channels='all', smooth_window=None, raster_fs=None):
     return full_array, invalid_cp, valid_cp, context_names, probe_names
 
 
-def extract_sub_arr(probe, context_types, full_array, context_names, probe_names, squeeze=True):
+def extract_sub_arr(probes, context_types, full_array, context_names, probe_names, squeeze=True):
     '''
     short function to extract the adecuate slices of the full array given a probe and the specified context transitions
     returns a copy not a view.
-    :param probe: int. for permutations any of [1,2,3,4]. for triplets any of [2,3,5,6]
+    :param probes: int. for permutations any of [1,2,3,4]. for triplets any of [2,3,5,6]
     :param context_types: str, [str,]. silence, continuous, similar, sharp. 'all' for default order of the four transitions
     :param full_array: nd array with dimensions Context x Probe x Repetition x Unit x Time
     :context_names: list of context names with order consitent with that of full array (output of make make_full_array)
@@ -206,15 +206,23 @@ def extract_sub_arr(probe, context_types, full_array, context_names, probe_names
            
     '''
 
-    if probe in [1, 4]:
-        raise ValueError('probe cannot be 1 o 4')
+    if isinstance(probes, int):
+        probes = [probes]
+
+    elif isinstance(probes, (list, tuple, set)):
+        if all(isinstance(x, int) for x in probes) and all(x not in (1, 4) for x in probes):
+            probes = list(probes)
+        else:
+            raise ValueError('all values in probe must be int and not 1 or 4')
+    else:
+        raise ValueError('probe must be an int or a list of ints')
 
     if context_types == 'all':
         context_types = ['silence', 'continuous', 'similar', 'sharp']
     elif isinstance(context_types, str):
         context_types = [context_types]
-    elif isinstance(context_types, list):
-        context_types = context_types
+    elif isinstance(context_types, (list, tuple, set)):
+        context_types = list(context_types)
 
     for ct in context_types:
         if ct not in ['silence', 'continuous', 'similar', 'sharp']:
@@ -237,18 +245,27 @@ def extract_sub_arr(probe, context_types, full_array, context_names, probe_names
                           'similar': 4,
                           'sharp': 2}}
 
-    # find array indexes based on probe and context transition names
-    p = 'P' + str(probe)
-    probe_index = probe_names.index(p)
 
-    C_names = ['C' + str(transitions[p][ct]) for ct in context_types]
-    context_indices = np.asarray([context_names.index(c) for c in C_names])
+    # create an empty array to populate with the probes slices, with contexts ordered by transition type
+    # and not by contexte identity
 
-    sliced_array = full_array[context_indices, probe_index, :, :, :].copy()
+    C, P, R, U, T = full_array.shape # Context x Probe x Repetition x Unit x Time
 
-    if squeeze == False: sliced_array = np.expand_dims(sliced_array,1)
+    sliced_array = np.empty([len(context_types), len(probes), R, U, T])
 
-    return sliced_array  # array with shape Repetitions Units Time
+    for (pp, probe) in enumerate(probes):
+        # find array indexes based on probe and context transition names
+        p = 'P' + str(probe)
+        probe_index = probe_names.index(p)
+
+        C_names = ['C' + str(transitions[p][ct]) for ct in context_types]
+        context_indices = np.asarray([context_names.index(c) for c in C_names])
+
+        sliced_array[:, pp, :, :, :] = full_array[context_indices, probe_index, :, :, :].copy()
+
+        if squeeze == True: sliced_array = np.squeeze(sliced_array)
+
+    return sliced_array  # array with shape Context_transition x Probe x Repetitions x Unit x Time
 
 
 def calculate_pairwise_distance(probes, context_transitions, full_array, context_names, probe_names):

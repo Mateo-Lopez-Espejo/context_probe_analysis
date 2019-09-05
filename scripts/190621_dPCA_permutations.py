@@ -95,7 +95,7 @@ for site in all_sites:
 
         if pp==0 and mm == 3: ax.legend()
 
-# plots explained varianceP
+    # plots explained varianceP
     var_ax = plt.subplot2grid((5,5), (0, 4), rowspan=5, colspan=1, fig=fig)
     cdPCA.variance_explained(dpca, var_ax)
 

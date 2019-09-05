@@ -9,12 +9,16 @@ import cpn_dPCA as cdPCA
 import cpn_dispersion as ndisp
 from cpp_cache import make_cache, get_cache
 import cpp_plots as plot
+import cpn_triplets as tp
+import joblib as jl
+
+from cpp_PCA import PSTH_PCA as pca
 
 '''
-performs dPCA for context transitions and calculates single trial corrected euclidean distance between pairs of transitions
-using single trials projected onto the 'ct' marginalization. i.e. the context dependent variation marginalization.
+Calculates single trial corrected euclidean distance between pairs of transitions using origninal neuron space i.e. no dPCA.
 This is done independently for each probe.
 '''
+
 
 CB_color_cycle = ['#377eb8', '#ff7f00', '#4daf4a', '#a65628',
                   '#984ea3', '#999999', '#e41a1c', '#dede00']
@@ -34,12 +38,16 @@ meta = {'reliability' : 0.1, # r value
         'transitions' : ['silence', 'continuous', 'similar', 'sharp'],
         'probes_to_plot' : [2,3,5,6],
         'significance': False,
-        'nonparam_shuffle': 1000}
-####
-analysis_name = 'trans_dPCA_euc-dist_pop-scram'
+        'nonparam_shuffle': 1000,
+        'include_ctx': True}
+
+analysis_name = 'trans_euc-dist_pop-scram'
+
+
+
 analysis_parameters = '_'.join(['{}-{}'.format(key, str(val)) for key, val in meta.items()])
 
-####
+
 for site in all_sites:
     # load and format triplets from a site
     recs = load(site)
@@ -54,33 +62,37 @@ for site in all_sites:
     r_vals, goodcells = signal_reliability(sig, r'\ASTIM_*', threshold=meta['reliability'])
     goodcells = goodcells.tolist()
 
+    # gets the full raster
+    full_array, invalid_cp, valid_cp, all_contexts, all_probes = \
+        tp.make_full_array(sig, channels=goodcells, smooth_window=meta['smoothing_window'])
+
+    if meta['include_ctx'] is True:
+        pass
+    else:
+        full_array = full_array[..., 100:]
+
     fig = plt.figure()
     for pp, probe in enumerate(meta['probes_to_plot']):
 
-        # runs the dPCA for this individual probe
-        Z, trialZ, significance_masks, dpca = cdPCA.tran_dpca(sig, probe, channels=goodcells, transitions=meta['transitions'],
-                                                      smooth_window=meta['smoothing_window'], significance=meta['significance'])
-        expl_var = dpca.explained_variance_ratio_
-        PCs, C, T = Z['t'].shape
+        trans_arr = tp.extract_sub_arr(probes=probe, context_types=meta['transitions'], full_array=full_array,
+                                    context_names=all_contexts, probe_names=all_probes, squeeze=False)
 
-        # first column, plots the contexte dependent marginalization
+        # first column, plots the PSTH by transition
         PCax = plt.subplot2grid((4, 7), (pp, 0), rowspan=1, colspan=1, fig=fig)
 
-        time = np.linspace(0, 1, 100, endpoint=False)
+        if meta['include_ctx'] is True:
+            time = np.linspace(-1, 1, 200, endpoint=False)
+        else:
+            time = np.linspace(0, 1, 100, endpoint=False)
 
-        arr = Z['ct']
-        C = arr.shape[1]  # n_contexts
+        # PSTHjust for display purpose
+        # ToDo checke with normal PCA
+        arr = np.squeeze(np.nanmean(trans_arr,axis=2))
+        C = arr.shape[0]  # n_contexts
         for c in range(C):
-            PCax.plot(time, arr[0, c, :], label=meta['transitions'][c], color=CB_color_cycle[c])
+            toplot,_ = pca(arr[c,:,:],center=True)
+            PCax.plot(time, toplot[0,:], label=meta['transitions'][c], color=CB_color_cycle[c])
 
-        if meta['significance']:
-            if 'ct' in significance_masks:
-                left, right = PCax.get_xlim()
-                bottom, top = PCax.get_ylim()
-                Ychunk = (top - bottom) / 10
-                PCax.set_ylim(bottom - Ychunk, top)
-                PCax.imshow(significance_masks['ct'][0][None, :],
-                            extent=[0, 1, bottom - Ychunk, bottom], aspect='auto', )
 
         # formats figures
         if pp == 0: PCax.legend()
@@ -94,7 +106,7 @@ for site in all_sites:
             PCax.set_xticklabels([])
 
         if pp == 0:
-            PCax.set_title(f'context first dPC')
+            PCax.set_title(f'first PC')
 
         # plots the explained variance
         fig.suptitle(f'{site}')
@@ -102,14 +114,14 @@ for site in all_sites:
 
         # calculates the old single trial pairwise normalized euclidean distance
         for tt, trans_pair in enumerate(itt.combinations(meta['transitions'], 2)):
-            # gets the indicese of the different transitions, based on the list of transisions to analyse
 
-            # reshapez Z from PC x C x T into my tranditional shape: C x P x R x PC x T
-            tran_arr = np.expand_dims(np.moveaxis(trialZ['ct'], 2,0), 1)
+            if meta['include_ctx'] is True:
+                signal_name = f'190709_{site}_P{probe}_ctx_included'
+            else:
+                signal_name = f'190708_{site}_P{probe}_ct-marg'
 
-            signal_name = f'190708_{site}_P{probe}_ct-marg'
 
-            func_args = {'transitions_array': tran_arr, 'probe_names': [probe], 'context_transitions': trans_pair,
+            func_args = {'transitions_array': trans_arr, 'probe_names': [probe], 'context_transitions': trans_pair,
                          'probe_order': [probe], 'trans_order': meta['transitions'],
                          'shuffle_num': meta['nonparam_shuffle'], 'trial_combinations': True}
 
@@ -118,13 +130,18 @@ for site in all_sites:
                                                       func_args=func_args,
                                                       classobj_name=signal_name, recache=False,
                                                       cache_folder=f'/home/mateo/mycache/{analysis_name}/{analysis_parameters}')
-            real, cont_shuff, pop_shuff = get_cache(shuffled_dispersion_time)
+            real, shuffled, scrambled = get_cache(shuffled_dispersion_time)
 
             #define subplots
             PairAx = plt.subplot2grid((4, 7), (pp, tt+1), rowspan=1, colspan=1, fig=fig)
 
-            fig, ax = plot.plot_dist_with_CI(real, [cont_shuff], ['p < 0.05'], ['gray'],
-                                             smp_start=0, smp_end=100, smp_line=0, fs=100, ax=PairAx)
+            if meta['include_ctx'] is True:
+                fig, ax = plot.plot_dist_with_CI(real, [shuffled], ['p < 0.05'], ['gray'],
+                                                 smp_start=0, smp_end=200, smp_line=100, fs=100, ax=PairAx)
+            else:
+                fig, ax = plot.plot_dist_with_CI(real, [shuffled], ['p < 0.05'], ['gray'],
+                                                 smp_start=0, smp_end=100, smp_line=0, fs=100, ax=PairAx)
+
 
             # set legend on top right subplot, pair comparison title on top subplot row
             # and time axis label in bottom subplot row,

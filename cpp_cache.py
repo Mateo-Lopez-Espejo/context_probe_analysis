@@ -6,6 +6,7 @@ import inspect
 import hashlib
 import nems.recording as nrec
 import nems.signal as nsig
+from numpy import ndarray
 
 
 # ToDo Restructure cache in two functios, create and load.
@@ -105,9 +106,9 @@ def make_cache(function, func_args, classobj_name, recache=False, cache_folder='
 
     funct_defaults.update(func_args)
     # excludes class objects like nems Recordings or Signals
-    nems_objects = (nrec.Recording, nsig.SignalBase)
+    exclude = (nrec.Recording, nsig.SignalBase, ndarray)
 
-    funct_defaults = {key: val for key, val in funct_defaults.items() if not isinstance(val, nems_objects)}
+    funct_defaults = {key: val for key, val in funct_defaults.items() if not isinstance(val, exclude)}
 
     ordered_args = coll.OrderedDict(sorted(funct_defaults.items(), key=lambda t: t[0]))
     arg_string = ', '.join(['{}={}'.format(key, str(val)) for key, val in ordered_args.items()])

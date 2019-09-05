@@ -1,4 +1,5 @@
 import matplotlib.pyplot as plt
+from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 
 import numpy as np
 from scipy.stats import gaussian_kde as gkde
@@ -26,15 +27,16 @@ def format_raster(raster):
 
     return trialR, R, centers
 
-def tran_dpca(signal, probe, channels, transitions, smooth_window, significance, dPCA_parms={}):
+def tran_dpca(signal, probe, channels, transitions, smooth_window, significance, dPCA_parms={}, raster_fs=None):
     '''
     signal wrapper for dPCA usigg CPN tripplets.
     :param signal: CPN triplets signal
     :param probe: int, over which probe to perform the cPCA
     :param channels: str or [str,], what channels to use
-    :param transitions: str or [str.], what context probe transisiotns to consider
+    :param transitions: str or [str.], what context probe transitions to consider
     :param smooth_window: float, smoothing window in ms
-    :return: Z, dict of arrays of projection into different regularizaitons;
+    :return: Z, dict of arrays of mean projection into different marginalizations;
+             trialZ, dict of arrays of single trial projection into different marginalizations;
              significant_mask
              exp_var, dict of arrays with explained variance
     '''
@@ -47,10 +49,10 @@ def tran_dpca(signal, probe, channels, transitions, smooth_window, significance,
     dPCA_parms.update(triplet_defaults)
 
     full_array, invalid_cp, valid_cp, all_contexts, all_probes = \
-        tp.make_full_array(signal, channels=channels, smooth_window=smooth_window)
+        tp.make_full_array(signal, channels=channels, smooth_window=smooth_window, raster_fs=raster_fs)
 
 
-    raster = tp.extract_sub_arr(probe=probe, context_types=transitions, full_array=full_array,
+    raster = tp.extract_sub_arr(probes=probe, context_types=transitions, full_array=full_array,
                                 context_names=all_contexts, probe_names=all_probes, squeeze=False )
     raster = raster [..., 100:]  # get only the response to the probe and not the context
 
@@ -80,9 +82,17 @@ def tran_dpca(signal, probe, channels, transitions, smooth_window, significance,
     else:
         significance_masks = {}
 
+    # transform in a trial by trial basis
+    trialZ = dict()
+    for marg in dpca.marginalizations.keys():
+        zz = np.empty([Tr, dPCA_parms['n_components'], C, T])
+        for rep in range(trialR.shape[0]):
+            zz[rep, ...] = dpca.transform(trialR[rep,...], marginalization=marg)
+        trialZ[marg] = zz
+
     dpca.explained_variance_ratio_ = expt_var
 
-    return Z, significance_masks, dpca
+    return Z, trialZ, significance_masks, dpca
 
 def signal_transform_triplets_(signal, probe, channels, smooth_window=None, dpca=None):
 
@@ -135,7 +145,6 @@ def signal_transform_triplets_(signal, probe, channels, smooth_window=None, dpca
 
     return signals
 
-
 #### plot functions #####
 
 def variance_explained(dpca, ax=None, names=None, colors=None):
@@ -150,23 +159,36 @@ def variance_explained(dpca, ax=None, names=None, colors=None):
     n_comp = len(next(iter(expl_var.values())))
 
     bar_bottom = np.zeros(n_comp)
+    summed = np.empty(len(expl_var))
     for mm, (marg, arr) in enumerate(expl_var.items()):
+        summed[mm] = np.sum(arr) * 100
         # plots the explained variance
         x = np.arange(n_comp) + 1  # the x locations for the groups
-        y = np.asarray(arr)
+        y = np.asarray(arr)*100 # makes into %
         width = 0.35  # the width of the bars: can also be len(x) sequence
 
         color = colors[mm] if colors is not None else None
         label = names[mm] if names is not None else marg
 
         ax.bar(x, y, width, bottom=bar_bottom, label=label, color=color)
+        ax.set_xticks(range(1,n_comp+1, 4))
+        ax.set_xticklabels(range(1,n_comp+1, 4))
         ax.set_ylabel('explained variance (%)')
-        ax.legend()
         bar_bottom += y
 
-    return fig, ax
+    # adds a noise value as whatever var not explained by marginalizations
+    noise_frac = np.asarray(100 - np.sum(summed))[None]
+    summed = np.concatenate([summed, noise_frac])
+    inset = inset_axes(ax, width="50%", height="50%", loc=1)
+    explode = np.zeros(len(summed))
+    explode[-2] = 0.1 # explodes the second to last fractions, asumes it is the marignaliztion of interest.
+    if names is not None: names.append('noise')
+    if colors is not None: colors.append('lightgray')
+    inset.pie(summed, explode, names, colors, autopct='%1.1f%%')
 
-def weight_pdf(dpca, marginalization=None, axes=None, cellnames=None):
+    return fig, ax, inset
+
+def weight_pdf(dpca, marginalization=None, axes=None, cellnames=None, only_first=False, color=None):
 
     if marginalization is None:
         marginalization = list(dpca.P.keys())
@@ -178,36 +200,49 @@ def weight_pdf(dpca, marginalization=None, axes=None, cellnames=None):
         fig, axes = plt.subplots(1, len(marginalization), squeeze=False)
         fig.suptitle('PDF marginalization weights')
 
+    else:
+        fig = axes.figure
+
     axes = np.ravel(axes)
 
     for mm, marg in enumerate(marginalization):
 
-        P = dpca.P[marg] # Neurons x Components
-        for ii in range(P.shape[-1]):
-            dd = P[:, ii]
+        if only_first:
+            dd = dpca.P[marg][:,0]  # Neurons x Components
             pdf = gkde(dd)
-            color = 'red' if ii == 0 else 'gray'
             x = np.linspace(-1, 1, 100, endpoint=False)
+            axes[0].plot(x, pdf(x), color=color[mm], linewidth=2)
+            axes[0].set_title(marg)
+            axes[0].set_xlabel('encoder weight')
+            axes[0].set_ylabel('probability density')
+            axes[0].scatter(dd, np.zeros(len(dd)), color=color[mm], alpha=0.5)
 
-            axes[mm].plot(x, pdf(x), color=color, linewidth = 2/(ii+1))
-            axes[mm].set_title(marg)
-            axes[mm].set_xlabel('encoder weight')
-            axes[mm].set_ylabel('probability density')
+        else:
+            P = dpca.P[marg] # Neurons x Components
+            for ii in range(P.shape[-1]):
+                dd = P[:, ii]
+                pdf = gkde(dd)
+                color = 'green' if ii == 0 else 'gray'
+                x = np.linspace(-1, 1, 100, endpoint=False)
 
-            if ii == 0: axes[mm].scatter(dd, np.zeros(len(dd)), color=color, alpha=1/(ii+1))
+                axes[mm].plot(x, pdf(x), color=color, linewidth = 2/(ii+1))
+                axes[mm].set_title(marg)
+                axes[mm].set_xlabel('encoder weight')
+                axes[mm].set_ylabel('probability density')
 
-            if ii == 0 and cellnames is not None:
-                cellnames = [cell[-4:] for cell in cellnames]
-                ticks = dd.tolist()
-                ticks.extend([-1,1])
-                tick_lables = cellnames.copy()
-                tick_lables.extend([-1,1])
-                # todo diferenciate betwee minor and mayor ticks
-                axes[mm].set_xticks(ticks)
-                axes[mm].set_xticklabels(tick_lables, rotation='vertical')
+                if ii == 0: axes[mm].scatter(dd, np.zeros(len(dd)), color=color, alpha=1/(ii+1))
 
+                if ii == 0 and cellnames is not None:
+                    cellnames = [cell[-4:] for cell in cellnames]
+                    ticks = dd.tolist()
+                    ticks.extend([-1,1])
+                    tick_lables = cellnames.copy()
+                    tick_lables.extend([-1,1])
+                    # todo diferenciate betwee minor and mayor ticks
+                    axes[mm].set_xticks(ticks)
+                    axes[mm].set_xticklabels(tick_lables, rotation='vertical')
 
-
+    return fig, axes
 
 
 
