@@ -188,7 +188,7 @@ def make_full_array(signal, channels='all', smooth_window=None, raster_fs=None):
 
 def extract_sub_arr(probes, context_types, full_array, context_names, probe_names, squeeze=True):
     '''
-    short function to extract the adecuate slices of the full array given a probe and the specified context transitions
+    short function to extract the adequate slices of the full array given a probe and the specified context transitions
     returns a copy not a view.
     :param probes: int. for permutations any of [1,2,3,4]. for triplets any of [2,3,5,6]
     :param context_types: str, [str,]. silence, continuous, similar, sharp. 'all' for default order of the four transitions

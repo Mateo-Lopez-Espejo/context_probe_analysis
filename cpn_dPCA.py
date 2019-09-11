@@ -27,6 +27,19 @@ def format_raster(raster):
 
     return trialR, R, centers
 
+def raster_from_sig(signal, probe, channels, transitions, smooth_window, raster_fs=None):
+
+
+    full_array, invalid_cp, valid_cp, all_contexts, all_probes = \
+        tp.make_full_array(signal, channels=channels, smooth_window=smooth_window, raster_fs=raster_fs)
+
+    raster = tp.extract_sub_arr(probes=probe, context_types=transitions, full_array=full_array,
+                                context_names=all_contexts, probe_names=all_probes, squeeze=False)
+    raster = raster[..., 100:]  # get only the response to the probe and not the context ToDo make into param?
+
+    return raster
+
+
 def tran_dpca(signal, probe, channels, transitions, smooth_window, significance, dPCA_parms={}, raster_fs=None):
     '''
     signal wrapper for dPCA usigg CPN tripplets.
@@ -48,18 +61,14 @@ def tran_dpca(signal, probe, channels, transitions, smooth_window, significance,
 
     dPCA_parms.update(triplet_defaults)
 
-    full_array, invalid_cp, valid_cp, all_contexts, all_probes = \
-        tp.make_full_array(signal, channels=channels, smooth_window=smooth_window, raster_fs=raster_fs)
-
-
-    raster = tp.extract_sub_arr(probes=probe, context_types=transitions, full_array=full_array,
-                                context_names=all_contexts, probe_names=all_probes, squeeze=False )
-    raster = raster [..., 100:]  # get only the response to the probe and not the context
+    # gets a raster, specific for a certain probe and collection of transitions
+    raster = raster_from_sig(signal, probe, channels, transitions, smooth_window, raster_fs)
 
     # reorders dimentions from Context x Trial x Neuron x Time  to  Trial x Neuron x Context x Time
     trialR, R, _ = format_raster(raster)
-
     trialR, R = np.squeeze(trialR), np.squeeze(R)
+
+
     Tr, N, C, T = trialR.shape
 
 
