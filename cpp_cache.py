@@ -114,7 +114,7 @@ def make_cache(function, func_args, classobj_name, recache=False, cache_folder='
     arg_string = ', '.join(['{}={}'.format(key, str(val)) for key, val in ordered_args.items()])
 
     # get the last commit that modified the file containing the function
-    label = subprocess.check_output(['git', 'rev-parse', 'HEAD']) # todo is adding this really smart??
+    # label = subprocess.check_output(['git', 'rev-parse', 'HEAD']) # todo is adding this really smart??
 
     unique_name = '{}-{}({})'.format(classobj_name, function.__name__, arg_string)
     name_hash = hashlib.sha1(unique_name.encode()).hexdigest()

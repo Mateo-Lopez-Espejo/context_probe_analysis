@@ -55,6 +55,13 @@ def _sig_bin_to_time(sign_window, window, fs, unit_overlaping=True):
     start_times = list()
     end_times = list()
 
+    if sign_window.ndim == 1:
+        sign_window = np.expand_dims(sign_window, axis=0)
+    elif sign_window.ndim == 2:
+        pass
+    else:
+        raise ValueError('sign_window has too many dimensions ')
+
     for cc in range(sign_window.shape[0]):  # iterates over the channels/cells
         bin_ind = np.where(sign_window[cc, :] == True)[0]  # thise indexing takes out the array from the tupple
         start = bin_ind / fs

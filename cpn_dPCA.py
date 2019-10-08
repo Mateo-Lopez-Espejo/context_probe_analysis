@@ -35,7 +35,8 @@ def raster_from_sig(signal, probe, channels, transitions, smooth_window, raster_
 
     raster = tp.extract_sub_arr(probes=probe, context_types=transitions, full_array=full_array,
                                 context_names=all_contexts, probe_names=all_probes, squeeze=False)
-    raster = raster[..., 100:]  # get only the response to the probe and not the context ToDo make into param?
+    trans_idx = int(np.floor(raster.shape[-1]/2))
+    raster = raster[..., trans_idx:]  # get only the response to the probe and not the context ToDo make into param?
 
     return raster
 
@@ -153,6 +154,23 @@ def signal_transform_triplets_(signal, probe, channels, smooth_window=None, dpca
         signals[key] = signal._modified_copy(data=xt, chans=new_chan_names, meta=new_meta)
 
     return signals
+
+def transform_trials(dpca, trial_array):
+
+    marginalizations = list(dpca.marginalizations.keys())
+    ncomp = dpca.D[marginalizations[0]].shape[-1]
+    Tr, N, C, T = trial_array.shape
+
+    trialZ = dict()
+    for marg in dpca.marginalizations.keys():
+        zz = np.empty([Tr, ncomp, C, T])
+        for rep in range(trial_array.shape[0]):
+            zz[rep, ...] = dpca.transform(trial_array[rep,...], marginalization=marg)
+        trialZ[marg] = zz
+
+    return trialZ
+
+
 
 #### plot functions #####
 

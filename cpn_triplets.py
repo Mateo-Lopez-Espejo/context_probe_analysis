@@ -179,9 +179,8 @@ def make_full_array(signal, channels='all', smooth_window=None, raster_fs=None):
             # print('{} does not exist, skipping'.format(cpp))
 
     # gaussian window smooth
-    if smooth_window is not None:
+    if smooth_window is not None and smooth_window != 0:
         full_array = raster_smooth(full_array, signal.fs, smooth_window, axis=4)
-        pass
 
     return full_array, invalid_cp, valid_cp, context_names, probe_names
 
