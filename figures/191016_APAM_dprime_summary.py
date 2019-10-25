@@ -20,6 +20,15 @@ import seaborn as sn
 
 import collections as col
 
+"""
+Summary of the d' context discrimination significance, and propulation effect significance across all combinations of 
+sites and probes.
+The two metrics extracted are the total number of significant time bins and the position of the last time bin.
+
+it is highly recomended to add a way of keeping track of the distibution of significant bins over time across each
+category
+"""
+
 
 def fourway_analysis(site, probe, meta):
     recs = load(site)
@@ -46,7 +55,7 @@ def fourway_analysis(site, probe, meta):
 
     # calculates full LDA. i.e. considering all 4 categories
     LDA_projection, LDA_transformation = cLDA.fit_transform(trialR, 1)
-    dprime= cDP.pairwise_dprimes(LDA_projection.squeeze())
+    dprime = cDP.pairwise_dprimes(LDA_projection.squeeze())
 
     # calculates floor (ctx shuffle) and ceiling (simulated data)
     sim_dprime = np.empty([meta['montecarlo']] + list(dprime.shape))
@@ -56,10 +65,9 @@ def fourway_analysis(site, probe, meta):
 
     pbar = ProgressBar()
     for rr in pbar(range(meta['montecarlo'])):
-
         # ceiling: simulates data, calculates dprimes
         sim_trial = np.random.normal(np.mean(trialR, axis=0), np.std(trialR, axis=0),
-                                      size=[R, C, S, T])
+                                     size=[R, C, S, T])
         sim_projection = cLDA.transform_over_time(cLDA._reorder_dims(sim_trial), LDA_transformation)
         sim_dprime[rr, ...] = cDP.pairwise_dprimes(cLDA._recover_dims(sim_projection).squeeze())
 
@@ -68,6 +76,7 @@ def fourway_analysis(site, probe, meta):
         shuf_dprime[rr, ...] = cDP.pairwise_dprimes(shuf_projection.squeeze())
 
     return dprime, shuf_dprime, sim_dprime
+
 
 def dPCA_fourway_analysis(site, probe, meta):
     recs = load(site)
@@ -100,7 +109,7 @@ def dPCA_fourway_analysis(site, probe, meta):
         return dPCA_projection, dPCA_transformation
 
     dPCA_projection, dPCA_transformation = fit_transformt(R, trialR)
-    dprime= cDP.pairwise_dprimes(dPCA_projection)
+    dprime = cDP.pairwise_dprimes(dPCA_projection)
 
     # calculates floor (ctx shuffle) and ceiling (simulated data)
     sim_dprime = np.empty([meta['montecarlo']] + list(dprime.shape))
@@ -110,10 +119,9 @@ def dPCA_fourway_analysis(site, probe, meta):
 
     pbar = ProgressBar()
     for rr in pbar(range(meta['montecarlo'])):
-
         # ceiling: simulates data, calculates dprimes
         sim_trial = np.random.normal(np.mean(trialR, axis=0), np.std(trialR, axis=0),
-                                      size=[Re, C, S, T])
+                                     size=[Re, C, S, T])
         sim_projection = cLDA.transform_over_time(cLDA._reorder_dims(sim_trial), dPCA_transformation)
         sim_dprime[rr, ...] = cDP.pairwise_dprimes(cLDA._recover_dims(sim_projection).squeeze())
 
@@ -123,13 +131,14 @@ def dPCA_fourway_analysis(site, probe, meta):
 
     return dprime, shuf_dprime, sim_dprime
 
-CB_color_cycle = ['#377eb8', '#ff7f00', '#4daf4a', '#a65628', # blue, orange, green, brow,
-                  '#984ea3', '#999999', '#e41a1c', '#dede00'] # purple, gray, scarlet, lime
 
-trans_color_map = {'silence': '#377eb8', # blue
-                   'continuous': '#ff7f00', # orange
-                   'similar': '#4daf4a', # green
-                   'sharp': '#a65628'} # brown
+CB_color_cycle = ['#377eb8', '#ff7f00', '#4daf4a', '#a65628',  # blue, orange, green, brow,
+                  '#984ea3', '#999999', '#e41a1c', '#dede00']  # purple, gray, scarlet, lime
+
+trans_color_map = {'silence': '#377eb8',  # blue
+                   'continuous': '#ff7f00',  # orange
+                   'similar': '#4daf4a',  # green
+                   'sharp': '#a65628'}  # brown
 
 MC_color = {'shuffled': 'orange',
             'simulated': 'purple'}
@@ -141,11 +150,10 @@ sub_title_size = 20
 ax_lab_size = 15
 ax_val_size = 11
 
-
-meta = {'reliability' : 0.1, # r value
-        'smoothing_window' : 0, # ms
+meta = {'reliability': 0.1,  # r value
+        'smoothing_window': 0,  # ms
         'raster_fs': 30,
-        'transitions' : ['silence', 'continuous', 'similar', 'sharp'],
+        'transitions': ['silence', 'continuous', 'similar', 'sharp'],
         'significance': False,
         'montecarlo': 1000,
         'zscore': False}
@@ -154,19 +162,19 @@ analysis_name = 'LDA_dprime'
 analysis_parameters = '_'.join(['{}-{}'.format(key, str(val)) for key, val in meta.items()])
 code_to_name = {'t': 'Probe', 'ct': 'Context'}
 
-all_probes  = [2,3,5,6]
+all_probes = [2, 3, 5, 6]
 
 # all_probes  = [2,3]
 # all_probes  = [5,6]
 
 
-all_sites = ['ley070a', # good site. A1
-             'ley072b', # Primary looking responses with strong contextual effects
-             'AMT028b', # good site
-             'AMT029a', # Strong response, somehow visible contextual effects
-             'AMT030a', # low responses, Ok but not as good
-             #'AMT031a', # low response, bad
-             'AMT032a'] # great site. PEG
+all_sites = ['ley070a',  # good site. A1
+             'ley072b',  # Primary looking responses with strong contextual effects
+             'AMT028b',  # good site
+             'AMT029a',  # Strong response, somehow visible contextual effects
+             'AMT030a',  # low responses, Ok but not as good
+             # 'AMT031a', # low response, bad
+             'AMT032a']  # great site. PEG
 
 bad_sites = list()
 
@@ -175,43 +183,37 @@ df = list()
 # for site, probe in zip(['AMT029a', 'ley070a'],[5,2]):
 for site, probe in itt.product(all_sites, all_probes):
 
-
     try:
         LDA_anal_name = f'191014_{site}_P{probe}_fourway_analysis'
 
-        LDA_anal = make_cache(function= fourway_analysis,
-                             func_args= {'site': site, 'probe': probe, 'meta': meta},
-                             classobj_name=LDA_anal_name,
-                             cache_folder=f'/home/mateo/mycache/{analysis_name}/{analysis_parameters}')
+        LDA_anal = make_cache(function=fourway_analysis,
+                              func_args={'site': site, 'probe': probe, 'meta': meta},
+                              classobj_name=LDA_anal_name,
+                              cache_folder=f'/home/mateo/mycache/{analysis_name}/{analysis_parameters}')
         # LDA_real, LDA_shuffled, LDA_simulated = get_cache(LDA_anal)
 
     except:
         bad_sites.append(f"{site}_P{probe}_LDA")
         continue
 
-
     try:
         dPCA_anal_name = f'191015_{site}_P{probe}_fourway_analysis'
 
         dPCA_anal = make_cache(function=dPCA_fourway_analysis,
-                             func_args={'site': site, 'probe': probe, 'meta': meta},
-                             classobj_name=dPCA_anal_name,
-                             cache_folder=f'/home/mateo/mycache/{analysis_name}/{analysis_parameters}')
+                               func_args={'site': site, 'probe': probe, 'meta': meta},
+                               classobj_name=dPCA_anal_name,
+                               cache_folder=f'/home/mateo/mycache/{analysis_name}/{analysis_parameters}')
         # dPCA_real, dPCA_shuffled, dPCA_simulated = get_cache(dPCA_anal)
 
     except:
         bad_sites.append(f"{site}_P{probe}_dPCA")
         continue
 
-
-
-    for transformation, cache in zip(['LDA', 'dPCA'],[LDA_anal, dPCA_anal]):
+    for transformation, cache in zip(['LDA', 'dPCA'], [LDA_anal, dPCA_anal]):
 
         real, shuffled, simulated = get_cache(cache)
 
-
         for montecarlo, MCarray in zip(['context discrimination', 'population effect'], [shuffled, simulated]):
-
 
             # calculates a signed pvalue, the signs is indicative of the direction, with possitive being higher and
             # negative being lower than the mean of the Montecarlo distribution. Bi virtue of this distinction
@@ -224,11 +226,11 @@ for site, probe in itt.product(all_sites, all_probes):
 
             pvalues = np.where(real >= mont_mean, pos_pval, -neg_pval)
 
-            for pp, trans_pair in enumerate(itt.combinations(meta['transitions'],2)):
+            for pp, trans_pair in enumerate(itt.combinations(meta['transitions'], 2)):
 
                 for pval_threshold in [0.05, 0.01, 0.001]:
                     signif = np.abs(pvalues[pp, :]) < pval_threshold
-                    total_sig = np.sum(signif) * 100/len(signif) # todo remove the hardcode percentage
+                    total_sig = np.sum(signif) * 100 / len(signif)  # todo remove the hardcode percentage
                     try:
                         last_sig = np.max(np.argwhere(signif))
                     except:  # if there is not significant
@@ -266,8 +268,6 @@ for site, probe in itt.product(all_sites, all_probes):
             #     ax.plot(np.abs(pvalues[pp,:])<0.05, color='orange')
             #
 
-
-
 DF = pd.DataFrame(df)
 DF['area'] = ['A1' if site[0:3] == 'ley' else 'PEG' for site in DF.site]
 DF['unique'] = [f'{site}_P{probe}_{pair}' for site, probe, pair in zip(DF.site, DF.probe, DF.pair)]
@@ -279,8 +279,8 @@ ff_last = DF.parameter == 'last_sig'
 
 filtered = DF.loc[ff_thres & ff_total, :]
 
-pallette = sn.set_palette(['orange', 'purple']) # shuffled yellow, simulated purple
-fig, ax  = plt.subplots()
+pallette = sn.set_palette(['orange', 'purple'])  # shuffled yellow, simulated purple
+fig, ax = plt.subplots()
 ax = sn.swarmplot(x='trans_area', y='value', hue='montecarlo', data=filtered, palette=pallette, dodge=True)
 
 ax.set_title('total significant bins at p<0.01')
@@ -303,7 +303,6 @@ fig.savefig(png, transparent=True, dpi=100)
 svg = png = root.joinpath(f'paired_distance_summary').with_suffix('.svg')
 fig.savefig(svg, transparent=True)
 
-
 # calculates significance tests
 area_comp = col.defaultdict(dict)
 trans_comp = col.defaultdict(dict)
@@ -312,11 +311,12 @@ for montecarlo in DF.montecarlo.unique():
     ff_mont = DF.montecarlo == montecarlo
 
     # compares areas iterates overtrans
-    for trans  in DF.transformation.unique():
+    for trans in DF.transformation.unique():
         ff_trans = DF.transformation == trans
         filtered = DF.loc[ff_thres & ff_total & ff_trans & ff_mont, :]
-        A1 = filtered.loc[filtered.area == 'A1', 'value'].values * 30/100 # todo eliminate the hardcode back into count
-        PEG = filtered.loc[filtered.area == 'PEG', 'value'].values * 30/100
+        A1 = filtered.loc[
+                 filtered.area == 'A1', 'value'].values * 30 / 100  # todo eliminate the hardcode back into count
+        PEG = filtered.loc[filtered.area == 'PEG', 'value'].values * 30 / 100
 
         _, area_comp[montecarlo][trans] = ranksums(A1, PEG)
 
@@ -324,9 +324,9 @@ for montecarlo in DF.montecarlo.unique():
     for area in DF.area.unique():
         ff_area = DF.area == area
         filtered = DF.loc[ff_thres & ff_total & ff_area & ff_mont, :]
-        pivoted = filtered.pivot(columns='transformation', index='unique', values='value').values *30/100
+        pivoted = filtered.pivot(columns='transformation', index='unique', values='value').values * 30 / 100
 
-        _, trans_comp[montecarlo][area] = wilcoxon(pivoted[:,0], pivoted[:,1])
+        _, trans_comp[montecarlo][area] = wilcoxon(pivoted[:, 0], pivoted[:, 1])
 
 print(area_comp)
 print(trans_comp)

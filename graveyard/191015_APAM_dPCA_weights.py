@@ -30,6 +30,11 @@ from cpp_PCA import PSTH_PCA as pca
 from cpn_shuffle import shuffle_along_axis as shuffle
 import scipy.stats as sst
 
+"""
+this seem to be some duplicatede script of the dPCA d' analysis, should be ignored or deleted
+"""
+
+
 def mean_confidence_interval(array, confidence=0.95, axis=0):
     '''
     calculates the mean and confidence interval of an array
