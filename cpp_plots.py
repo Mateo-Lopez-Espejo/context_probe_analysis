@@ -608,9 +608,10 @@ def signal_raster(signal, epoch_names='single', channels='all', scatter_kws=None
 
 def hybrid(signal, epoch_names='single', channels='all', start=None, end=None,
            significance=None, raster_fs=None, psth_fs=None, sign_fs=None, sign_kws=None,
-           scatter_kws=None, plot_kws=None, sub_types=(True, True, True), time_strech=None, time_offset=None, legend=True,
-           colors=None):
+           scatter_kws=None, plot_kws=None, sub_types=(True, True, True), time_strech=None, time_offset=None,
+           legend=True, labels=None, colors=None, axes=None):
     '''
+    Todo clean documentation
     given a signal, creates a figure where each subplots correspond to a cell in that signal, where each subplot contains
     a raster, psth and indications of siginificant difference over time. different epochs are represented by different
     colors within each subplot
@@ -632,6 +633,8 @@ def hybrid(signal, epoch_names='single', channels='all', start=None, end=None,
     :param scatter_kws: aditional kwargs to pass into _raster
     :param plot_kws: aditional kwargs to pass into _PSTH
     :param sub_types: [bool, bool, bool], defines whether to use or not any of the plot subtypes: [raster, psth, significance]
+    :param axes: list of plt axes
+
     :return:
     '''
     if not isinstance(signal, PointProcess):
@@ -686,7 +689,11 @@ def hybrid(signal, epoch_names='single', channels='all', start=None, end=None,
     channels = _channel_handler(signal, channels=channels)
 
     # defines the number and distribution of subplots in the figure
-    fig, axes = _subplot_handler(epoch_names, channels)
+    if axes is None:
+        fig, axes = _subplot_handler(epoch_names, channels)
+    elif axes is not None:
+        if len(axes)<len(channels): raise ValueError(f'{len(channels)} axes required but {len(axes)} pased')
+        fig = axes[0].get_figure()
 
     # calculates the vertical_range of the significance areas based on the number of stimuli and repetitionse per stimuli
     # in the second value, the first factor is the number of stimuli, the second is the number of repetitions
@@ -703,19 +710,28 @@ def hybrid(signal, epoch_names='single', channels='all', start=None, end=None,
             color = colors[ss] if colors is not None else 'C{}'.format(ss % 10)
             y_off = y_offset * ss  # offsets subsequent rasters by the number of repetitions
 
-            if sub_types[1] is True:
+            # set lables to default of personalized
+            if labels is not None:
+                if len(labels) != len(psth_matrices):
+                    raise ValueError(f"{len(labels)} labels were given, but there are {len(psth_matrices)} different epochs")
+                label = labels[ss]
+            else:
+                label = epoch_key
 
+            # PSTH
+            if sub_types[1] is True:
                 # values for psth
                 values = epoch_matrix[:, chan, :]  # holds all Repetitions, for a given Channel, acrossTime
                 times = (np.arange(0, epoch_matrix.shape[2]) / psth_fs) + time_offset
                 plot_kws.update({'color': color,
-                                 'label': epoch_key})
+                                 'label': label})
                 _, _, y_range = _PSTH(times, values, start=start, end=end, ax=ax, ci=False,
                                       y_offset=y_off, plot_kws=plot_kws)
 
                 y_ticks.extend(y_range)
                 y_ticklabels.extend([yy - y_off for yy in y_range])
 
+            # Raster
             if sub_types[0] is True:
                 # values for raster plot
                 rast_epoch_matrix = rast_matrices[epoch_key]
@@ -739,7 +755,6 @@ def hybrid(signal, epoch_names='single', channels='all', start=None, end=None,
 
 
         # dispersion significance plotting
-
         if isinstance(significance, np.ndarray) and sub_types[2] is True:
             # draws the dispersion significance across time
             _significance_bars(start_times[cc], end_times[cc], y_range=vertical_range, ax=ax)
@@ -760,16 +775,21 @@ def hybrid(signal, epoch_names='single', channels='all', start=None, end=None,
     return fig, axes
 
 
-def plot_dist_with_CI(real, shuffled, shuf_lab, colors, smp_start, smp_end, smp_line, fs, ax=None, labels=False):
+def plot_dist_with_CI(real, bootstrapped, labels, colors, smp_start, smp_end, smp_line, fs, ax=None, show_labels=False):
+
+    # todo make a function that generates distributions not centered around zero
     '''
     plot the output of signal_single_trial_dispersion_pooled_shuffled, shows the distance over time with the
     confidence interval, between the specified start and end times
     :param real: vector, time series of distance over time
-    :param shuffled: list of 2d array of time series vectors, with dimensions Repetition x Time, Time must be equal to 'real'
-    :param start: start time in seconds to plot from
-    :param end: end time in seconds to plot until
+    :param bootstrapped: list of 2d array of time series vectors, with dimensions Repetition x Time, Time must be equal to 'real'
+    :labels: list of string, labels for each of the bootstrapped distributions
+    :colors: list of matplotlib colors for each of the bootstrapped distributions
+    :param smp_start: start time in samples to plot from
+    :param smp_end: end time in samples to plot until
+    :smp_line: vertical line position in samples, or None
     :param fs: sampling frequency in Hz
-    :param suptitle: figure suptitle
+    :show_labels: boolean. set some defaul axis labels
     :return: figure and ax handles
     '''
 
@@ -785,9 +805,9 @@ def plot_dist_with_CI(real, shuffled, shuf_lab, colors, smp_start, smp_end, smp_
     line = real[smp_start:smp_end]
     ax.plot(t, line, color='black')
 
-    colors = colors if colors is not None else [f'C{x}' for x in range(len(shuffled))]
+    colors = colors if colors is not None else [f'C{x}' for x in range(len(bootstrapped))]
 
-    for ii, (label, array, color) in enumerate(zip(shuf_lab, shuffled, colors)):
+    for ii, (label, array, color) in enumerate(zip(labels, bootstrapped, colors)):
         shade = array[:, smp_start:smp_end]
         shade = np.mean(shade, axis=0) + np.std(shade, axis=0) * 2
         ax.fill_between(t, -shade, shade, alpha=0.5, color=color,label=label)
@@ -795,7 +815,7 @@ def plot_dist_with_CI(real, shuffled, shuf_lab, colors, smp_start, smp_end, smp_
     if smp_line is not None:
         ax.axvline(smp_line/fs, color='black', linestyle='--')
 
-    if labels:
+    if show_labels:
         ax.set_xlabel('time (s)')
         ax.set_ylabel('euclidean distance')
         ax.tick_params(axis='both', which='major')

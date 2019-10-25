@@ -147,10 +147,10 @@ for site, probe in zip(['AMT029a', 'ley070a'],[5,2]):
     # set figure to full size in tenrec screen
     fig.set_size_inches(19.2, 9.79)
 
-    root = pl.Path(f'/home/mateo/Pictures/DAC2')
-    if not root.exists(): root.mkdir(parents=True, exist_ok=True)
-    png = root.joinpath(f'dPCA_{site}_P{probe}').with_suffix('.png')
-    fig.savefig(png, transparent=True, dpi=100)
-    svg = png = root.joinpath(f'dPCA_{site}_P{probe}').with_suffix('.svg')
-    fig.savefig(svg, transparent=True)
+    # root = pl.Path(f'/home/mateo/Pictures/DAC2')
+    # if not root.exists(): root.mkdir(parents=True, exist_ok=True)
+    # png = root.joinpath(f'dPCA_{site}_P{probe}').with_suffix('.png')
+    # fig.savefig(png, transparent=True, dpi=100)
+    # svg = png = root.joinpath(f'dPCA_{site}_P{probe}').with_suffix('.svg')
+    # fig.savefig(svg, transparent=True)
 

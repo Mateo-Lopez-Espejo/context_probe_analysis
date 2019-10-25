@@ -94,16 +94,6 @@ for site, probe in zip(['AMT029a', 'ley070a'],[5,2]):
                                                   cache_folder=f'/home/mateo/mycache/{analysis_name}/{analysis_parameters}')
             real, trans_shuffle, trial_shuffle = get_cache(shuffled_dispersion_time)
 
-            # if len(real) == 200:
-            #     real = real[100:].copy()
-            #     shuffled = shuffled[:, 100:].copy()
-            #     scrambled = scrambled[:, 100:].copy()
-            #     jl.dump((real, shuffled, scrambled), shuffled_dispersion_time)
-            # elif len(real) == 100:
-            #     pass
-            # else:
-            #     raise ValueError('WTF?')
-
             # top of half, context identity shuffle
             if trans_coun == 0 :
                 trans_ax = plt.subplot2grid((4, 3), (half * 2, col), rowspan=1, colspan=1, fig=fig)
@@ -156,9 +146,9 @@ for site, probe in zip(['AMT029a', 'ley070a'],[5,2]):
     # set figure to full size in tenrec screen
     fig.set_size_inches(19.2, 9.79)
 
-    root = pl.Path(f'/home/mateo/Pictures/DAC2')
-    if not root.exists(): root.mkdir(parents=True, exist_ok=True)
-    png = root.joinpath(f'paired_distance_{site}_P{probe}').with_suffix('.png')
-    fig.savefig(png, transparent=True, dpi=100)
-    svg = png = root.joinpath(f'paired_distance_{site}_P{probe}').with_suffix('.svg')
-    fig.savefig(svg, transparent=True)
+    # root = pl.Path(f'/home/mateo/Pictures/DAC2')
+    # if not root.exists(): root.mkdir(parents=True, exist_ok=True)
+    # png = root.joinpath(f'paired_distance_{site}_P{probe}').with_suffix('.png')
+    # fig.savefig(png, transparent=True, dpi=100)
+    # svg = png = root.joinpath(f'paired_distance_{site}_P{probe}').with_suffix('.svg')
+    # fig.savefig(svg, transparent=True)

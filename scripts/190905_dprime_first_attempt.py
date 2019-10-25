@@ -162,7 +162,7 @@ for site, probe in zip(['AMT029a', 'ley070a'],[5,2]):
 
 
     # plots real d' and shadow of shuffled dprimes
-    cplt.plot_dist_with_CI(real_dprime, [all_sims.T], ['param_sim\nconfidence interval'], ['green'], 0,100,0,100, ax=axes[1], labels=True)
+    cplt.plot_dist_with_CI(real_dprime, [all_sims.T], ['param_sim\nconfidence interval'], ['green'], 0, 100, 0, 100, ax=axes[1], show_labels=True)
     axes[1].legend()
     axes[1].set_title(f'{nreps} reps MSE confidence interval')
     cplt._significance_bars(sig_times[0], sig_times[1], ax=axes[1])

@@ -176,12 +176,12 @@ ax.yaxis.label.set_size(20)
 
 fig.set_size_inches([5.82, 5.68])
 
-root = pl.Path(f'/home/mateo/Pictures/DAC2')
-if not root.exists(): root.mkdir(parents=True, exist_ok=True)
-png = root.joinpath(f'paired_distance_summary').with_suffix('.png')
-fig.savefig(png, transparent=True, dpi=100)
-svg = png = root.joinpath(f'paired_distance_summary').with_suffix('.svg')
-fig.savefig(svg, transparent=True)
+# root = pl.Path(f'/home/mateo/Pictures/DAC2')
+# if not root.exists(): root.mkdir(parents=True, exist_ok=True)
+# png = root.joinpath(f'paired_distance_summary').with_suffix('.png')
+# fig.savefig(png, transparent=True, dpi=100)
+# svg = png = root.joinpath(f'paired_distance_summary').with_suffix('.svg')
+# fig.savefig(svg, transparent=True)
 
 ###
 # now plots for PEG, comparisons between context pairs
@@ -229,13 +229,13 @@ for thres in [0.01, 0.05]:
     ax.xaxis.label.set_size(20)
     ax.yaxis.label.set_size(20)
 
-    tname =  str(thres).replace('.', ',')
-    root = pl.Path(f'/home/mateo/Pictures/DAC2')
-    if not root.exists(): root.mkdir(parents=True, exist_ok=True)
-    png = root.joinpath(f'paired_distance_p<{tname}').with_suffix('.png')
-    fig.savefig(png, transparent=True, dpi=100)
-    svg = png = root.joinpath(f'paired_distance_p<{tname}').with_suffix('.svg')
-    fig.savefig(svg, transparent=True)
+    # tname =  str(thres).replace('.', ',')
+    # root = pl.Path(f'/home/mateo/Pictures/DAC2')
+    # if not root.exists(): root.mkdir(parents=True, exist_ok=True)
+    # png = root.joinpath(f'paired_distance_p<{tname}').with_suffix('.png')
+    # fig.savefig(png, transparent=True, dpi=100)
+    # svg = png = root.joinpath(f'paired_distance_p<{tname}').with_suffix('.svg')
+    # fig.savefig(svg, transparent=True)
 
 
 

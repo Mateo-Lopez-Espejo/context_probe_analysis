@@ -27,7 +27,7 @@ def format_raster(raster):
 
     return trialR, R, centers
 
-def raster_from_sig(signal, probe, channels, transitions, smooth_window, raster_fs=None):
+def raster_from_sig(signal, probe, channels, transitions, smooth_window, raster_fs=None, part='probe', zscore=False):
 
 
     full_array, invalid_cp, valid_cp, all_contexts, all_probes = \
@@ -35,20 +35,39 @@ def raster_from_sig(signal, probe, channels, transitions, smooth_window, raster_
 
     raster = tp.extract_sub_arr(probes=probe, context_types=transitions, full_array=full_array,
                                 context_names=all_contexts, probe_names=all_probes, squeeze=False)
-    trans_idx = int(np.floor(raster.shape[-1]/2))
-    raster = raster[..., trans_idx:]  # get only the response to the probe and not the context ToDo make into param?
+
+    # selects raster for context, probe or both (all)
+    if part == 'probe':
+        trans_idx = int(np.floor(raster.shape[-1]/2))
+        raster = raster[..., trans_idx:]
+    elif part == 'context':
+        trans_idx = int(np.floor(raster.shape[-1]/2))
+        raster = raster[..., :trans_idx]
+    elif part == 'all':
+        pass
+    else:
+        raise ValueError("unknonw value for 'part' parameter")
+
+    # Zscores de data in a cell by cell manner
+    if zscore is True:
+        mean = np.mean(raster, axis=(0,1,2,4))[None, None, None, :, None]
+        std = np.std(raster, axis=(0,1,2,4))[None, None, None, :, None]
+        raster = np.nan_to_num((raster - mean) / std)
+    elif zscore is False:
+        pass
+    else:
+        raise ValueError('meta zscore must be boolean')
 
     return raster
 
 
-def tran_dpca(signal, probe, channels, transitions, smooth_window, significance, dPCA_parms={}, raster_fs=None):
+def trials_dpca(R, trialR, significance, dPCA_parms={}):
     '''
-    signal wrapper for dPCA usigg CPN tripplets.
-    :param signal: CPN triplets signal
-    :param probe: int, over which probe to perform the cPCA
-    :param channels: str or [str,], what channels to use
-    :param transitions: str or [str.], what context probe transitions to consider
-    :param smooth_window: float, smoothing window in ms
+    dPCA over data arrays
+    :param R: ndarray. categories (mean) with shape Neuron x Context x TimeBin
+    :param trialR: ndarray. raw data with shape Trial x Neuron x Context x TimeBin
+    :param significance: bool, calculates the obscure dPCA significance
+    :param dPCA_parms: furthe dPCA parameters to be passed to the function call
     :return: Z, dict of arrays of mean projection into different marginalizations;
              trialZ, dict of arrays of single trial projection into different marginalizations;
              significant_mask
@@ -62,16 +81,7 @@ def tran_dpca(signal, probe, channels, transitions, smooth_window, significance,
 
     dPCA_parms.update(triplet_defaults)
 
-    # gets a raster, specific for a certain probe and collection of transitions
-    raster = raster_from_sig(signal, probe, channels, transitions, smooth_window, raster_fs)
-
-    # reorders dimentions from Context x Trial x Neuron x Time  to  Trial x Neuron x Context x Time
-    trialR, R, _ = format_raster(raster)
-    trialR, R = np.squeeze(trialR), np.squeeze(R)
-
-
     Tr, N, C, T = trialR.shape
-
 
     dPCA_parms['n_components'] = N if N < dPCA_parms['n_components'] else dPCA_parms['n_components']
 
@@ -101,6 +111,34 @@ def tran_dpca(signal, probe, channels, transitions, smooth_window, significance,
         trialZ[marg] = zz
 
     dpca.explained_variance_ratio_ = expt_var
+
+    return Z, trialZ, significance_masks, dpca
+
+
+def tran_dpca(signal, probe, channels, transitions, smooth_window, significance, dPCA_parms={}, raster_fs=None,
+              part='probe', zscore=False):
+    '''
+    signal wrapper for dPCA usigg CPN tripplets.
+    :param signal: CPN triplets signal
+    :param probe: int, over which probe to perform the cPCA
+    :param channels: str or [str,], what channels to use
+    :param transitions: str or [str.], what context probe transitions to consider
+    :param smooth_window: float, smoothing window in ms
+    :return: Z, dict of arrays of mean projection into different marginalizations;
+             trialZ, dict of arrays of single trial projection into different marginalizations;
+             significant_mask
+             exp_var, dict of arrays with explained variance
+    '''
+
+    # gets a raster, specific for a certain probe and collection of transitions
+    raster = raster_from_sig(signal, probe, channels, transitions, smooth_window, raster_fs, part, zscore)
+
+    # reorders dimentions from Context x Trial x Neuron x Time  to  Trial x Neuron x Context x Time
+    trialR, R, _ = format_raster(raster)
+    trialR, R = np.squeeze(trialR), np.squeeze(R)
+
+    # calculates dPCA
+    Z, trialZ, significance_masks, dpca = trials_dpca(R, trialR, significance=significance, dPCA_parms=dPCA_parms)
 
     return Z, trialZ, significance_masks, dpca
 
@@ -169,6 +207,25 @@ def transform_trials(dpca, trial_array):
         trialZ[marg] = zz
 
     return trialZ
+
+# simple wrappers
+# wrappers to be treated equally as those funcitons in cpn_LDA. asumes a lot of
+
+def _fit(X):
+    dPCA_axis = None
+    return dPCA_axis
+
+def fit_over_time(X):
+
+    return None
+
+def transform_over_time(X):
+
+    return None
+
+def fit_transfomr(X):
+
+    return None
 
 
 

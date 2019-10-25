@@ -6,8 +6,11 @@ from itertools import permutations
 import scipy.fftpack as fp
 import scipy.signal as ss
 import logging
+import itertools as itt
 
 
+
+# base functionse
 def dprime(array0, array1, absolute=True):
     '''
     calculates the unidimensional timewise dprime between two two-dimensional arrays with shape Trial x Time
@@ -26,8 +29,6 @@ def dprime(array0, array1, absolute=True):
     else:
         raise ValueError(f'absolute must be bool but is {type(absolute)}')
 
-
-
     # check for edge cases
     if np.any(np.isnan(dprime)):
 
@@ -36,7 +37,7 @@ def dprime(array0, array1, absolute=True):
             if ((array0[:, ec].mean() - array1[:, ec].mean()) != 0) & \
                     ((np.var(array0[:, ec]) + np.var(array1[:, ec])) == 0):
 
-                #print("Inf. case")
+                # print("Inf. case")
                 dprime[ec] = abs(array0[:, ec].mean() - array1[:, ec].mean())
 
             elif ((array0[:, ec].mean() - array1[:, ec].mean()) == 0) & \
@@ -71,8 +72,9 @@ def ndim_dprime(array0, array1, absolute=True):
 
     return ndim_dprime
 
+
 def param_sim_resp(array, **kwargs):
-    #ToDo complete function
+    # ToDo complete function
     '''
     Calculates center and dispersion of trial responses from each neuron at each time point,
     simulates new reponses based on these parameters (assumes gaussian distributions).
@@ -82,9 +84,36 @@ def param_sim_resp(array, **kwargs):
     '''
     sim_resp = np.random.normal(np.mean(array, axis=0),
                                 np.std(array, axis=0),
-                                size= array.shape)
+                                size=array.shape)
     return sim_resp
 
+
+# full array pairwise functions
+
+def pairwise_dprimes(array):
+    '''
+    asumes array with shape Repetition x Context x Time, it lacks a Neuron or PC dimention, since the array
+    is assumed to come from a projection to a 1d space
+    :param array: array of paired dprimes with shape Pairs x Time
+    :return: array of paiwise correlations, list of pair id
+    '''
+    dprimes = list()
+    for c0, c1 in itt.combinations(range(array.shape[1]),2):
+        dprimes.append(dprime(array[:,c0,:], array[:,c1,:]))
+
+    dprimes = np.stack(dprimes, axis=0)
+
+    return dprimes
+
+# montecarlo functions
+
+def pair_ctx_shuffle_dprime(array, montecarlo):
+    return None
+
+
+def pair_sim_dprimes(array, montecarlo):
+    return None
+#
 
 
 ##### functions from charlie
@@ -92,6 +121,7 @@ def param_sim_resp(array, **kwargs):
 def unit_vector(vector):
     """ Returns the unit vector of the vector.  """
     return vector / np.linalg.norm(vector)
+
 
 def get_null_axis(x, y):
     '''
