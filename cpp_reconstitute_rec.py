@@ -24,24 +24,6 @@ def _get_result_paths(batch, cellid_list, modelname):
     return result_paths
 
 
-def get_site_ids(batch):
-    '''
-    returns a list of the site ids for all experiments of a given batch. This site ID helps finding all the cells within
-    a population recorded simultaneusly
-    :param batch:
-    :return:
-    '''
-    results_file = nd.get_results_file(batch)
-
-    cellids = results_file.cellid.unique().tolist()
-    site_IDs = col.defaultdict(list)
-    for cell in cellids:
-        site_ID = cell.split('-')[0]
-        site_IDs[site_ID].append(cell)
-
-    return dict(site_IDs)
-
-
 def reconsitute_rec(batch, cellid_list, modelname):
     '''
     Takes a group of single cell recordings (from cells of a population recording) including their model predictions,
@@ -138,10 +120,6 @@ def reconstitute_modelspecs(batch, cellid_list, modelname, module='stp'):
     reconstituted_modelspecs = {'cellid':cellids, 'tau':tau, 'u':u}
 
     return reconstituted_modelspecs
-
-
-
-
 
 '''
 import cpp_reconstitute_rec as crec 

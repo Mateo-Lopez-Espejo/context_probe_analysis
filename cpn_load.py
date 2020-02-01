@@ -1,11 +1,9 @@
+import collections as col
 import nems.recording as recording
 import nems_lbhb.baphy as nb
 import cpp_epochs as cpe
-import re
-
 from cpn_triplets import split_recording
-from cpn_reliability import signal_reliability
-from cpp_plots import hybrid
+from nems import db as nd
 
 "I am lazy, this is a one liner to load a formated cpp/cpn signal"
 
@@ -27,33 +25,23 @@ def load(site, **kwargs):
     recordings  = split_recording(CPN_rec)
     return recordings
 
-recs = load('AMT028b')
-
-def plot(cell_or_site, probe, type='perm0', reliability=0.1):
-
-    # matches cell name e.g  'ley070a'
-    if re.match(r'\A[a-zA-Z]{3}\d{3}[a-z]',cell_or_site):
-        single_cell = True
-        site = cell_or_site
-    # matches site name e.g. 'ley070a-01-1'
-    elif re.match(r'\A[a-zA-Z]{3}\d{3}[a-z]-\d{2}-\d'):
-        single_cell = False
-        site = cell_or_site[0:7]
-
-    else:
-        raise ValueError('wrong format for cell or site')
+# load tests:
+# recs = load('AMT028b')
 
 
-    signal = load(site)[type]['resp']
+def get_site_ids(batch):
+    '''
+    returns a list of the site ids for all experiments of a given batch. This site ID helps finding all the cells within
+    a population recorded simultaneusly
+    :param batch:
+    :return:
+    '''
+    results_file = nd.get_results_file(batch)
 
-    if single_cell:
-        goodcells = [cell_or_site]
-    else:
-        r, goodcells = signal_reliability(signal,'\AC\d_P\d\Z', threshold=reliability)
+    cellids = results_file.cellid.unique().tolist()
+    site_IDs = col.defaultdict(list)
+    for cell in cellids:
+        site_ID = cell.split('-')[0]
+        site_IDs[site_ID].append(cell)
 
-    # plots PSHTs of individual best probe after all contexts
-    fig, axes = hybrid(signal, epoch_names=f'\AC\d_P{probe}\Z', channels=goodcells)
-
-
-
-
+    return dict(site_IDs)

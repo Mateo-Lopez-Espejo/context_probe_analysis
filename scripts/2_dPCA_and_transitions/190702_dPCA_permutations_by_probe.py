@@ -9,7 +9,7 @@ import cpp_plots as cplot
 
 
 import cpn_triplets as tp
-from cpn_load import load, plot
+from cpn_load import load
 from cpn_reliability import signal_reliability
 import cpn_dPCA as cdPCA
 
