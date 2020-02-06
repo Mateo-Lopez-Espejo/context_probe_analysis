@@ -21,7 +21,7 @@ given a site and probe, calculates the d' over the LDA projection for the probe 
 includes the 95% confidence intervals for a context discrimination shuffle test (green) and
 test for population code on context discrimination (purple)
 
-the inner loop of the script cachese the real d prime as well as the n-fold Monte Carlo calculations
+the inner loop of the script caches the real d prime as well as the n-fold Monte Carlo calculations
 for the confidence intervals.
 
 the outer loop can be run over all combination of (site, probe) but is set up to plot only two
@@ -85,7 +85,7 @@ def fourway_analysis(site, probe, meta):
     R, C, S, T = trialR.shape
 
     # calculates full LDA. i.e. considering all 4 categories
-    LDA_projection, LDA_transformation = cLDA.fit_transform(trialR, 1)
+    LDA_projection, LDA_transformation = cLDA.fit_transform_over_time(trialR, 1)
     dprime = cDP.pairwise_dprimes(LDA_projection.squeeze())
 
     # calculates floor (ctx shuffle) and ceiling (simulated data)
@@ -103,7 +103,7 @@ def fourway_analysis(site, probe, meta):
         sim_dprime[rr, ...] = cDP.pairwise_dprimes(cLDA._recover_dims(sim_projection).squeeze())
 
         ctx_shuffle = shuffle(ctx_shuffle, shuffle_axis=2, indie_axis=0)
-        shuf_projection, _ = cLDA.fit_transform(ctx_shuffle)
+        shuf_projection, _ = cLDA.fit_transform_over_time(ctx_shuffle)
         shuf_dprime[rr, ...] = cDP.pairwise_dprimes(shuf_projection.squeeze())
 
     return dprime, shuf_dprime, sim_dprime
@@ -139,8 +139,8 @@ def twoway_analysis(site, probe, meta):
         trialR = trialR.squeeze()  # squeezes out probe
         R, C, S, T = trialR.shape
 
-        # calculates full LDA. i.e. considering all 4 categories
-        LDA_projection, LDA_transformation = cLDA.fit_transform(trialR, 1)
+        # calculates LDA across the two selected transitions categories
+        LDA_projection, LDA_transformation = cLDA.fit_transform_over_time(trialR, 1)
         dp = cDP.pairwise_dprimes(LDA_projection.squeeze())
         dprime.append(dp)
 
@@ -159,7 +159,7 @@ def twoway_analysis(site, probe, meta):
             sim_dp[rr, ...] = cDP.pairwise_dprimes(cLDA._recover_dims(sim_projection).squeeze())
 
             ctx_shuffle = shuffle(ctx_shuffle, shuffle_axis=2, indie_axis=0)
-            shuf_projection, _ = cLDA.fit_transform(ctx_shuffle)
+            shuf_projection, _ = cLDA.fit_transform_over_time(ctx_shuffle)
             shuf_dp[rr, ...] = cDP.pairwise_dprimes(shuf_projection.squeeze())
 
         shuf_dprime.append(shuf_dp)

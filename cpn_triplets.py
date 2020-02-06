@@ -1,16 +1,15 @@
 import collections as col
 import itertools as itt
-from math import log, sqrt
 
 import numpy as np
 from scipy import stats as sst
-from scipy.ndimage import gaussian_filter1d
 
 from nems import epoch as nep
 from nems.recording import Recording
 from nems.signal import PointProcess, RasterizedSignal, TiledSignal
 
 from cpp_parameter_handlers import _channel_handler
+from tools import raster_smooth
 
 
 def _detect_type(epoch):
@@ -117,22 +116,6 @@ def split_recording(recording):
                       sub_recordings.items()}
 
     return sub_recordings
-
-
-def raster_smooth(raster, fs, win_ms, axis):
-    '''
-    Smooths using a gaussian kernele of the specified window size in ms across one axis, usually time
-    :param raster: ndarray. spike raster
-    :param fs: fequency of samplig for the spike raster
-    :param win_ms: kernel size in ms
-    :param axis: axis along with to perform the smoothing. Most likely time
-    :return:
-    '''
-    samples = win_ms * fs / 1000
-    sigma = samples / sqrt(8 * log(2))  # this is the magic line to convert from samples to sigma
-    smooth = gaussian_filter1d(raster, sigma, axis=axis)
-
-    return smooth
 
 
 def make_full_array(signal, channels='all', smooth_window=None, raster_fs=None):

@@ -54,7 +54,7 @@ def fourway_analysis(site, probe, meta):
     R, C, S, T = trialR.shape
 
     # calculates full LDA. i.e. considering all 4 categories
-    LDA_projection, LDA_transformation = cLDA.fit_transform(trialR, 1)
+    LDA_projection, LDA_transformation = cLDA.fit_transform_over_time(trialR, 1)
     dprime = cDP.pairwise_dprimes(LDA_projection.squeeze())
 
     # calculates floor (ctx shuffle) and ceiling (simulated data)
@@ -72,7 +72,7 @@ def fourway_analysis(site, probe, meta):
         sim_dprime[rr, ...] = cDP.pairwise_dprimes(cLDA._recover_dims(sim_projection).squeeze())
 
         ctx_shuffle = shuffle(ctx_shuffle, shuffle_axis=2, indie_axis=0)
-        shuf_projection, _ = cLDA.fit_transform(ctx_shuffle)
+        shuf_projection, _ = cLDA.fit_transform_over_time(ctx_shuffle)
         shuf_dprime[rr, ...] = cDP.pairwise_dprimes(shuf_projection.squeeze())
 
     return dprime, shuf_dprime, sim_dprime

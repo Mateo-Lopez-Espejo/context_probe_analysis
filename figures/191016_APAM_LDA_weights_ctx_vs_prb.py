@@ -72,7 +72,7 @@ def fit_transform(site, probe, meta, part):
     trialR = trialR.squeeze()  # squeezes out probe
 
     # calculates full LDA. i.e. considering all 4 categories
-    LDA_projection, LDA_weights = cLDA.fit_transform(trialR, 1)
+    LDA_projection, LDA_weights = cLDA.fit_transform_over_time(trialR, 1)
     dprime = cDP.pairwise_dprimes(LDA_projection.squeeze())
 
     return dprime, LDA_projection, LDA_weights

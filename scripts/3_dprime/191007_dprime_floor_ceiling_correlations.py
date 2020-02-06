@@ -3,28 +3,22 @@ from matplotlib.patches import Ellipse
 import matplotlib.transforms as transforms
 
 import numpy as np
-import scipy.stats as sst
-from sklearn.discriminant_analysis import LinearDiscriminantAnalysis as LDA
 from sklearn.decomposition import PCA
 
-import itertools as itt
 from cycler import cycler
-
-from progressbar import ProgressBar
 
 from cpn_load import load
 from cpn_reliability import signal_reliability
 import cpn_dprime as cpd
 import cpn_dPCA as cdPCA
-import cpp_plots as cplt
 import cpn_LDA as cLDA
 from cpn_shuffle import shuffle_along_axis as shuffle
 import scipy.stats as sst
 import scipy.cluster.hierarchy as sch
 
 
-from keras.layers import Input, Dense
-from keras.models import Model, Sequential
+from keras.layers import Dense
+from keras.models import Sequential
 
 
 
@@ -234,11 +228,6 @@ def autoencoder(array, ncomp = 5):
     return model
 
 
-
-
-
-
-
 # loads some test data
 meta = {'reliability' : 0.1, # r value
         'smoothing_window' : 0, # ms
@@ -289,12 +278,10 @@ R, C, S, T = trialR.shape
 x = trialR[:, :, 0, :]
 y = trialR[:, :, 1, :]
 
-lda_axes = cLDA.fit_over_time(x, y, 1)
-X_LDA_proj = cLDA.transform_over_time(x, lda_axes)
-Y_LDA_proj = cLDA.transform_over_time(y, lda_axes)
+LDA_proj, lda_axes = cLDA.fit_transform_over_time(trialR, 1)
 
 # calcualtes real d prime over the first LDA projection
-dprime = cpd.dprime(X_LDA_proj.squeeze(), Y_LDA_proj.squeeze())
+dprime = cpd.dprime(LDA_proj[:,:,0,:].squeeze(), LDA_proj[:,:,1,:].squeeze())
 
 # calculates both the floor and cealing d' for 1000 random shuffles/simulations
 nreps = 1000
@@ -307,16 +294,13 @@ for ii in range(nreps):
 
     # dprime celing: normal simulation of the data, projection and dprime calculation
     trial_sim = np.random.normal(np.mean(trialR, axis=0), np.std(trialR, axis=0), size=[R, C, S ,T]).squeeze()
-    x_sim_proj = cLDA.transform_over_time(trial_sim[:, :, 0, :], lda_axes)
-    y_sim_proj = cLDA.transform_over_time(trial_sim[:, :, 1, :], lda_axes)
-    ceil_d[ii, :] = cpd.dprime(x_sim_proj.squeeze(), y_sim_proj.squeeze())
+    sim_proj = cLDA._recover_dims(cLDA.transform_over_time(cLDA._reorder_dims(trial_sim), lda_axes))
+    ceil_d[ii, :] = cpd.dprime(sim_proj[:,:,0,:].squeeze(), sim_proj[:,:,1,:].squeeze())
 
     # dprime floor: shuffle context(dim2) identity by trial(dim0), projection and dprime calculation
     ctx_shuffle = shuffle(ctx_shuffle, shuffle_axis=2, indie_axis=0)
-    shuf_lda_axes = cLDA.fit_over_time(ctx_shuffle[:, :, 0, :], ctx_shuffle[:, :, 1, :], N=1)
-    x_shuf_proj = cLDA.transform_over_time(ctx_shuffle[:, :, 0, :], shuf_lda_axes)
-    y_shuf_proj = cLDA.transform_over_time(ctx_shuffle[:, :, 1, :], shuf_lda_axes)
-    floor_d[ii, :] = cpd.dprime(x_shuf_proj.squeeze(), y_shuf_proj.squeeze())
+    shuf_proj, shuf_lda_axes = cLDA.fit_transform_over_time(ctx_shuffle, 1)
+    floor_d[ii, :] = cpd.dprime(shuf_proj[:,:,0,:].squeeze(), shuf_proj[:,:,1,:].squeeze())
 
 # # plots the floor and ceiling confidence intervals
 # fig, ax = plt.subplots()
@@ -332,10 +316,7 @@ for ii in range(nreps):
 
 
 # blob plot! 1. get the top two axis for LDA  2. project the single trials into 2d space   3. plot, watch learn
-lda_axes2 = cLDA.fit_over_time(x, y, 2)
-X_LDA_proj2 = cLDA.transform_over_time(x, lda_axes2)
-Y_LDA_proj2 = cLDA.transform_over_time(y, lda_axes2)
-
+LDA_proj2, lda_axes2 = cLDA.fit_transform_over_time(trialR, 2)
 
 # what if I substract the PSTH from the single trials before correlations? this should eliminate correlations produced
 # bi common response to the stimuli
@@ -433,8 +414,8 @@ axes = np.ravel(axes)
 time_bin = 6
 
 # firs ax: 1dim lda projection of single trials plus real dPrime
-axes[0].plot(X_LDA_proj.squeeze().T, color='blue', alpha=0.3)
-axes[0].plot(Y_LDA_proj.squeeze().T, color='orange', alpha=0.3)
+axes[0].plot(LDA_proj[:,:,0,:].squeeze().T, color='blue', alpha=0.3)
+axes[0].plot(LDA_proj[:,:,1,:].squeeze().T, color='orange', alpha=0.3)
 axes[0].plot(dprime, color='black')
 axes[0].axvline(time_bin, color='black', linestyle='--')
 
@@ -451,7 +432,7 @@ axes[1].axvline(time_bin, color='black', linestyle='--')
 axes[1].legend()
 
 # third ax: blob plot of a time slice
-blobplot([X_LDA_proj2[...,time_bin], Y_LDA_proj2[...,time_bin]],
+blobplot([LDA_proj2[:,:,0,time_bin], LDA_proj2[:,:,1,time_bin]],
          colors=['blue', 'orange'], ax=axes[2])
 
 axes[3].imshow(X_corr[..., time_bin], aspect='auto', cmap='coolwarm')

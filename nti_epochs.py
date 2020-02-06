@@ -41,18 +41,10 @@ def define_quilt_orders(folder='/auto/users/mateo/baphy/Config/lbhb/SoundObjects
     for scram_name, quilt_order in orders.items():
 
         # extract the segment duration from the scrambled stim name, formats into ms
-        seg_dur = float(scram_name.split('-')[1][0:-2])
+        nominal_duration = float(scram_name.split('-')[1][0:-2])
 
         # segment durations must be exact
-        if seg_dur == 16:
-            seg_dur = 15.625
-        elif seg_dur == 31:
-            seg_dur = 31.25
-        elif seg_dur == 63:
-            seg_dur = 62.50
-        else:
-            pass
-
+        seg_dur = _nom2real_dur(nominal_duration) # in s
         seg_dur = seg_dur / 1000
 
         # uses the order as indexes, reshapes in a 2d matrix with shape Source_stim x Start_point
@@ -75,6 +67,18 @@ def define_quilt_orders(folder='/auto/users/mateo/baphy/Config/lbhb/SoundObjects
         formated_orders[scram_name]['source_segment'] = source_segment.astype(int)
 
     return formated_orders
+
+
+def _nom2real_dur(nominal_duration):
+    if nominal_duration == 16:
+        real_duration = 15.625
+    elif nominal_duration == 31:
+        real_duration = 31.25
+    elif nominal_duration == 63:
+        real_duration = 62.50
+    else:
+        real_duration = nominal_duration
+    return real_duration
 
 
 def set_epochs_from_quilts(epochs, folder=None):
@@ -161,17 +165,9 @@ def set_subsegments_from_epochs(epochs, regex):
         source = seg_name.split('_')[1]
         seg_n = int(seg_name.split('-')[-1])
 
-        new_nom_dur = new_seg_dur * 1000
-        new_nom_dur = round(new_nom_dur, 3)
-        if new_nom_dur == 15.625:
-            new_nom_dur = 16
-        elif new_nom_dur == 31.25:
-            new_nom_dur = 31
-        elif new_nom_dur == 62.50:
-            new_nom_dur = 63
-        else:
-            pass
-        new_nom_dur = int(new_nom_dur)
+        # transfomrs real to nominal durations, from s to ms
+        new_nom_dur = round(new_seg_dur * 1000, 3)
+        new_nom_dur = _real2nom_dur(new_nom_dur)
 
         # first half sub_segment
         # determines name: half of the duration of the source segment, same source, segment number * 2
@@ -204,6 +200,19 @@ def set_subsegments_from_epochs(epochs, regex):
     new_epochs.reset_index(drop=True, inplace=True)
 
     return new_epochs
+
+
+def _real2nom_dur(real_duration):
+    if real_duration == 15.625:
+        nominal_duration = 16
+    elif real_duration == 31.25:
+        nominal_duration = 31
+    elif real_duration == 62.50:
+        nominal_duration = 63
+    else:
+        nominal_duration = real_duration
+
+    return int(nominal_duration)
 
 
 def set_contexts_from_epochs(epochs, regex):

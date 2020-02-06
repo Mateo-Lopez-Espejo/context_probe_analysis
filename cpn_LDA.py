@@ -107,7 +107,7 @@ def _recover_dims(array):
     return np.transpose(array, axes=[1, 2, 0, 3])
 
 
-def fit_transform(array, N=1):
+def fit_transform_over_time(array, N=1):
     '''
     Using the raw data in the input array, fits an LDA matrix to discriminate across categories over time.
     then transforms the matrix into the new low-dimensional space

@@ -78,7 +78,7 @@ def LDA_halfMC_fourway_analysis(site, probe, meta):
     R, C, S, T = trialR.shape
 
     # calculates full LDA. i.e. considering all 4 categories
-    LDA_projection, LDA_transformation = cLDA.fit_transform(trialR, 1)
+    LDA_projection, LDA_transformation = cLDA.fit_transform_over_time(trialR, 1)
     dprime= cDP.pairwise_dprimes(LDA_projection.squeeze())
 
     # calculates floor (ctx shuffle) and ceiling (simulated data)
@@ -133,7 +133,7 @@ def LDA_halfMC_twoway_analysis(site, probe, meta):
         R, C, S, T = trialR.shape
 
         # calculates full LDA. i.e. considering all 4 categories
-        LDA_projection, LDA_transformation = cLDA.fit_transform(trialR, 1)
+        LDA_projection, LDA_transformation = cLDA.fit_transform_over_time(trialR, 1)
         dp = cDP.pairwise_dprimes(LDA_projection.squeeze())
         dprime.append(dp)
 

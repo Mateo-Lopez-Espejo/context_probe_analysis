@@ -36,9 +36,9 @@ def get_site_ids(batch):
     :param batch:
     :return:
     '''
-    results_file = nd.get_results_file(batch)
+    batch_cells = nd.get_batch_cells(batch)
 
-    cellids = results_file.cellid.unique().tolist()
+    cellids = batch_cells.cellid.unique().tolist()
     site_IDs = col.defaultdict(list)
     for cell in cellids:
         site_ID = cell.split('-')[0]
