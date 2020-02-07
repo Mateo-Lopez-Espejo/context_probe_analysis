@@ -4,10 +4,10 @@ import pathlib as pl
 
 import cpn_triplets as tp
 from cpn_load import load
-from cpn_reliability import signal_reliability
+from reliability import signal_reliability
 
 import cpn_dPCA as cdPCA
-import cpp_plots as cplt
+import fancy_plots as cplt
 
 """
 plots an example dPCA analysis with variance explained, context and probe marginalization projections

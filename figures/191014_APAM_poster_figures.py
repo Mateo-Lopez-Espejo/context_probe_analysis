@@ -13,10 +13,10 @@ from cycler import cycler
 from progressbar import ProgressBar
 
 from cpn_load import load
-from cpn_reliability import signal_reliability
+from reliability import signal_reliability
 import cpn_dprime as cpd
 import cpn_dPCA as cdPCA
-import cpp_plots as cplt
+import fancy_plots as cplt
 import cpn_LDA as cLDA
 from cpn_shuffle import shuffle_along_axis as shuffle
 import scipy.stats as sst

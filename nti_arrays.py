@@ -3,41 +3,62 @@ import itertools as itt
 
 import cpn_triplets as tp
 from nems import epoch as nep
+from nems.epoch import epoch_names_matching
 from nems.recording import Recording
 from nems.signal import PointProcess, RasterizedSignal, TiledSignal
 
 from cpp_parameter_handlers import _channel_handler
+from tools import raster_smooth
 
 
-def raster_from_sig(signal, probe, channels, transitions, smooth_window, raster_fs=None, part='probe', zscore=False):
+def raster_from_sig(signal, regex, channels, smooth_window=None, raster_fs=None, zscore=None):
+    signal = signal.rasterize(fs=raster_fs)
+
+    channels = _channel_handler(signal, channels)
+
+    cp_names = epoch_names_matching(signal.epochs, regex)
+    extracted = signal.extract_epochs(cp_names)
+
+    C = len(cp_names)  # number of contexts
+    P = 1  # number of probes
+    R = np.min(
+        [val.shape[0] for val in
+         extracted.values()])  # number of repetitions ToDo solve the need to drop repetitions
+    U = len(channels)  # number of units
+    T = np.max([val.shape[2] for val in extracted.values()])  # number of time bins
+
+    raster_array = np.empty([C, P, R, U, T])
+    raster_array[:] = np.nan
+
+    for ee, (epoch, raster) in enumerate(extracted.items()):
+        r = raster.shape[0]
+        raster_array[ee, 0, :r, :, :] = raster[:R, channels, :]
+
+    # defines continuous silence or sharp transitions
+
+    probe_source = int(cp_names[0].split('_')[-2].split('-')[1])
+    contexts = [name.split('_')[:-3] for name in cp_names]
+
+    transitions = list()
+    for ctx in contexts:
+        if len(ctx) == 1:
+            transitions.append('silence')
+        else:
+            context_source = int(ctx[1].split('-')[1])
+            if context_source == probe_source:
+                transitions.append('continuous')
+            else:
+                transitions.append('sharp')
+
+    contexts = ['_'.join(ctx) for ctx in contexts]
+
+    # takes only the second half of the raster, thus the probe
+    half = int(np.ceil(raster_array.shape[-1] / 2))
+    raster_array = raster_array[..., half:]
+
+    # gaussian windows smooth
+    if smooth_window is not None and smooth_window != 0:
+        raster_array = raster_smooth(raster_array, signal.fs, smooth_window, axis=4)
 
 
-    full_array, invalid_cp, valid_cp, all_contexts, all_probes = \
-        tp.make_full_array(signal, channels=channels, smooth_window=smooth_window, raster_fs=raster_fs)
-
-    raster = tp.extract_sub_arr(probes=probe, context_types=transitions, full_array=full_array,
-                                context_names=all_contexts, probe_names=all_probes, squeeze=False)
-
-    # selects raster for context, probe or both (all)
-    if part == 'probe':
-        trans_idx = int(np.floor(raster.shape[-1]/2))
-        raster = raster[..., trans_idx:]
-    elif part == 'context':
-        trans_idx = int(np.floor(raster.shape[-1]/2))
-        raster = raster[..., :trans_idx]
-    elif part == 'all':
-        pass
-    else:
-        raise ValueError("unknonw value for 'part' parameter")
-
-    # Zscores de data in a cell by cell manner
-    if zscore is True:
-        mean = np.mean(raster, axis=(0,1,2,4))[None, None, None, :, None]
-        std = np.std(raster, axis=(0,1,2,4))[None, None, None, :, None]
-        raster = np.nan_to_num((raster - mean) / std)
-    elif zscore is False:
-        pass
-    else:
-        raise ValueError('meta zscore must be boolean')
-
-    return raster
+    return raster_array, transitions, contexts

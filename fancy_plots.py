@@ -251,6 +251,31 @@ def _PSTH(times, values, start=None, end=None, ax=None, ci=False, y_offset=None,
     return ax, fig, (np.min(psth), np.max(psth))
 
 
+def _cint(times, values, confidence, ax=None, fillkwargs={}):
+    """
+    draws a confidence interval of the mean for the input array over the specified axis
+    :param values: ndarray. 2dim R x T
+    :param confidence: float. between 0 and 1
+    :axis: int. default 1, it should be the repetions axis
+    :param x: x axis values. it should be time
+    :param ax: plt.ax.
+    :param fillkwargs: dict. kwarguments for plt.fill_between
+    :return: ax
+    """
+    #ToDo check that this is actually working and is not fishy
+    if ax is None:
+        fig, ax = plt.subplots()
+
+    tails = (1 - confidence) / 2
+    low = tails * 100
+    high = (1 - tails) * 100
+    lower, upper = np.percentile(values, [low, high], axis=0)
+
+    ax.fill_between(times, lower, upper, **fillkwargs)
+
+    return ax
+
+
 def _neural_trajectory(matrix, dims=2, downsample=None, smoothing=0, rep_scat=True, rep_line=False,
                        mean_scat=False, mean_line=True):
     # TODO documentation

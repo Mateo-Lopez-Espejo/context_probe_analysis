@@ -8,7 +8,7 @@ import cpn_load
 import cpp_cache as ccache
 import cpp_dispersion as cdisp
 import cpp_epochs as cep
-import cpp_plots as cplot
+import fancy_plots as cplot
 import cpp_reconstitute_rec as crec
 import nems.epoch as nep
 import cpp_cache as cch

@@ -113,25 +113,3 @@ def pair_ctx_shuffle_dprime(array, montecarlo):
 
 def pair_sim_dprimes(array, montecarlo):
     return None
-#
-
-
-##### functions from charlie
-
-def unit_vector(vector):
-    """ Returns the unit vector of the vector.  """
-    return vector / np.linalg.norm(vector)
-
-
-def get_null_axis(x, y):
-    '''
-    Return unit vector from centroid of x to centroid of y
-    x and y must be of dimensions: O x N, where O are observations and N are
-    number of dimensions. For example, this could be trials x neurons
-    '''
-    ux = x.mean(axis=0)
-    uy = y.mean(axis=0)
-
-    d = ux - uy
-
-    return unit_vector(d)

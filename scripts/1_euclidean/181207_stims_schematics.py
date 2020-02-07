@@ -7,7 +7,7 @@ import cpp_dispersion as cdisp
 import cpp_epochs as cep
 import cpp_reconstitute_rec as crec
 import cpp_PCA as cpca
-import cpp_plots as cplt
+import fancy_plots as cplt
 import matplotlib.pyplot as plt
 import matplotlib as mpl
 from mpl_toolkits.mplot3d import Axes3D

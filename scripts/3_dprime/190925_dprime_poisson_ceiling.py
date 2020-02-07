@@ -5,8 +5,8 @@ import cpn_LDA as cLDA
 import cpn_dPCA as cdPCA
 import cpn_dprime as cpd
 from cpn_load import load
-from cpn_reliability import signal_reliability
-from cpn_zscore import zscore, zscore2
+from reliability import signal_reliability
+from tools import zscore2, zscore
 
 '''
 a second attempt on the d prime approach to compare the population discriminability versus the single cell discrimination

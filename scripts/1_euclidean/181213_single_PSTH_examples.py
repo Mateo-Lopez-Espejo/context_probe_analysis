@@ -6,7 +6,7 @@ import cpp_cache as ccache
 import cpp_dispersion as cdisp
 import cpp_epochs as cep
 import cpp_reconstitute_rec as crec
-import cpp_plots as cplot
+import fancy_plots as cplot
 
 import matplotlib.pyplot as plt
 import numpy as np

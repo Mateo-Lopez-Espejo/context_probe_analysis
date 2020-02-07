@@ -337,3 +337,34 @@ def set_recording_subepochs(recording):
         new_signal = set_signal_subepochs(signal)
         new_recording[name] = new_signal
     return new_recording
+
+
+def NTI_epoch_name(duration=None, source=None, position=None):
+    """
+    Creates an NTI compatible epoch name using durations (ms) source and source postion.
+    if no parameters are passed, generates a regex that matches all NTI epochs
+    :param duration: int. duration in ms
+    :param source: int. idx for source sound
+    :param position: int. idx for position in source sound
+    :return: str.
+    """
+
+    if duration is None and source is None and position is None:
+        # default regular expression, matches any NTI epoch or PreStimSilence
+        return fr'\d+ms_source-\d+_seg-\d+'
+
+    valid_durations = [500, 250, 125, 63, 31, 16]
+    if duration not in valid_durations:
+        raise ValueError(f'invalid duration, it must be one of {valid_durations.sort()}')
+
+    n_sources = 20
+    if source not in range(n_sources):
+        raise ValueError(f'source number should be between 0 and {n_sources - 1}')
+
+    source_duration = 500
+    n_positions = int(source_duration / _nom2real_dur(duration))
+    if position not in range(n_positions):
+        raise ValueError(f'for this duration, positions should be between 0 and {n_positions - 1}')
+
+    regex = rf"{duration}ms_source-{source}_seg-{position}"
+    return regex

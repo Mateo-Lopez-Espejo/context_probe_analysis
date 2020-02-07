@@ -4,11 +4,11 @@ import matplotlib.pyplot as plt
 import numpy as np
 from dPCA import dPCA
 
-import cpp_plots as cplot
+import fancy_plots as cplot
 
 import cpn_triplets as tp
 from cpn_load import load
-from cpn_reliability import signal_reliability
+from reliability import signal_reliability
 from cpp_parameter_handlers import _channel_handler
 import cpn_dPCA as cdPCA
 

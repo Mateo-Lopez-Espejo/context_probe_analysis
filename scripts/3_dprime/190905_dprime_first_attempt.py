@@ -2,10 +2,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 from progressbar import ProgressBar
 from cpn_load import load
-from cpn_reliability import signal_reliability
+from reliability import signal_reliability
 import cpn_dprime as cpd
 import cpn_dPCA as cdPCA
-import cpp_plots as cplt
+import fancy_plots as cplt
 
 """
 Previous iterations on the euclidean distance analysis were unadecuate to determine whether population codes helped 

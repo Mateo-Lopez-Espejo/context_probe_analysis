@@ -4,11 +4,11 @@ import itertools as itt
 import pathlib as pl
 
 from cpn_load import load
-from cpn_reliability import signal_reliability
+from reliability import signal_reliability
 import cpn_dPCA as cdPCA
 import cpn_dispersion as ndisp
 from cpp_cache import make_cache, get_cache
-import cpp_plots as plot
+import fancy_plots as plot
 import cpn_triplets as tp
 import joblib as jl
 

@@ -7,7 +7,7 @@ import itertools as itt
 import pathlib as pl
 
 from cpn_load import load
-from cpn_reliability import signal_reliability
+from reliability import signal_reliability
 import cpn_dPCA as cdPCA
 
 from cpp_cache import make_cache, get_cache
@@ -19,7 +19,7 @@ from progressbar import ProgressBar
 from cpn_shuffle import shuffle_along_axis as shuffle
 import scipy.stats as sst
 
-import cpp_plots as cplt
+import fancy_plots as cplt
 import collections as col
 import cpn_dPCA
 

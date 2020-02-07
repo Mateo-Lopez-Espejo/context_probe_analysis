@@ -8,7 +8,7 @@ from sklearn.decomposition import PCA
 from cycler import cycler
 
 from cpn_load import load
-from cpn_reliability import signal_reliability
+from reliability import signal_reliability
 import cpn_dprime as cpd
 import cpn_dPCA as cdPCA
 import cpn_LDA as cLDA
@@ -306,10 +306,10 @@ for ii in range(nreps):
 # fig, ax = plt.subplots()
 # # floor
 # ax.plot(np.mean(floor_d, axis=0), color='red', alpha=1, label='floor')
-# cint(floor_d.T, 0.95, ax=ax, fillkwargs={'alpha': 0.5, 'color':'red'})
+# _cint(floor_d.T, 0.95, ax=ax, fillkwargs={'alpha': 0.5, 'color':'red'})
 # # ceiling
 # ax.plot(np.mean(ceil_d, axis=0), color='green', alpha=1, label='ceiling')
-# cint(ceil_d.T, 0.95, ax=ax, fillkwargs={'alpha': 0.5, 'color':'green'})
+# _cint(ceil_d.T, 0.95, ax=ax, fillkwargs={'alpha': 0.5, 'color':'green'})
 # # real dprime
 # ax.plot(dprime, color='black', label='d prime')
 # ax.legend()

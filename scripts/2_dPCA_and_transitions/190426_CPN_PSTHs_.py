@@ -7,7 +7,7 @@ import cpp_epochs as cpe
 import cpn_triplets as tp
 import cpp_dispersion as cdisp
 import cpp_cache as cch
-import cpp_plots as cplot
+import fancy_plots as cplot
 import cpp_PCA as cpca
 
 import  numpy as np

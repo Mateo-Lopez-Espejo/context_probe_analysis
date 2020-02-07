@@ -2,7 +2,6 @@ import itertools as itt
 
 import matplotlib.pyplot as plt
 import numpy as np
-import scipy.stats as sst
 from progressbar import ProgressBar
 
 import cpn_LDA as cLDA
@@ -10,16 +9,24 @@ import cpn_dPCA as cdPCA
 import cpn_dprime as cDP
 import nems.recording as recording
 import nems_lbhb.baphy as nb
-from cpn_reliability import signal_reliability
+from reliability import signal_reliability
 from cpn_shuffle import shuffle_along_axis as shuffle
-from cpp_parameter_handlers import _channel_handler
 from cpp_cache import make_cache, get_cache
+from fancy_plots import _cint
 from nems import db as nd
-from nems.epoch import epoch_names_matching
-from nti_epochs import set_recording_subepochs, _nom2real_dur
+from nti_arrays import raster_from_sig
+from nti_epochs import set_recording_subepochs, NTI_epoch_name
 
 '''
-first attemtp at using the dprime contextual effect analysis with Sams NTI data. 
+first attemtp at using the dprime contextual effect analysis with Sams NTI data. after some preprosecing to get the 
+adequate rasters for LDA (and potentially dPCA) selects a given probe, finds all its potential contexts and performs an 
+n-way LDA (trying to discriminate all contexts simultaneously). 
+Uses then the projection to the main LDA axis to determine the dprimer between pairs of context-probes.
+
+the results are not super promissing, part of the big differences between the CPP/CPN and the NTI data is the 
+diversity vs repetitions (CPP/CPN: low diversity, high reps ; NTI: high diversity, low reps)
+
+aditionally, the shorters segments i.e. 16ms are too short to analyse
 '''
 
 batch = 319  # NTI batch, Sam paradigm
@@ -40,88 +47,6 @@ code_to_name = {'t': 'Probe', 'ct': 'Context'}
 
 
 ########################################################################################################################
-
-def mean_confidence_interval(array, confidence=0.95, axis=0):
-    '''
-    calculates the mean and confidence interval of an array
-    :param array:
-    :param confidence:
-    :return:
-    '''
-    n = array.shape[axis]
-    m, se, std = np.mean(array, axis=axis), sst.sem(array, axis=axis), np.std(array, axis=axis)
-    h = se * sst.t.ppf((1 + confidence) / 2., n - 1)  # ToDo check if this formula is adecuate
-    return m, h
-
-
-def cint(array, confidence, x=None, ax=None, fillkwargs={}):
-    if ax is None:
-        fig, ax = plt.subplots()
-
-    if x is None:
-        x = np.arange(0, array.shape[0], 1)
-
-    # lower, upper = mean_confidence_interval(array, confidence, axis=1)
-
-    tails = (1 - confidence) / 2
-    low = tails * 100
-    high = (1 - tails) * 100
-    lower, upper = np.percentile(array, [low, high], axis=1)
-
-    ax.fill_between(x, lower, upper, **fillkwargs)
-
-    return ax
-
-def twoway_analysis(full_raster, meta):
-    # outer lists to save the dprimes foe each pair of ctxs
-    dprime = list()
-    shuf_dprime = list()
-    sim_dprime = list()
-
-    for trans in itt.combinations(range(3), 2):
-        print(trans)
-
-        # get the full data raster Context x Probe x Rep x Neuron x Time
-        raster = full_raster[trans, ...]
-
-        # trialR shape: Trial x Cell x Context x Probe x Time; R shape: Cell x Context x Probe x Time
-        trialR, _, _ = cdPCA.format_raster(raster)
-        trialR = trialR.squeeze()  # squeezes out probe
-        R, C, S, T = trialR.shape
-
-        # calculates LDA across the two selected transitions categories
-        LDA_projection, LDA_transformation = cLDA.fit_transform_over_time(trialR, 1)
-        dp = cDP.pairwise_dprimes(LDA_projection.squeeze())
-        dprime.append(dp)
-
-        # calculates floor (ctx shuffle) and ceiling (simulated data)
-        sim_dp = np.empty([meta['montecarlo']] + list(dp.shape))
-        shuf_dp = np.empty([meta['montecarlo']] + list(dp.shape))
-
-        ctx_shuffle = trialR.copy()
-
-        pbar = ProgressBar()
-        for rr in pbar(range(meta['montecarlo'])):
-            # ceiling: simulates data, calculates dprimes
-            sim_trial = np.random.normal(np.mean(trialR, axis=0), np.std(trialR, axis=0),
-                                         size=[R, C, S, T])
-            sim_projection = cLDA.transform_over_time(cLDA._reorder_dims(sim_trial), LDA_transformation)
-            sim_dp[rr, ...] = cDP.pairwise_dprimes(cLDA._recover_dims(sim_projection).squeeze())
-
-            ctx_shuffle = shuffle(ctx_shuffle, shuffle_axis=2, indie_axis=0)
-            shuf_projection, _ = cLDA.fit_transform_over_time(ctx_shuffle)
-            shuf_dp[rr, ...] = cDP.pairwise_dprimes(shuf_projection.squeeze())
-
-        shuf_dprime.append(shuf_dp)
-        sim_dprime.append(sim_dp)
-
-    # orders the list into arrays of the same shape as the fourwise analysis: MonteCarlo x Pair x Time
-
-    dprime = np.concatenate(dprime, axis=0)
-    shuf_dprime = np.concatenate(shuf_dprime, axis=1)
-    sim_dprime = np.concatenate(sim_dprime, axis=1)
-    return dprime, shuf_dprime, sim_dprime
-
 def nway_analysis(full_raster, meta):
     # trialR shape: Trial x Cell x Context x Probe x Time; R shape: Cell x Context x Probe x Time
     trialR, _, _ = cdPCA.format_raster(full_raster)
@@ -152,73 +77,38 @@ def nway_analysis(full_raster, meta):
 
     return dprime, shuf_dprime, sim_dprime
 
-def NTI_valid_regex(duration=None, source=None, position=None):
-    if duration is None and source is None and position is None:
-        # default regular expression, matches any NTI epoch or PreStimSilence
-        return fr'((\d+ms_source-\d+_seg-\d+)|(PreStimSilence))'
 
-    valid_durations = [500, 250, 125, 63, 31, 16]
-    if duration not in valid_durations:
-        raise ValueError(f'invalid duration, it must be one of {valid_durations.sort()}')
+def dPrime_from_NIT_site(site, duration, source, position, meta):
+    options = {'batch': batch,
+               'siteid': site,
+               'stimfmt': 'envelope',
+               'rasterfs': 100,
+               'recache': False,
+               'runclass': 'NTI',
+               'stim': False}
+    load_URI = nb.baphy_load_recording_uri(**options)
+    rec = recording.load_recording(load_URI)
 
-    n_sources = 20
-    if source not in range(n_sources):
-        raise ValueError(f'source number should be between 0 and {n_sources - 1}')
+    rec = set_recording_subepochs(rec)
+    sig = rec['resp']
 
-    source_duration = 500
-    n_positions = int(source_duration / _nom2real_dur(duration))
-    if position not in range(n_positions):
-        raise ValueError(f'for this duration, positions should be between 0 and {n_positions - 1}')
+    # calculates response realiability and select only good cells to improve analysis
+    r_vals, goodcells = signal_reliability(sig, r'\ASTIM_*', threshold=meta['reliability'])
+    goodcells = goodcells.tolist()
 
-    regex = rf"{duration}ms_source-{source}_seg-{position}"
-    return regex
+    probe_regex = NTI_epoch_name(duration, source, position)
+    cp_regex = fr'\AC(({NTI_epoch_name()})|(PreStimSilence))_P{probe_regex}\Z'
 
-def raster_from_sig(sig, regex, channels, smooth_window=None, raster_fs=None, zscore=None):
-    sig = sig.rasterize()
+    full_rast, transitions, contexts = raster_from_sig(sig, cp_regex, goodcells)
 
-    channels = _channel_handler(sig, channels)
+    if len(contexts) < 2:
+        real = shuffled = simulated = None
+        print(f'only one context for {probe_regex}, skiping analysis')
+    else:
+        real, shuffled, simulated = nway_analysis(full_rast, meta)
 
-    cp_names = epoch_names_matching(sig.epochs, regex)
-    extracted = sig.extract_epochs(cp_names)
+    return real, shuffled, simulated, transitions, contexts
 
-    C = len(cp_names)  # number of contexts
-    P = 1  # number of probes
-    R = np.min(
-        [val.shape[0] for val in
-         extracted.values()])  # number of repetitions ToDo solve the need to drop repetitions
-    U = len(channels)  # number of units
-    T = np.max([val.shape[2] for val in extracted.values()])  # number of time bins
-
-    raster_array = np.empty([C, P, R, U, T])
-    raster_array[:] = np.nan
-
-    for ee, (epoch, raster) in enumerate(extracted.items()):
-        r = raster.shape[0]
-        raster_array[ee, 0, :r, :, :] = raster[:R, channels, :]
-
-    # defines continuous silence or sharp transitions
-
-    probe_source = int(cp_names[0].split('_')[-2].split('-')[1])
-    contexts = [name.split('_')[:-3] for name in cp_names]
-
-    transitions = list()
-    for ctx in contexts:
-        if len(ctx) == 1:
-            transitions.append('silence')
-        else:
-            context_source = int(ctx[1].split('-')[1])
-            if context_source == probe_source:
-                transitions.append('continuous')
-            else:
-                transitions.append('sharp')
-
-    contexts = ['_'.join(ctx) for ctx in contexts]
-
-    # takes only the second half of the raster, thus the probe
-    half = int(np.ceil(raster_array.shape[-1] / 2))
-    raster_array = raster_array[..., half:]
-
-    return raster_array, transitions, contexts
 
 ########################################################################################################################
 
@@ -243,7 +133,7 @@ ax_val_size = 11
 
 ########################################################################################################################
 
-site = 'AMT028b' #example site
+site = 'AMT028b'  # example site
 options = {'batch': batch,
            'siteid': site,
            'stimfmt': 'envelope',
@@ -273,54 +163,17 @@ site = 'AMT028b'  # example site
 
 for source in range(20):
 
-    probe = NTI_valid_regex(duration, source, position)
-
-    def dPrime_from_NIT_site (site, duration, source, position, meta):
-
-        options = {'batch': batch,
-                   'siteid': site,
-                   'stimfmt': 'envelope',
-                   'rasterfs': 100,
-                   'recache': False,
-                   'runclass': 'NTI',
-                   'stim': False}
-        load_URI = nb.baphy_load_recording_uri(**options)
-        rec = recording.load_recording(load_URI)
-
-        rec = set_recording_subepochs(rec)
-        sig = rec['resp']
-
-        # calculates response realiability and select only good cells to improve analysis
-        r_vals, goodcells = signal_reliability(sig, r'\ASTIM_*', threshold=meta['reliability'])
-        goodcells = goodcells.tolist()
-
-        probe_regex = NTI_valid_regex(duration, source, position)
-        cp_regex = fr'\AC{NTI_valid_regex()}_P{probe_regex}\Z'
-
-        full_rast, transitions, contexts = raster_from_sig(sig, cp_regex, goodcells)
-
-        if len(contexts) < 2:
-            real = shuffled = simulated = None
-            print(f'only one context for {probe_regex}, skiping analysis')
-        else:
-            real, shuffled, simulated = nway_analysis(full_rast, meta)
-
-        return real, shuffled, simulated, transitions, contexts
-
-
-
-
-    ####################################################################################################################
+    probe = NTI_epoch_name(duration, source, position)
 
     fourway_name = f'191014_{site}_P{probe}_fourway_analysis'
     analysis_parameters = '_'.join(['{}-{}'.format(key, str(val)) for key, val in meta.items()])
     analysis_name = 'NTI_LDA_dprime'
 
     nway = make_cache(function=dPrime_from_NIT_site,
-                         func_args={'site': site, 'duration': duration, 'source':source,
-                                    'position':position, 'meta': meta},
-                         classobj_name=fourway_name,
-                         cache_folder=f'/home/mateo/mycache/{analysis_name}/{analysis_parameters}')
+                      func_args={'site': site, 'duration': duration, 'source': source,
+                                 'position': position, 'meta': meta},
+                      classobj_name=fourway_name,
+                      cache_folder=f'/home/mateo/mycache/{analysis_name}/{analysis_parameters}')
 
     real, shuffled, simulated, transitions, contexts = get_cache(nway)  # get_cache(twoway)
 
@@ -343,12 +196,12 @@ for source in range(20):
 
         ci = 0.9
         ax.plot(time, np.mean(shuffled[:, trans_count, :], axis=0), color=ci_color['shuffled'], alpha=1)
-        cint(shuffled[:, trans_count, :].T, ci, x=time, ax=ax,
-             fillkwargs={'alpha': 0.5, 'color': ci_color['shuffled'], 'label': 'context discrimination'})
+        _cint(time, shuffled[:, trans_count, :], ci, ax=ax,
+              fillkwargs={'alpha': 0.5, 'color': ci_color['shuffled'], 'label': 'context discrimination'})
         # ceiling
         ax.plot(time, np.mean(simulated[:, trans_count, :], axis=0), color=ci_color['simulated'], alpha=1)
-        cint(simulated[:, trans_count, :].T, ci, x=time, ax=ax,
-             fillkwargs={'alpha': 0.5, 'color': ci_color['simulated'], 'label': 'population effect'})
+        _cint(time, simulated[:, trans_count, :], ci, ax=ax,
+              fillkwargs={'alpha': 0.5, 'color': ci_color['simulated'], 'label': 'population effect'})
         # real dprime
         ax.plot(time, real[trans_count, :], color='black', linestyle='-', label='real value')
 
@@ -382,7 +235,6 @@ for source in range(20):
             ax.legend()
 
         trans_count += 1
-
 
     a_name = 'n-way'
 

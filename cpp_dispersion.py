@@ -9,7 +9,7 @@ from sklearn.metrics.pairwise import pairwise_distances
 
 import cpp_cache as cch
 import cpp_parameter_handlers as hand
-import cpp_plots as cplt
+import fancy_plots as cplt
 
 ### defines all named tuples for pickling
 dispersion_over_time = coll.namedtuple('dispersion_over_time', 'metric pvalue')

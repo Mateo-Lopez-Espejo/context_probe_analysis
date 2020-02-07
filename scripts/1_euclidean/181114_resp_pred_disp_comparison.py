@@ -10,7 +10,7 @@ import cpp_epochs as cep
 import nems.modelspec as ms
 import nems.xforms as xforms
 import matplotlib.pyplot as plt
-import cpp_plots as cplt
+import fancy_plots as cplt
 
 
 '''

@@ -5,7 +5,7 @@ import numpy as np
 import cpp_PCA as cpca
 import cpp_dispersion as cdisp
 import cpp_epochs as cpe
-import cpp_plots as cplt
+import fancy_plots as cplt
 import nems.recording as recording
 import nems_db.baphy as nb
 import itertools as itt
