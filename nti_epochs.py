@@ -154,7 +154,7 @@ def set_subsegments_from_epochs(epochs, regex):
     sub_seg_times[:] = np.nan
     sub_seg_new_names = list()
 
-    log.info(f'\ninfering subsegment epochs for {regex}, {len(all_names)} matches')
+    log.info(f'infering subsegment epochs for {regex}, {len(all_names)} matches')
 
     for ss, (seg_name, seg_times) in enumerate(zip(all_names, all_times)):
         seg_dur = seg_times[1] - seg_times[0]
@@ -189,7 +189,7 @@ def set_subsegments_from_epochs(epochs, regex):
         sub_seg_times[ss * 2 + 1, 0] = mid_time  # subseg start is midpoint
         sub_seg_times[ss * 2 + 1, 1] = seg_times[1]  # subseg end is seg end
 
-    log.info(f'{sub_seg_times.shape[0]} new events ')
+    log.info(f'{sub_seg_times.shape[0]} new events')
 
     df = pd.DataFrame(data=sub_seg_times, columns=['start', 'end'])
     df['name'] = sub_seg_new_names
@@ -245,7 +245,7 @@ def set_contexts_from_epochs(epochs, regex):
     # makes a copy to later modify the PreStimSilence values without changing the original data
     context_times = new_epochs.loc[new_epochs.name.isin(c_matches), ['start', 'end', 'name']].copy()
 
-    log.info(f"findinge contexts for probe: {p_regex}, {probe_times.shape[0]} matches")
+    log.info(f"finding contexts for probe: {p_regex}, {probe_times.shape[0]} matches")
 
     # modifies the start time of silence to be the same as other context sounds duration duration
     segments = probe_times.loc[:, ['start', 'end']].values

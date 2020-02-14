@@ -30,20 +30,20 @@ def dprime(array0, array1, absolute=True):
         raise ValueError(f'absolute must be bool but is {type(absolute)}')
 
     # check for edge cases
-    if np.any(np.isnan(dprime)):
+    if np.any(np.logical_or(np.isnan(dprime), np.isinf(dprime))):
 
-        for ec in np.where(np.isnan(dprime))[0]:
+        for ii in np.where(np.logical_or(np.isnan(dprime), np.isinf(dprime)))[0]:
 
-            if ((array0[:, ec].mean() - array1[:, ec].mean()) != 0) & \
-                    ((np.var(array0[:, ec]) + np.var(array1[:, ec])) == 0):
+            if ((array0[:, ii].mean() - array1[:, ii].mean()) != 0) & \
+                    ((np.var(array0[:, ii]) + np.var(array1[:, ii])) == 0):
 
                 # print("Inf. case")
-                dprime[ec] = abs(array0[:, ec].mean() - array1[:, ec].mean())
+                dprime[ii] = abs(array0[:, ii].mean() - array1[:, ii].mean())
 
-            elif ((array0[:, ec].mean() - array1[:, ec].mean()) == 0) & \
-                    ((np.var(array0[:, ec]) + np.var(array1[:, ec])) == 0):
+            elif ((array0[:, ii].mean() - array1[:, ii].mean()) == 0) & \
+                    ((np.var(array0[:, ii]) + np.var(array1[:, ii])) == 0):
 
-                dprime[ec] = 0
+                dprime[ii] = 0
 
             else:
                 raise SystemError('WTF?')

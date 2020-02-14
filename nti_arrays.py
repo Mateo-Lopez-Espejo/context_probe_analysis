@@ -8,10 +8,10 @@ from nems.recording import Recording
 from nems.signal import PointProcess, RasterizedSignal, TiledSignal
 
 from cpp_parameter_handlers import _channel_handler
-from tools import raster_smooth
+import tools
 
 
-def raster_from_sig(signal, regex, channels, smooth_window=None, raster_fs=None, zscore=None):
+def raster_from_sig(signal, regex, channels, smooth_window=None, raster_fs=None, zscore=False):
     signal = signal.rasterize(fs=raster_fs)
 
     channels = _channel_handler(signal, channels)
@@ -58,7 +58,11 @@ def raster_from_sig(signal, regex, channels, smooth_window=None, raster_fs=None,
 
     # gaussian windows smooth
     if smooth_window is not None and smooth_window != 0:
-        raster_array = raster_smooth(raster_array, signal.fs, smooth_window, axis=4)
+        raster_array = tools.raster_smooth(raster_array, signal.fs, smooth_window, axis=4)
+
+    # zscores
+    if zscore is True:
+        raster_array = tools.zscore(raster_array, indie_axis=3)
 
 
     return raster_array, transitions, contexts
