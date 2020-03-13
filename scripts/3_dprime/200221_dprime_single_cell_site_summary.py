@@ -3,6 +3,7 @@ import itertools as itt
 import matplotlib.pyplot as plt
 import numpy as np
 from progressbar import ProgressBar
+from scipy.optimize import curve_fit
 
 import cpn_LDA as cLDA
 import cpn_dPCA as cdPCA
@@ -23,6 +24,10 @@ The two metrics extracted are the total number of significant time bins and the 
 it is highly recomended to add a way of keeping track of the distibution of significant bins over time across each
 category
 """
+
+def exp(x, a, b):
+    return a * np.exp(b * x)
+
 
 def cell_dprime(site, probe, meta):
     recs = load(site)
@@ -254,6 +259,12 @@ sig_array = np.stack(list(all_signif.values()), axis=0) # dimensions: Cell x Pro
 # collapse one, then the other, then both, per cell
 # calculates the bins over/under a significant threshold
 
+nbin = sig_array.shape[-1]
+fs = meta['raster_fs']
+times = np.linspace(0, nbin/fs, nbin, endpoint=False)
+bar_width = 1/fs
+
+
 
 # for each cell in each site collapses across probes and context pairs
 for site in sites:
@@ -262,7 +273,7 @@ for site in sites:
 
     fig, axes = fplt.subplots_sqr(collapsed.shape[0], sp_kwargs={'sharey':True})
     for ax, hist, cell in zip(axes, collapsed, site_cells ):
-        ax.bar(np.arange(collapsed.shape[-1]), hist, align='edge')
+        ax.bar(times, hist, width=bar_width, align='edge', edgecolor='white')
         ax.set_title(cell)
 
     fig.suptitle(site)
@@ -277,12 +288,12 @@ for row, site in enumerate(sites):
     collapsed = np.sum(sig_array[all_sites == site, :, :, :], axis=(0,1))
     for col, (ax, hist, pair) in enumerate(
             zip(axes[row], collapsed, itt.combinations(meta['transitions'], 2))):
-        ax.bar(np.arange(collapsed.shape[-1]), hist, align='edge', color=color)
+        ax.bar(times, hist, width=bar_width, align='edge', color=color, edgecolor='white')
 
         if row == 0:
             ax.set_title(f'{pair[0]}_{pair[1]}')
 
-        if col ==0:
+    if col ==0:
             ax.set_ylabel(site)
 
 
@@ -291,12 +302,17 @@ fig, axes = plt.subplots(len(sites), 1,
                          sharex=True, sharey=True)
 for row, (site, ax) in enumerate(zip(sites, axes)):
     color = 'red' if site[0:3] == 'AMT' else 'black'
-    collapsed = np.sum(sig_array[all_sites == site, :, :, :], axis=(0,1,2))
+    collapsed = np.mean(sig_array[all_sites == site, :, :, :], axis=(0,1,2))
 
-    ax.bar(np.arange(collapsed.shape[-1]), collapsed, align='edge', color=color)
+    max_sig = collapsed.max()
 
+    popt,_ = curve_fit(exp, times, collapsed, p0=[1, 0], bounds=([0, -np.inf], [np.inf, 0]))
+
+    ax.bar(times, collapsed, width=bar_width, align='edge', color=color, edgecolor='white')
+    ax.plot(times, exp(times, *popt), color='gray', linestyle='--',
+            label='start={:+.2f}, decay= {:+.2f}'.format(popt[0], popt[1]) )
     ax.set_ylabel(site)
-
+    ax.legend()
 
 # compares transitions: collapse across PEG vs A1, probe, cell
 fig, axes = plt.subplots(2, 6, sharex=True, sharey=True)
@@ -307,7 +323,7 @@ for row, region in enumerate(['ley', 'AMT']):
 
     for col, (ax, hist, pair) in enumerate(
             zip(axes[row], collapsed, itt.combinations(meta['transitions'], 2))):
-        ax.bar(np.arange(collapsed.shape[-1]), hist, align='edge', color=color)
+        ax.bar(times, hist, width=bar_width, align='edge', color=color, edgecolor='white')
 
         if row == 0:
             ax.set_title(f'{pair[0]}_{pair[1]}')
@@ -344,7 +360,6 @@ def check_plot(cell, probe, tran_pair, significance=0.05):
 
     fig, axes = plt.subplots(4, 1, sharex=True)
     axes = np.ravel(axes)
-    times = np.arange(trialR.shape[-1])
 
     # plots the PSTH and rasters of the compared responses
     axes[0].plot(trialR[:, cell_idx, t0_idx,:].mean(axis=0), color=trans_color_map[tran_pair[0]])
