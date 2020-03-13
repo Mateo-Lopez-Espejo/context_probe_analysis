@@ -12,7 +12,7 @@ from reliability import signal_reliability
 import cpn_dprime as cpd
 import cpn_dPCA as cdPCA
 import cpn_LDA as cLDA
-from cpn_shuffle import shuffle_along_axis as shuffle
+from tools import shuffle_along_axis as shuffle
 import scipy.stats as sst
 import scipy.cluster.hierarchy as sch
 

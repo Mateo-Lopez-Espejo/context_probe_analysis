@@ -51,27 +51,41 @@ def dprime(array0, array1, absolute=True):
     return dprime
 
 
-def ndim_dprime(array0, array1, absolute=True):
+def ndarray_dprime(array0, array1, axis, absolute=True):
     '''
-    calculates the multidimensional timewise dprime between two tri-dimensional arrays with shape Trial x Cell x Time
-    the multidimentiona dprime is defined as the euclidean distance
+    general fucntion to calculate the dprime between two arrays with the same shape. the dprime is calculated in
+    a dimension wise manner but for the specified axis, which is treated asobservations/repetitions
     :param array0: ndarray
     :param array1: ndarray
-    :return: 1D array with shape time
+    :param axis: int. observation axis
+    :param absolute: bool. wether to return the absolute d' (direction agnostic) or the signed d'
+    :return: ndarray with one less dimension as the input arrays
     '''
 
-    # iterates over each neuron and calculates the d'
-    all_dprimes = list()
-    for cell in range(array0.shape[1]):
-        this_dprime = dprime(array0[:, cell, :], array1[:, cell, :], absolute=absolute)
-        all_dprimes.append(this_dprime)
-    all_dprimes = np.stack(all_dprimes)
+    # main dprime calculation
+    if absolute is True:
+        dprime = (np.abs(np.mean(array0, axis=axis) - np.mean(array1, axis=axis)) /
+                  np.sqrt(0.5 * (np.var(array0, axis=axis) + np.var(array1, axis=axis))))
+    elif absolute is False:
+        dprime = (np.mean(array0, axis=axis) - np.mean(array1, axis=axis) /
+                  np.sqrt(0.5 * (np.var(array0, axis=axis) + np.var(array1, axis=axis))))
+    else:
+        raise ValueError(f'absolute must be bool but is {type(absolute)}')
 
-    # claculates the ndim hypotenuse fromm each cell d' (per time bin)
-    ndim_dprime = np.sqrt(np.sum(np.square(all_dprimes), axis=0))
+    # check for edge cases
+    if np.any(np.isnan(dprime)):
+        dprime[np.where(np.isnan(dprime))] = 0
 
-    return ndim_dprime
+    if np.any(np.isinf(dprime)):
+        if absolute == True:
+            dprime[np.where(np.isinf(dprime))] = (np.abs((array0.mean(axis=axis) - array1.mean(axis=axis))))[np.isinf(dprime)]
+        elif absolute == False:
+            dprime[np.where(np.isinf(dprime))] = (array0.mean(axis=axis) - array1.mean(axis=axis))[np.isinf(dprime)]
+        else:
+            raise ValueError(f'absolute must be bool but is {type(absolute)}')
 
+
+    return dprime
 
 def param_sim_resp(array, **kwargs):
     # ToDo complete function
@@ -90,18 +104,25 @@ def param_sim_resp(array, **kwargs):
 
 # full array pairwise functions
 
-def pairwise_dprimes(array):
+def pairwise_dprimes(array, observation_axis, conditiont_axis):
     '''
-    asumes array with shape Repetition x Context x Time, it lacks a Neuron or PC dimention, since the array
-    is assumed to come from a projection to a 1d space
-    :param array: array of paired dprimes with shape Pairs x Time
-    :return: array of paiwise correlations, list of pair id
+    calculates the dprime in an array where different conditions and different observations correspond to two of the
+    dimension of the array.
+    :param array: ndarray with at least 2 dimensions
+    :observation_axis: int. which axis correspond to repeated observations.
+    :conditions_axis: int. which axis correspond to the conditions to be paired and compared.
+    :return: array of pairwise correlations
     '''
-    dprimes = list()
-    for c0, c1 in itt.combinations(range(array.shape[1]),2):
-        dprimes.append(dprime(array[:,c0,:], array[:,c1,:]))
 
-    dprimes = np.stack(dprimes, axis=0)
+    dprimes = list()
+    for c0, c1 in itt.combinations(range(array.shape[conditiont_axis]),2):
+
+        arr0 = np.expand_dims(array.take(c0, axis=conditiont_axis),axis=conditiont_axis)
+        arr1 = np.expand_dims(array.take(c1, axis=conditiont_axis),axis=conditiont_axis)
+        dprimes.append(ndarray_dprime(arr0, arr1, axis=observation_axis))
+
+    # stack the condition pairs along a new first dimension, eliminates the dimension of the original conditions
+    dprimes = np.stack(dprimes, axis=0).squeeze()
 
     return dprimes
 

@@ -27,7 +27,7 @@ import cpn_dprime as cDP
 from progressbar import ProgressBar
 
 from cpp_PCA import PSTH_PCA as pca
-from cpn_shuffle import shuffle_along_axis as shuffle
+from tools import shuffle_along_axis as shuffle
 import scipy.stats as sst
 
 """

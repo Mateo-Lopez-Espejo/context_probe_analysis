@@ -9,6 +9,7 @@ from mpl_toolkits.mplot3d import Axes3D
 import numpy as np
 import scipy.ndimage.filters as sf
 import scipy.signal as ssig
+import scipy.stats as sst
 
 from cpp_parameter_handlers import _epoch_name_handler, _channel_handler, _fs_handler
 from nems.signal import PointProcess
@@ -20,16 +21,24 @@ from nems.signal import PointProcess
 
 ### helper functions
 
-def _subplot_handler(epoch_names, channels):
-    ax_num = len(channels)
+def subplots_sqr(n_subplots, sp_kwargs={}):
+    '''
+    makes an square array of subplots depending on the total number of subplots desired
+    :param n_subplots:
+    :param sp_kwargs:
+    :return:
+    '''
 
-    rows = int(np.ceil(math.sqrt(ax_num)))
-    cols = int(np.floor(math.sqrt(ax_num)))
+    rows = int(np.ceil(math.sqrt(n_subplots)))
+    cols = int(np.floor(math.sqrt(n_subplots)))
 
-    if rows*cols < ax_num:
+    if rows*cols < n_subplots:
         rows = rows+1
 
-    fig, axes = plt.subplots(rows, cols, sharex=False, sharey=False, squeeze=False)
+    defautls = {'sharex':False, 'sharey':False, 'squeeze':False}
+    defautls.update(sp_kwargs)
+
+    fig, axes = plt.subplots(rows, cols, **defautls)
 
     axes = np.ravel(axes)
 
@@ -101,7 +110,7 @@ def _raster(times, values, y_offset=None, y_range=None, ax=None, scatter_kws=Non
     Lines will be auto-colored according to matplotlib defaults.
 
     times : Array with shape T where T is time bins in seconds
-    values : Array with shape R x T : where R is repetitions, and T is time. the dimention of T must agree with that of
+    values : Array with shape R x T : where R is repetitions, and T is time. the dimension of T must agree with that of
              T in times.
     xlabel : str
     ylabel : str
@@ -424,7 +433,7 @@ def dispersion(matrixes, smoothing=0, y_offset=0, ax=None, rep_line=None, mean_l
     matrix = np.stack(matrixes.values(), axis=2)
 
     # this is such a cludge! better handling of channels and subplotting.
-    fig, axes = _subplot_handler(None, list(range(matrix.shape[0])))
+    fig, axes = subplots_sqr(matrix.shape[0])
 
     # iterates over subplots/cells
 
@@ -470,7 +479,7 @@ def signal_PSTH(signal, epoch_names='single', channels='all', psth_kws=None, plo
     epoch_names = _epoch_name_handler(signal, epoch_names)
     channels = _channel_handler(signal, channels)
 
-    fig, axes = _subplot_handler(epoch_names, channels)
+    fig, axes = subplots_sqr(len(channels))
 
     signal = signal.rasterize()
 
@@ -603,7 +612,7 @@ def signal_raster(signal, epoch_names='single', channels='all', scatter_kws=None
     channels = _channel_handler(signal, channels=channels)
 
     # defines the number and distribution of subplots in the figure
-    fig, axes = _subplot_handler(epoch_names, channels)
+    fig, axes = subplots_sqr(len(channels))
 
     # iterates over each cell... plot
     first = True
@@ -715,7 +724,7 @@ def hybrid(signal, epoch_names='single', channels='all', start=None, end=None,
 
     # defines the number and distribution of subplots in the figure
     if axes is None:
-        fig, axes = _subplot_handler(epoch_names, channels)
+        fig, axes = subplots_sqr(len(channels))
     elif axes is not None:
         if len(axes)<len(channels): raise ValueError(f'{len(channels)} axes required but {len(axes)} pased')
         fig = axes[0].get_figure()

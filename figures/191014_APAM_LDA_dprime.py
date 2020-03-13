@@ -13,7 +13,7 @@ import cpn_LDA as cLDA
 import cpn_dprime as cDP
 from progressbar import ProgressBar
 
-from cpn_shuffle import shuffle_along_axis as shuffle
+from tools import shuffle_along_axis as shuffle
 import scipy.stats as sst
 
 """

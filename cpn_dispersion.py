@@ -1,7 +1,7 @@
 import numpy as np
 import itertools as itt
 
-from cpn_shuffle import shuffle_along_axis
+from tools import shuffle_along_axis
 from cpp_dispersion import _pairwise_single_trial_ndim_euclidean
 from cpn_triplets import make_full_array
 

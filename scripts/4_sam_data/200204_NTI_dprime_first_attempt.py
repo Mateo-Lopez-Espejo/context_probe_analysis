@@ -10,7 +10,7 @@ import cpn_dprime as cDP
 import nems.recording as recording
 import nems_lbhb.baphy as nb
 from reliability import signal_reliability
-from cpn_shuffle import shuffle_along_axis as shuffle
+from tools import shuffle_along_axis as shuffle
 from cpp_cache import make_cache, get_cache
 from fancy_plots import _cint
 from nems import db as nd

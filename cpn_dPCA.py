@@ -223,9 +223,19 @@ def transform_over_time(X):
 
     return None
 
-def fit_transfomr(X):
-
-    return None
+def fit_transfomr(R, trialR, dPCA_params={}):
+    '''
+    wrapper of dPCA. Uses R to fit the transformation and then projects trialR into the new space.
+    :param R: ndarray, shape Cells x Contexts x Time
+    :param trialR: ndarray, shape Repetitions x Cells x Contexts x Time
+    :param dPCA_params:
+    :return:
+    '''
+    Re, C, S, T = trialR.shape
+    _, dPCA_projection, _, dpca = trials_dpca(R, trialR, significance=False, dPCA_parms=dPCA_params)
+    dPCA_projection = dPCA_projection['ct'][:, 0, ]
+    dPCA_transformation = np.tile(dpca.D['ct'][:, 0][:, None, None], [1, 1, T])
+    return dPCA_projection, dPCA_transformation
 
 
 
