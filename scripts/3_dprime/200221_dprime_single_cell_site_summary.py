@@ -74,6 +74,7 @@ def plot_exp_decay(times, values, ax=None, label=True, pltkwargs={}):
     return fig, ax, popt, pvar
 
 def cell_dprime(site, probe, meta):
+    # recs = load(site, remote=True, rasterfs=meta['raster_fs'], recache=False)
     recs = load(site)
     if len(recs) > 2:
         print(f'\n\n{recs.keys()}\n\n')
@@ -125,6 +126,7 @@ def cell_dprime(site, probe, meta):
 
 
 def dPCA_fourway_analysis(site, probe, meta):
+    # recs = load(site, remote=True, rasterfs=meta['raster_fs'], recache=False)
     recs = load(site)
 
     if len(recs) > 2:
@@ -148,34 +150,27 @@ def dPCA_fourway_analysis(site, probe, meta):
     Re, C, S, T = trialR.shape
 
     # calculates full dPCA. i.e. considering all 4 categories
-    def fit_transformt(R, trialR):
-        _, dPCA_projection, _, dpca = cdPCA.trials_dpca(R, trialR, significance=False, dPCA_parms={})
-        dPCA_projection = dPCA_projection['ct'][:, 0, ]
-        dPCA_transformation = np.tile(dpca.D['ct'][:, 0][:, None, None], [1, 1, T])
-        return dPCA_projection, dPCA_transformation
-
-    dPCA_projection, dPCA_transformation = fit_transformt(R, trialR)
-    dprime = cDP.pairwise_dprimes(dPCA_projection)
+    dPCA_projection, dPCA_transformation = cdPCA.fit_transform(R, trialR)
+    dprime = cDP.pairwise_dprimes(dPCA_projection, observation_axis=0, conditiont_axis=1)
 
     # calculates floor (ctx shuffle) and ceiling (simulated data)
     sim_dprime = np.empty([meta['montecarlo']] + list(dprime.shape))
     shuf_dprime = np.empty([meta['montecarlo']] + list(dprime.shape))
 
     ctx_shuffle = trialR.copy()
-
     # pbar = ProgressBar()
     for rr in range(meta['montecarlo']):
         # ceiling: simulates data, calculates dprimes
         sim_trial = np.random.normal(np.mean(trialR, axis=0), np.std(trialR, axis=0),
                                      size=[Re, C, S, T])
-        sim_projection = cLDA.transform_over_time(cLDA._reorder_dims(sim_trial), dPCA_transformation)
-        sim_dprime[rr, ...] = cDP.pairwise_dprimes(cLDA._recover_dims(sim_projection).squeeze())
+        sim_projection = cdPCA.transform(sim_trial, dPCA_transformation)
+        sim_dprime[rr, ...] =cDP.pairwise_dprimes(sim_projection, observation_axis=0, conditiont_axis=1)
 
         ctx_shuffle = shuffle(ctx_shuffle, shuffle_axis=2, indie_axis=0)
-        shuf_projection = cLDA.transform_over_time(cLDA._reorder_dims(ctx_shuffle), dPCA_transformation)
-        shuf_dprime[rr, ...] = cDP.pairwise_dprimes(cLDA._recover_dims(shuf_projection).squeeze())
+        shuf_projection = cdPCA.transform(ctx_shuffle, dPCA_transformation)
+        shuf_dprime[rr, ...] = cDP.pairwise_dprimes(shuf_projection, observation_axis=0, conditiont_axis=1)
 
-    return dprime, shuf_dprime, sim_dprime
+    return dprime, shuf_dprime, sim_dprime, goodcells
 
 
 CB_color_cycle = ['#377eb8', '#ff7f00', '#4daf4a', '#a65628',  # blue, orange, green, brow,
@@ -220,63 +215,111 @@ sites = ['ley070a',  # good site. A1
 sites = list(get_site_ids(316).keys())
 
 # for site, probe in zip(['AMT029a', 'ley070a'],[5,2]):
-# all_sites = ['AMT029a']
-# all_sites = ['AMT032a']
+sites = ['AMT029a']
+# sites = ['AMT032a']
 # all_probes = [5]
 
-bad_sites = list()
-all_pvalues = dict()
-all_reals = dict()
-all_shuffled = dict()
+bad_SC_sites = list()
+all_SC_pvalues = dict()
+all_SC_reals = dict()
+all_SC_shuffled = dict()
+
+bad_dPCA_sites = list()
+all_dPCA_pvalues = dict()
+all_dPCA_reals = dict()
+all_dPCA_shuffled = dict()
 
 
 for site in sites:
 
-    this_site_reals = list()
-    this_site_shuffled = list()
-    this_site_pvalues = list()
-    for pp, probe in enumerate(all_probes):
+    this_site_SC_reals = list()
+    this_site_SC_shuffled = list()
+    this_site_SC_pvalues = list()
 
+    this_site_dPCA_reals = list()
+    this_site_dPCA_shuffled = list()
+    this_site_dPCA_simulated = list()
+    this_site_dPCA_pvalues = list()
+
+    for pp, probe in enumerate(all_probes):
+        ##############################
+        # single cell analysis
         object_name = f'200221_{site}_P{probe}_single_cell_dprime'
         analysis_parameters = '_'.join(['{}-{}'.format(key, str(val)) for key, val in meta.items()])
-        analysis_name = 'NTI_singel_cell_dprime'
+        analysis_name = 'CPN_singel_cell_dprime' # todo rename!
         # cache_folder = pl.Path('U:\\mateo' , 'mychache' , analysis_name , analysis_parameters)
         cache_folder = pl.Path('C:\\', 'users', 'mateo', 'mycache', analysis_name, analysis_parameters)
 
-        try:
-            cache = make_cache(function=cell_dprime,
-                               func_args={'site': site, 'probe': probe, 'meta': meta},
-                               classobj_name=object_name,
-                               cache_folder=cache_folder,
-                               recache=False)
+        # try:
+        SC_cache = make_cache(function=cell_dprime,
+                              func_args={'site': site, 'probe': probe, 'meta': meta},
+                              classobj_name=object_name,
+                              cache_folder=cache_folder,
+                              recache=True)
 
-            real, shuffled, cell_names, trans_pairs = get_cache(cache)
+        SC_dprime, SC_shuf_dprime, SC_cell_names, SC_trans_pairs = get_cache(SC_cache)
 
-        except:
-            bad_sites.append(f"{site}_P{probe}_dPCA")
-            continue
+        # except:
+        #     bad_SC_sites.append(f"{site}_P{probe}_dPCA")
+        #     continue
 
-        this_site_reals.append(real)
-        this_site_shuffled.append(shuffled)
+        this_site_SC_reals.append(SC_dprime)
+        this_site_SC_shuffled.append(SC_shuf_dprime)
 
         # single tailed p value base on the montecarlo shuffling
+        SC_pvalues = np.sum((SC_shuf_dprime >= SC_dprime), axis=0) / meta['montecarlo']
+        this_site_SC_pvalues.append(SC_pvalues)
 
-        pvalues = np.sum((shuffled >= real), axis=0) / meta['montecarlo']
+        ##############################
+        # dPCA analysis
+        object_name = f'200221_{site}_P{probe}_single_cell_dprime'
+        analysis_parameters = '_'.join(['{}-{}'.format(key, str(val)) for key, val in meta.items()])
+        analysis_name = 'CPN_dPCA_dprime'
+        # cache_folder = pl.Path('U:\\mateo' , 'mychache' , analysis_name , analysis_parameters)
+        cache_folder = pl.Path('C:\\', 'users', 'mateo', 'mycache', analysis_name, analysis_parameters)
+        # try:
+        dPCA_cache = make_cache(function=dPCA_fourway_analysis,
+                  func_args={'site': site, 'probe': probe, 'meta': meta},
+                  classobj_name=object_name,
+                  cache_folder=cache_folder,
+                  recache=True)
+        dPCA_dprime, dPCA_shuf_dprime, dPCA_sim_dprime, dPCA_cell_names = get_cache(dPCA_cache)
 
-        this_site_pvalues.append(pvalues)
+        # except:
+        #      bad_dPCA_sites.append(f"{site}_P{probe}_dPCA")
+        #      continue
 
-    this_site_reals = np.stack(this_site_reals, axis=0)
-    this_site_shuffled = np.stack(this_site_shuffled, axis=0)
-    this_site_pvalues = np.stack(this_site_pvalues, axis=0)
+        this_site_dPCA_reals.append(dPCA_dprime)
+        this_site_dPCA_shuffled.append(dPCA_shuf_dprime)
+        this_site_dPCA_simulated.append(dPCA_sim_dprime)
+
+        # single tailed p value base on the montecarlo shuffling
+        dPCA_pvalues = np.sum((dPCA_shuf_dprime >= dPCA_dprime), axis=0) / meta['montecarlo']
+        this_site_dPCA_pvalues.append(dPCA_pvalues)
+
+
+    this_site_SC_reals = np.stack(this_site_SC_reals, axis=0)
+    this_site_SC_shuffled = np.stack(this_site_SC_shuffled, axis=0)
+    this_site_SC_pvalues = np.stack(this_site_SC_pvalues, axis=0)
+
+    this_site_dPCA_reals = np.stack(this_site_dPCA_reals, axis=0)
+    this_site_dPCA_shuffled = np.stack(this_site_dPCA_shuffled, axis=0)
+    this_site_dPCA_simulated = np.stack(this_site_dPCA_simulated, axis=0)
+    this_site_dPCA_pvalues = np.stack(this_site_dPCA_pvalues, axis=0)
 
     # reorders date in dictionary of cells
-    for cc, cell in enumerate(cell_names):
-        all_reals[cell] = this_site_reals[:, :, cc, :]
-        all_shuffled[cell] = this_site_shuffled[:, :, :, cc, :].swapaxes(0, 1)
-        all_pvalues[cell] = this_site_pvalues[:, :, cc, :]
+    for cc, cell in enumerate(SC_cell_names):
+        all_SC_reals[cell] = this_site_SC_reals[:, :, cc, :]
+        all_SC_shuffled[cell] = this_site_SC_shuffled[:, :, :, cc, :].swapaxes(0, 1)
+        all_SC_pvalues[cell] = this_site_SC_pvalues[:, :, cc, :]
+
+    for cc, cell in enumerate(dPCA_cell_names):
+        all_dPCA_reals[site] = this_site_dPCA_reals
+        all_dPCA_shuffled[site] = this_site_dPCA_shuffled.swapaxes(0, 1)
+        all_dPCA_pvalues[site] = this_site_dPCA_pvalues
 
 # stacks the site individual arrays along a new site dimension. since the sites have disimilar cell number, pads
-all_cells = np.array(list(all_pvalues.keys()))
+all_cells = np.array(list(all_SC_pvalues.keys()))
 all_sites = np.array([cell[0:7] for cell in all_cells])
 all_regions = np.array([cell[0:3] for cell in all_cells])
 
@@ -299,7 +342,7 @@ for t0, t1 in itt.combinations(meta['transitions'], 2):
         continue
 
 threshold = 0.05
-all_signif = {key: (val <= threshold) for key, val in all_pvalues.items()}
+all_signif = {key: (val <= threshold) for key, val in all_SC_pvalues.items()}
 sig_array = np.stack(list(all_signif.values()), axis=0) # dimensions: Cell x Probe x trans_pair x time
 
 # calculates exponential decay for each cell, collapsing across all probes and transisions
@@ -409,7 +452,7 @@ def check_plot(cell, probe, tran_pair, significance=0.05):
     prb_idx = all_probes.index(probe)
     t0_idx = meta['transitions'].index(tran_pair[0])
     t1_idx = meta['transitions'].index(tran_pair[1])
-    pair_idx = trans_pairs.index(f'{tran_pair[0]}_{tran_pair[1]}')
+    pair_idx = SC_trans_pairs.index(f'{tran_pair[0]}_{tran_pair[1]}')
 
     fig, axes = plt.subplots(4, 1, sharex=True)
     axes = np.ravel(axes)
@@ -427,13 +470,13 @@ def check_plot(cell, probe, tran_pair, significance=0.05):
 
 
     # plots the real dprime and the shuffled dprime
-    axes[1].plot(times, all_reals[cell][prb_idx, pair_idx, :], color='black')
+    axes[1].plot(times, all_SC_reals[cell][prb_idx, pair_idx, :], color='black')
     # axes[1].plot(all_shuffled[cell][:, prb_idx, pair_idx, :].T, color='green', alpha=0.01)
-    _ = fplt._cint(times, all_shuffled[cell][:, prb_idx, pair_idx,:], confidence=0.95, ax= axes[1],
+    _ = fplt._cint(times, all_SC_shuffled[cell][:, prb_idx, pair_idx, :], confidence=0.95, ax= axes[1],
                    fillkwargs={'color':'black', 'alpha':0.5})
 
     # plots the the calculated pvalue plust the significant threshold
-    axes[2].plot(times, all_pvalues[cell][prb_idx, pair_idx, :],  color='black')
+    axes[2].plot(times, all_SC_pvalues[cell][prb_idx, pair_idx, :], color='black')
     axes[2].axhline(significance, color='red', linestyle='--')
 
     # plots the histogram of significant bins

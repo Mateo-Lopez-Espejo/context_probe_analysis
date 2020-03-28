@@ -17,9 +17,6 @@ import scipy.stats as sst
 import scipy.cluster.hierarchy as sch
 
 
-from keras.layers import Dense
-from keras.models import Sequential
-
 
 
 """
@@ -219,13 +216,13 @@ def zscore2(array):
     return zscore
 
 
-def autoencoder(array, ncomp = 5):
-    model = Sequential()
-    model.add(Dense(ncomp, input_shape=array.shape[1:], activation='linear'))
-    model.add(Dense(array.shape[1:], activation='linear'))
-    model.compile(loss='mean_squared_error', optimizer='adam')
-    model.fit(array, array, batch_size=array.shape[0], epoch=100)
-    return model
+# def autoencoder(array, ncomp = 5):
+#     model = Sequential()
+#     model.add(Dense(ncomp, input_shape=array.shape[1:], activation='linear'))
+#     model.add(Dense(array.shape[1:], activation='linear'))
+#     model.compile(loss='mean_squared_error', optimizer='adam')
+#     model.fit(array, array, batch_size=array.shape[0], epoch=100)
+#     return model
 
 
 # loads some test data

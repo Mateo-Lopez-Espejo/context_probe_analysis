@@ -3,8 +3,8 @@ import pathlib as pl
 
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 from scipy.io import loadmat
-# from progressbar import ProgressBar
 from scipy.optimize import curve_fit
 
 import cpn_LDA as cLDA
@@ -210,7 +210,10 @@ sites = ['ley070a',  # good site. A1
          # 'AMT031a', # low response, bad
          'AMT032a']  # great site. PEG
 
-sites = list(get_site_ids(316).keys())
+# sites = list(get_site_ids(316).keys())
+# problem sites:
+# sites = ['AMT031a']
+
 
 # for site, probe in zip(['AMT029a', 'ley070a'],[5,2]):
 # all_sites = ['AMT029a']
@@ -274,14 +277,21 @@ sig_array = np.stack(list(all_signif.values()), axis=0)  # dimensions: Cell x Pr
 # calculates exponential decay for each cell, collapsing across all probes and transisions
 nbin = sig_array.shape[-1]
 fs = meta['raster_fs']
-times = np.linspace(0, nbin / fs, nbin, endpoint=False) * 1000
-
+times = np.linspace(0, nbin / fs, nbin, endpoint=False) * 1000 # units in ms!!!!
 collapsed = sig_array.mean(axis=(1, 2))
-model_fits = {cell: {param: val for param, val in zip(('r0', 'decay'), fit_exp_decay(times, values)[0])}
-              for cell, values in zip(all_cells, collapsed)}
 
-for cell, params in model_fits.items():
-    params['tau'] = -1 / params['decay']
+# organizes in a dataframe with columns r0: y intercept, decay: eponential valaue and tau: Time to a 36% amplitude
+df = list()
+for cellid, data in zip(all_cells, collapsed):
+    popt, _ = fit_exp_decay(times, data)
+    df.append({'cellid': cellid,
+               'r0_au': popt[0],
+               'decay_ms': popt[1]})
+
+context_fits = pd.DataFrame(df)
+context_fits['tau_ms'] = -1/context_fits['decay_ms']
+context_fits.set_index(['cellid'], inplace=True)
+
 
 # 3. import and parse matlab results for Sam's NTI analysis. These results are in a cell by cell format, then it makes
 # sense to calculate the dprimes idividually forP each cell
@@ -289,27 +299,19 @@ file = pl.Path('C:\\', 'Users', 'Mateo', 'Documents', 'Science', 'code', 'integr
                'analysis', 'model_fit_pop_summary').with_suffix('.mat')
 
 best_fits = loadmat(file)['best_fits'].squeeze()
+# orders the data in DF
+df = list()
+for row in best_fits:
+    df.append({'cellid': row[2][0],
+               'intper_ms': row[0][0][0],
+               'delay_ms': row[1][0][0]})
 
-# orders the data in dictionaries
-intper_ms = np.array([row[0][0] for row in best_fits])
-delaye_ms = np.array([row[1][0] for row in best_fits])
-unit_name = np.array([row[2][0] for row in best_fits])
-sites = np.array([cell[0:7] for cell in unit_name])
+integration_fits = pd.DataFrame(df)
+integration_fits.set_index(['cellid'], inplace=True)
 
-# check general distribution of the data
-# fig, ax = plt.subplots()
-# for site in set(sites):
-#     x = intper_ms[sites == site]
-#     y = delaye_ms[sites == site]
-#
-#     ax.scatter(x, y, label=site)
-# ax.legend()
-# ax.set_xlabel('integration (ms)')
-# ax.set_ylabel('lag (ms)')
 
-# compares sam integration vs mateo taus
-common_cells = set(unit_name).intersection(set(all_cells))
+# 4. pools together both approache, selects only common cell, plots relationships
+# join='inner' keeps only the intersection between the two Dfs, i.e. the cells that have both approaches
+DF = pd.concat([context_fits, integration_fits], axis=1, join='inner')
 
-Taus = np.array([model_fits[cell]['tau'] for cell in common_cells])
-ints = intper_ms[np.isin(unit_name, common_cells)]
-
+DF.plot(x='tau_ms', y='intper_ms', kind='scatter')

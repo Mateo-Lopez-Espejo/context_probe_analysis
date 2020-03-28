@@ -61,12 +61,11 @@ def raster_from_sig(signal, probe, channels, transitions, smooth_window, raster_
     return raster
 
 
-def trials_dpca(R, trialR, significance, dPCA_parms={}):
+def trials_dpca(R, trialR, dPCA_parms={}):
     '''
     dPCA over data arrays
     :param R: ndarray. categories (mean) with shape Neuron x Context x TimeBin
     :param trialR: ndarray. raw data with shape Trial x Neuron x Context x TimeBin
-    :param significance: bool, calculates the obscure dPCA significance
     :param dPCA_parms: furthe dPCA parameters to be passed to the function call
     :return: Z, dict of arrays of mean projection into different marginalizations;
              trialZ, dict of arrays of single trial projection into different marginalizations;
@@ -78,7 +77,6 @@ def trials_dpca(R, trialR, significance, dPCA_parms={}):
                         'regularizer': 'auto',
                         'n_components': 10,
                         'join': {'ct': ['c', 'ct']}}
-
     dPCA_parms.update(triplet_defaults)
 
     Tr, N, C, T = trialR.shape
@@ -92,15 +90,7 @@ def trials_dpca(R, trialR, significance, dPCA_parms={}):
     # Now fit the data (R) using the model we just instantiated. Note that we only need trial-to-trial data when we want to
     # optimize over the regularization parameter.
     Z = dpca.fit_transform(R, trialR)
-
     expt_var = dpca.explained_variance_ratio_.copy()
-
-    # check for significance
-    if significance:
-        significance_masks = dpca.significance_analysis(R, trialR, axis='t', n_shuffles=100, n_splits=100,
-                                                    n_consecutive=1)
-    else:
-        significance_masks = {}
 
     # transform in a trial by trial basis
     trialZ = dict()
@@ -112,10 +102,10 @@ def trials_dpca(R, trialR, significance, dPCA_parms={}):
 
     dpca.explained_variance_ratio_ = expt_var
 
-    return Z, trialZ, significance_masks, dpca
+    return Z, trialZ, dpca
 
 
-def tran_dpca(signal, probe, channels, transitions, smooth_window, significance, dPCA_parms={}, raster_fs=None,
+def tran_dpca(signal, probe, channels, transitions, smooth_window, dPCA_parms={}, raster_fs=None,
               part='probe', zscore=False):
     '''
     signal wrapper for dPCA usigg CPN tripplets.
@@ -138,9 +128,9 @@ def tran_dpca(signal, probe, channels, transitions, smooth_window, significance,
     trialR, R = np.squeeze(trialR), np.squeeze(R)
 
     # calculates dPCA
-    Z, trialZ, significance_masks, dpca = trials_dpca(R, trialR, significance=significance, dPCA_parms=dPCA_parms)
+    Z, trialZ, dpca = trials_dpca(R, trialR, dPCA_parms=dPCA_parms)
 
-    return Z, trialZ, significance_masks, dpca
+    return Z, trialZ, dpca
 
 def signal_transform_triplets_(signal, probe, channels, smooth_window=None, dpca=None):
 
@@ -211,19 +201,27 @@ def transform_trials(dpca, trial_array):
 # simple wrappers
 # wrappers to be treated equally as those funcitons in cpn_LDA. asumes a lot of
 
-def _fit(X):
-    dPCA_axis = None
-    return dPCA_axis
+def transform(trialR, transformation):
+    """
+    transforms each trial of trialR into its 1dim projection.
+    :param trialR: nd-array with shape Rep x Unit x Context x Time
+    :param transformation: nd-array with shape Unit x PC x Time
+    :return: nd-array with shape Rep x PC x Context x Time
+    """
 
-def fit_over_time(X):
+    # reorders axes to keep units as first dimension, collapses all other dimensions together, then performs the
+    # dot product, finally reshapes and transposes back into the desired dimension.
 
-    return None
+    R, U, C, T = trialR.shape
+    Pc = transformation.shape[1]
+    neworder = [1,0,2,3]
 
-def transform_over_time(X):
+    projection = np.dot(transformation[:,:,0].T, trialR.transpose(neworder).reshape((U,-1))
+                        ).reshape((Pc, R, C, T)).transpose(np.argsort(neworder)).squeeze()
 
-    return None
+    return projection
 
-def fit_transfomr(R, trialR, dPCA_params={}):
+def fit_transform(R, trialR, dPCA_params={}):
     '''
     wrapper of dPCA. Uses R to fit the transformation and then projects trialR into the new space.
     :param R: ndarray, shape Cells x Contexts x Time
@@ -232,12 +230,11 @@ def fit_transfomr(R, trialR, dPCA_params={}):
     :return:
     '''
     Re, C, S, T = trialR.shape
-    _, dPCA_projection, _, dpca = trials_dpca(R, trialR, significance=False, dPCA_parms=dPCA_params)
-    dPCA_projection = dPCA_projection['ct'][:, 0, ]
+    _, dPCA_projection, dpca = trials_dpca(R, trialR, dPCA_parms=dPCA_params)
+    dPCA_projection = dPCA_projection['ct'][:, 0, ...]
     dPCA_transformation = np.tile(dpca.D['ct'][:, 0][:, None, None], [1, 1, T])
+
     return dPCA_projection, dPCA_transformation
-
-
 
 #### plot functions #####
 
