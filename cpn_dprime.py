@@ -104,25 +104,25 @@ def param_sim_resp(array, **kwargs):
 
 # full array pairwise functions
 
-def pairwise_dprimes(array, observation_axis, conditiont_axis):
+def pairwise_dprimes(array, observation_axis, condition_axis):
     '''
     calculates the dprime in an array where different conditions and different observations correspond to two of the
     dimension of the array.
     :param array: ndarray with at least 2 dimensions
     :observation_axis: int. which axis correspond to repeated observations.
     :conditions_axis: int. which axis correspond to the conditions to be paired and compared.
-    :return: array of pairwise correlations
+    :return: array of pairwise correlations todo what is the new shape of this array?
     '''
 
     dprimes = list()
-    for c0, c1 in itt.combinations(range(array.shape[conditiont_axis]),2):
+    for c0, c1 in itt.combinations(range(array.shape[condition_axis]), 2):
 
-        arr0 = np.expand_dims(array.take(c0, axis=conditiont_axis),axis=conditiont_axis)
-        arr1 = np.expand_dims(array.take(c1, axis=conditiont_axis),axis=conditiont_axis)
+        arr0 = np.expand_dims(array.take(c0, axis=condition_axis), axis=condition_axis)
+        arr1 = np.expand_dims(array.take(c1, axis=condition_axis), axis=condition_axis)
         dprimes.append(ndarray_dprime(arr0, arr1, axis=observation_axis))
 
     # stack the condition pairs along a new first dimension, eliminates the dimension of the original conditions
-    dprimes = np.stack(dprimes, axis=0).squeeze()
+    dprimes = np.stack(dprimes, axis=0).squeeze(axis=condition_axis)
 
     return dprimes
 

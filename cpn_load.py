@@ -7,11 +7,10 @@ from nems import db as nd
 
 "I am lazy, this is a one liner to load a formated cpp/cpn signal"
 
-def load(site, remote=False, **kwargs):
+def load(site, **kwargs):
 
     # defaults
     options = {'batch': 316,
-               # 'siteid': site,
                'cellid': site,
                'stimfmt': 'envelope',
                'rasterfs': 100,
@@ -20,18 +19,7 @@ def load(site, remote=False, **kwargs):
                'stim': False}  # ToDo chace stims, spectrograms???
 
     options.update(**kwargs)
-
-    if remote is True:
-        _, options = nb.parse_cellid(options)
-        options = nb.fill_default_options(options)
-        d = nd.get_batch_cell_data(batch=options['batch'], cellid=site, label='parm',
-                                   rawid=options['rawid'])
-
-        mfilename = list(set(list(d['parm'])))
-        mfilename.sort()
-        mfilename = ['H:/' + '/'.join(file.split('/')[3:]) for file in mfilename]
-        options['mfilename'] = mfilename
-
+    # print(options)
     load_URI = nb.baphy_load_recording_uri(**options)
     loaded_rec = recording.load_recording(load_URI)
 
@@ -63,15 +51,8 @@ def get_site_ids(batch):
 
 
 
-# This is just to cache recordings of later http API load
-
-# meta = {'reliability': 0.1,  # r value
-#         'smoothing_window': 0,  # ms
-#         'raster_fs': 100,
-#         'transitions': ['silence', 'continuous', 'similar', 'sharp'],
-#         'montecarlo': 1000,
-#         'zscore': False}
-#
+# This is just to check cached recordings of later http API load
 # sites = list(get_site_ids(316).keys())
+# print(list(sites))
 # for site in sites:
-#     recs = load(site, remote=True, rasterfs=meta['raster_fs'], recache=False)
+#     recs = load(site, rasterfs=30, recache=False)

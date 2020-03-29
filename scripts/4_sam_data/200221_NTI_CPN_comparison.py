@@ -104,7 +104,7 @@ def cell_dprime(site, probe, meta):
 
     trans_pairs = [f'{x}_{y}' for x, y in itt.combinations(meta['transitions'], 2)]
 
-    dprime = cDP.pairwise_dprimes(trialR, observation_axis=0, conditiont_axis=2)  # shape CellPair x Cell x Time
+    dprime = cDP.pairwise_dprimes(trialR, observation_axis=0, condition_axis=2)  # shape CellPair x Cell x Time
 
     # Shuffles the rasters n times and organizes in an array with the same shape the raster plus one dimension
     # with size n containing each shuffle
@@ -122,7 +122,7 @@ def cell_dprime(site, probe, meta):
         for rr in range(meta['montecarlo']):
             shuf_trialR[rr, ...] = shuffle(ctx_shuffle, shuffle_axis=2, indie_axis=0)
 
-        shuffled.append(cDP.pairwise_dprimes(shuf_trialR, observation_axis=1, conditiont_axis=3))
+        shuffled.append(cDP.pairwise_dprimes(shuf_trialR, observation_axis=1, condition_axis=3))
 
     shuffled = np.stack(shuffled, axis=1)  # shape Montecarlo x ContextPair x Cell x Time
 
