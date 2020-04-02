@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+import warnings
 
 from nems.signal import TiledSignal
 
@@ -88,6 +89,14 @@ def _set_subepoch_pairs(epochs):
     # determines the duration of an individual vocalization
     step = (original_times[0, 1] - original_times[0, 0] - PreStimSilence - PostStimSilence) / sub_epochs.shape[1]
 
+    # changes the duration of silences when considered as contexts or probes
+    if PreStimSilence != step or PostStimSilence != step:
+        warnings.warn('Pre or Post Stim different than sub stims, forcing to the same duration')
+        PreSilStep = PostSilStep = step
+    else:
+        PreSilStep = PreStimSilence
+        PostSilStep = PostStimSilence
+
     cc = 0
     # iterates over the original epochs
     for ee, (epoch, this_ep_sub_eps) in enumerate(zip(original_times, sub_epochs)):
@@ -108,8 +117,8 @@ def _set_subepoch_pairs(epochs):
             # second add as a pair
             cc += 1
             # stim_num start time
-            if ss == 0:  # special case for PreStimSilence as stim_num
-                context = start - PreStimSilence
+            if ss == 0:  # special case for PreStimSilence as context
+                context = start - PreSilStep
                 name = 'C0_P{}'.format(sub_ep)
             else:
                 context = start - step
@@ -123,7 +132,7 @@ def _set_subepoch_pairs(epochs):
         # finally add the PostStimSilences as prb in a pair
 
         context = start
-        end = end + PostStimSilence
+        end = end + PostSilStep
         name = 'C{}_P0'.format(sub_ep)
 
         splited_times[cc, 0] = context
@@ -152,7 +161,7 @@ def _set_subepoch_pairs(epochs):
 
 def set_signal_subepochs(signal):
     '''
-    Signal wrapper. set epoch names followign context probe pairs e.g. C1_P2
+    Signal wrapper. set epoch names following context probe pairs e.g. C1_P2
     for a signal
     :param signal: NEMS Signal
     :return: copy of the signal withe modified epochs
@@ -172,7 +181,7 @@ def set_signal_subepochs(signal):
 
 def set_recording_subepochs(recording):
     '''
-    recording wrapper. set epoch names followinge context probe pairs e.g. C1_P2
+    recording wrapper. set epoch names following context probe pairs e.g. C1_P2
     for all signals in recording and for the recording itself
     :param recording: NEMS Recording object
     :return: copy of recording with modified epochs

@@ -1,6 +1,7 @@
 from math import sqrt, log
 
 import numpy as np
+from collections import Iterable
 from scipy.ndimage import gaussian_filter1d
 
 

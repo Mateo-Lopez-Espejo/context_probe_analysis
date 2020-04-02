@@ -3,6 +3,7 @@ import pathlib as pl
 
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 # from progressbar import ProgressBar
 from scipy.optimize import curve_fit
 
@@ -37,6 +38,14 @@ def fit_exp_decay(times, values):
     :param values: np.array. 1D, y values, same shape as times
     :return:
     """
+    if len(times) != len(values):
+        times = times[:len(values)]
+
+    #removes nan padding
+    not_nan = np.logical_not(np.isnan(values))
+    values = values[not_nan]
+    times = times[not_nan]
+
     popt, pvar = curve_fit(exp, times, values, p0=[1, 0], bounds=([0, -np.inf], [np.inf, 0]))
     return popt, pvar
 
@@ -199,6 +208,24 @@ meta = {'reliability': 0.1,  # r value
         'montecarlo': 1000,
         'zscore': False}
 
+tran_type = list()
+for t0, t1 in itt.combinations(meta['transitions'], 2):
+    pair = f'{t0}_{t1}'
+    if pair == 'silence_continuous':
+        tran_type.append('hard')
+    elif pair == 'silence_similar':
+        tran_type.append('hard')
+    elif pair == 'silence_sharp':
+        tran_type.append('soft')
+    elif pair == 'continuous_similar':
+        tran_type.append('soft')
+    elif pair == 'continuous_sharp':
+        tran_type.append('hard')
+    elif pair == 'similar_sharp':
+        tran_type.append('hard')
+    else:
+        continue
+
 dprime_recache = False
 rec_recache = False
 
@@ -217,7 +244,7 @@ sites = list(get_site_ids(316).keys())
 # sites = ['AMT029a'] # example site PEG
 # sites = ['ley070a'] # example site A1
 # all_probes = [5]
-# sites = ['AMT031a']
+# sites = ['DRX021a']
 
 bad_SC_sites = list()
 all_SC_pvalues = dict()
@@ -228,6 +255,7 @@ bad_dPCA_sites = list()
 all_dPCA_pvalues = dict()
 all_dPCA_reals = dict()
 all_dPCA_shuffled = dict()
+all_dPCA_simulated = dict()
 
 for site in sites:
 
@@ -245,11 +273,9 @@ for site in sites:
         # single cell analysis
         object_name = f'200221_{site}_P{probe}_single_cell_dprime'
         analysis_parameters = '_'.join(['{}-{}'.format(key, str(val)) for key, val in meta.items()])
-        analysis_name = 'CPN_singel_cell_dprime'  # todo rename!
-        # cache_folder = pl.Path('U:\\mateo' , 'mychache' , analysis_name , analysis_parameters)
+        analysis_name = 'CPN_singel_cell_dprime'
         cache_folder = pl.Path('C:\\', 'users', 'mateo', 'mycache', analysis_name, analysis_parameters)
 
-        # try:
         SC_cache = make_cache(function=cell_dprime,
                               func_args={'site': site, 'probe': probe, 'meta': meta},
                               classobj_name=object_name,
@@ -257,10 +283,6 @@ for site in sites:
                               recache=dprime_recache)
 
         SC_dprime, SC_shuf_dprime, SC_cell_names, SC_trans_pairs = get_cache(SC_cache)
-
-        # except:
-        #     bad_SC_sites.append(f"{site}_P{probe}_dPCA")
-        #     continue
 
         this_site_SC_reals.append(SC_dprime)
         this_site_SC_shuffled.append(SC_shuf_dprime)
@@ -274,19 +296,14 @@ for site in sites:
         object_name = f'200221_{site}_P{probe}_single_cell_dprime'
         analysis_parameters = '_'.join(['{}-{}'.format(key, str(val)) for key, val in meta.items()])
         analysis_name = 'CPN_dPCA_dprime'
-        # cache_folder = pl.Path('U:\\mateo' , 'mychache' , analysis_name , analysis_parameters)
         cache_folder = pl.Path('C:\\', 'users', 'mateo', 'mycache', analysis_name, analysis_parameters)
-        # try:
+
         dPCA_cache = make_cache(function=dPCA_fourway_analysis,
                                 func_args={'site': site, 'probe': probe, 'meta': meta},
                                 classobj_name=object_name,
                                 cache_folder=cache_folder,
                                 recache=dprime_recache)
         dPCA_dprime, dPCA_shuf_dprime, dPCA_sim_dprime, dPCA_cell_names = get_cache(dPCA_cache)
-
-        # except:
-        #      bad_dPCA_sites.append(f"{site}_P{probe}_dPCA")
-        #      continue
 
         this_site_dPCA_reals.append(dPCA_dprime)
         this_site_dPCA_shuffled.append(dPCA_shuf_dprime)
@@ -311,50 +328,48 @@ for site in sites:
         all_SC_shuffled[cell] = this_site_SC_shuffled[:, :, :, cc, :].swapaxes(0, 1)
         all_SC_pvalues[cell] = this_site_SC_pvalues[:, :, cc, :]
 
-    for cc, cell in enumerate(dPCA_cell_names):
-        all_dPCA_reals[site] = this_site_dPCA_reals
-        all_dPCA_shuffled[site] = this_site_dPCA_shuffled.swapaxes(0, 1)
-        all_dPCA_pvalues[site] = this_site_dPCA_pvalues
+    all_dPCA_reals[site] = this_site_dPCA_reals
+    all_dPCA_shuffled[site] = this_site_dPCA_shuffled.swapaxes(0, 1)
+    all_dPCA_simulated[site] = this_site_dPCA_simulated.swapaxes(0, 1)
+    all_dPCA_pvalues[site] = this_site_dPCA_pvalues
 
-# stacks the site individual arrays along a new site dimension. since the sites have disimilar cell number, pads
-all_cells = np.array(list(all_SC_pvalues.keys()))
-all_sites = np.array([cell[0:7] for cell in all_cells])
-all_regions = np.array([cell[0:3] for cell in all_cells])
+##############################
+# defines arrays that identify cells, sites and regions
+SC_cells = np.array(list(all_SC_pvalues.keys()))
+SC_sites = np.array([cell[0:7] for cell in SC_cells])
+SC_regions = np.array([cell[0:3] for cell in SC_cells]) # todo make a dictionary map from site to A1 or PEG
 
-all_types = list()
-for t0, t1 in itt.combinations(meta['transitions'], 2):
-    pair = f'{t0}_{t1}'
-    if pair == 'silence_continuous':
-        all_types.append('hard')
-    elif pair == 'silence_similar':
-        all_types.append('hard')
-    elif pair == 'silence_sharp':
-        all_types.append('soft')
-    elif pair == 'continuous_similar':
-        all_types.append('soft')
-    elif pair == 'continuous_sharp':
-        all_types.append('hard')
-    elif pair == 'similar_sharp':
-        all_types.append('hard')
-    else:
-        continue
+dPCA_site = np.array(list(all_dPCA_pvalues.keys()))
+dPCA_regions = np.array([cell[0:3] for cell in dPCA_site])
 
+# defines a significatn threshold and transfroms the pvalues into bool (significant vs nonsignificant)
 threshold = 0.05
-all_signif = {key: (val <= threshold) for key, val in all_SC_pvalues.items()}
-sig_array = np.stack(list(all_signif.values()), axis=0)  # dimensions: Cell x Probe x trans_pair x time
+SC_significance = {key: (val <= threshold) for key, val in all_SC_pvalues.items()}
+dPCA_significance = {key: (val <= threshold) for key, val in all_dPCA_pvalues.items()}
 
-# calculates exponential decay for each cell, collapsing across all probes and transisions
-nbin = sig_array.shape[-1]
+
+# stacks arrays, with different time dimentions, padding with NAN
+SC_shape = np.insert(np.max(np.stack([arr.shape for arr in SC_significance.values()], axis=0), axis=0), 0, len(SC_significance))
+SC_signif_array = np.empty(SC_shape)
+SC_signif_array[:]=np.nan
+for cc, arr in enumerate(SC_significance.values()):
+    t = arr.shape[-1]
+    SC_signif_array[cc, :, :, :t] = arr
+
+
+dPCA_shape = np.insert(np.max(np.stack([arr.shape for arr in dPCA_significance.values()], axis=0), axis=0), 0, len(dPCA_significance))
+dPCA_signif_array = np.empty(dPCA_shape)
+dPCA_signif_array[:]=np.nan
+for ss, arr in enumerate(dPCA_significance.values()):
+    t = arr.shape[-1]
+    dPCA_signif_array[ss, :, :, :t] = arr
+
+# set up the time bin labels in milliseconds, this is critical fro ploting and calculating the tau
+nbin = SC_signif_array.shape[-1]
 fs = meta['raster_fs']
 times = np.linspace(0, nbin / fs, nbin, endpoint=False) * 1000
 
-collapsed = sig_array.mean(axis=(1, 2))
-model_fits = {cell: {param: val for param, val in zip(('r0', 'decay'), fit_exp_decay(times, values)[0])}
-              for cell, values in zip(all_cells, collapsed)}
-
-for cell, params in model_fits.items():
-    params['tau'] = -1 / params['decay']
-
+############################################################
 # dimensions to collapse per cell: Probe, Transition.
 # collapse one, then the other, then both, per cell
 # calculates the bins over/under a significant threshold
@@ -362,8 +377,8 @@ bar_width = 1 / fs * 1000
 
 # for each cell in each site collapses across probes and context pairs
 for site in sites:
-    collapsed = np.sum(sig_array[all_sites == site, :, :, :], axis=(1, 2))
-    site_cells = all_cells[all_sites == site]
+    collapsed = np.nanmean(SC_signif_array[SC_sites == site, :, :, :], axis=(1, 2))
+    site_cells = SC_cells[SC_sites == site]
 
     fig, axes = fplt.subplots_sqr(collapsed.shape[0], sp_kwargs={'sharey': True})
     for ax, hist, cell in zip(axes, collapsed, site_cells):
@@ -377,10 +392,10 @@ for site in sites:
 # for each site collapses across cells and probes
 fig, axes = plt.subplots(len(sites),
                          len(list(itt.combinations(meta['transitions'], 2))),
-                         sharex=True, sharey=True)
+                         sharex=True, sharey=True,squeeze=False)
 for row, site in enumerate(sites):
     color = 'red' if site[0:3] == 'AMT' else 'black'
-    collapsed = np.sum(sig_array[all_sites == site, :, :, :], axis=(0, 1))
+    collapsed = np.nanmean(SC_signif_array[SC_sites == site, :, :, :], axis=(0, 1))
     for col, (ax, hist, pair) in enumerate(
             zip(axes[row], collapsed, itt.combinations(meta['transitions'], 2))):
         ax.bar(times, hist, width=bar_width, align='edge', color=color, edgecolor='white')
@@ -393,10 +408,11 @@ for row, site in enumerate(sites):
 
 # for each site collapses across cells, probes, and transition pairs
 fig, axes = plt.subplots(len(sites), 1,
-                         sharex=True, sharey=True)
+                         sharex=True, sharey=True, squeeze=False)
 for row, (site, ax) in enumerate(zip(sites, axes)):
+    ax = ax[0]
     color = 'red' if site[0:3] == 'AMT' else 'black'
-    collapsed = np.mean(sig_array[all_sites == site, :, :, :], axis=(0, 1, 2))
+    collapsed = np.nanmean(SC_signif_array[SC_sites == site, :, :, :], axis=(0, 1, 2))
 
     max_sig = collapsed.max()
     ax.bar(times, collapsed, width=bar_width, align='edge', color=color, edgecolor='white')
@@ -408,7 +424,7 @@ fig, axes = plt.subplots(2, 6, sharex=True, sharey=True)
 
 for row, region in enumerate(['ley', 'AMT']):
     color = 'red' if region == 'AMT' else 'black'
-    collapsed = np.mean(sig_array[all_regions == region, :, :, :], axis=(0, 1))
+    collapsed = np.nanmean(SC_signif_array[SC_regions == region, :, :, :], axis=(0, 1))
 
     for col, (ax, hist, pair) in enumerate(
             zip(axes[row], collapsed, itt.combinations(meta['transitions'], 2))):
@@ -421,13 +437,109 @@ for row, region in enumerate(['ley', 'AMT']):
             ax.set_ylabel(region)
 
 
-# plots all steps of analysis for this cell
+############################################################
+# for each site dPCA plots the significant bins for each transition pair and probe
+for site, arr in dPCA_significance.items():
+    fig, axes = plt.subplots(arr.shape[0], arr.shape[1], sharex=True, sharey=True, squeeze=False)
+    color = 'black'
+    for rr, (row, probe) in enumerate(zip(axes, all_probes)):
+        for cc, (col, pair) in enumerate(zip(row, itt.combinations(meta['transitions'], 2))):
+            ax = col
+            hist = arr[rr,cc,:]
+            ax.bar(times, hist, width=bar_width, align='edge', color=color, edgecolor='white')
+            _ = plot_exp_decay(times, hist, ax=ax)
 
+            if cc ==0:
+                ax.set_xlabel('mean significant bins')
+            if rr ==0:
+                ax.set_title(f'{pair[0]}_{pair[1]}')
+
+            ax.legend()
+    fig.suptitle(f'{site}\n dPCA significant bins')
+
+# for each site dPCA, plots the significant bins for each transitions pair, collapses probes
+fig, axes = plt.subplots(len(dPCA_significance), arr.shape[1], sharex=True, sharey=True, squeeze=False)
+for rr, (row, (site, arr)) in enumerate(zip(axes, dPCA_significance.items())):
+    collapsed = np.nanmean(arr, axis=0)
+    for cc, (col, pair) in enumerate(zip(row, itt.combinations(meta['transitions'], 2))):
+        ax = col
+        hist = collapsed[cc,:]
+        ax.bar(times, hist, width=bar_width, align='edge', color=color, edgecolor='white')
+        _ = plot_exp_decay(times, hist, ax=ax)
+
+        if cc ==0:
+            ax.set_xlabel(f'{site}\nmean significant bins')
+        if rr ==0:
+            ax.set_title(f'{pair[0]}_{pair[1]}')
+
+        ax.legend()
+    fig.suptitle(site)
+
+
+# for each site collapses across cells, probes, and transition pairs, compares single cell with dPCA
+fig, axes = plt.subplots(len(sites), 2,
+                         sharex=True, sharey=True, squeeze=False)
+for row, (site, ax) in enumerate(zip(sites, axes)):
+    color = 'red' if site[0:3] == 'AMT' else 'black'
+    SC_collapsed = np.nanmean(SC_signif_array[SC_sites == site, :, :, :], axis=(0, 1, 2))
+    ax[0].bar(times, SC_collapsed, width=bar_width, align='edge', color=color, edgecolor='white')
+    _ = plot_exp_decay(times, SC_collapsed, ax=ax[0])
+    ax[0].set_ylabel(f'{site}\nmean significant bins')
+    ax[0].set_title('mean of single cells')
+    ax[0].legend()
+
+    dPCA_collapsed = np.nanmean(dPCA_significance[site], axis=(0, 1))
+    ax[1].bar(times[:len(dPCA_collapsed)], dPCA_collapsed, width=bar_width, align='edge', color=color, edgecolor='white')
+    _ = plot_exp_decay(times, dPCA_collapsed, ax=ax[1])
+    ax[1].set_title('dPCA')
+    ax[1].legend()
+
+fig.suptitle('single cell vs dPCA significant integration bins')
+
+############################################################
+# compares the Taus calculated for each cell against those of the site mean
+# calculates exponential decay of significant bins for each cell, for the site mean and
+# for the site dPCA projection collapsing across all probes and transisions
+
+df = list()
+for site in sites:
+    collapsed = np.nanmean(SC_signif_array[SC_sites == site, :, :, :], axis=(1, 2))
+    site_popt, _ = fit_exp_decay(times, np.nanmean(collapsed, axis=0))
+    dPCA_popt, _ = fit_exp_decay(times, np.nanmean(dPCA_significance[site], axis=(0,1)))
+    site_cells = SC_cells[SC_sites == site]
+    for cell, hist in zip(site_cells, collapsed):
+        cell_popt, _ = fit_exp_decay(times, hist)
+        for sname, source in zip(('mean', 'dPCA', 'cell'),(site_popt, dPCA_popt, cell_popt)):
+            for parameter, value in zip(('r0', 'decay'), source):
+                d = {'siteid': site,
+                     'cellid': cell,
+                     'source': sname,
+                     'parameter': parameter,
+                     'value': value}
+                df.append(d)
+DF = pd.DataFrame(df)
+# add tau defined as the inverse of the decay constant
+decay = DF.loc[DF.parameter=='decay', :].copy()
+decay['parameter'] = 'tau'
+decay['value'] = -1 / decay['value']
+DF = pd.concat((DF, decay), axis=0)
+
+ff_param = DF.parameter == 'tau'
+ff_threshold = DF.value < 1000 # drop cells with abnormaly high levels of tau, i.e, over 1 second
+filtered = DF.loc[ff_param & ff_threshold, :]
+pivoted = filtered.pivot(index='cellid', columns='source', values='value')
+
+fig, ax = plt.subplots()
+ax.scatter(pivoted['mean'], pivoted['dPCA'])
+ax.plot(pivoted['cell'])
+
+# plots all steps of analysis for this cell
 def check_plot(cell, probe, tran_pair, significance=0.05):
     site = cell[:7]
 
     # loads the raw data
-    recs = load(site)
+    # recs = load(site)
+    recs = load(site, rasterfs=meta['raster_fs'], recache=rec_recache)
     sig = recs['trip0']['resp']
     # calculates response realiability and select only good cells to improve analysis
     r_vals, goodcells = signal_reliability(sig, r'\ASTIM_*', threshold=meta['reliability'])
@@ -471,10 +583,9 @@ def check_plot(cell, probe, tran_pair, significance=0.05):
     axes[2].axhline(significance, color='red', linestyle='--')
 
     # plots the histogram of significant bins
-    axes[3].bar(times, all_signif[cell][prb_idx, pair_idx, :], width=bar_width, align='edge', edgecolor='white')
+    axes[3].bar(times, SC_significance[cell][prb_idx, pair_idx, :], width=bar_width, align='edge', edgecolor='white')
     return axes
 
 
-cell = 'AMT028b-20-1'
-
+cell = 'DRX021a-28-3'
 axes = check_plot(cell, probe=6, tran_pair=('silence', 'continuous'), significance=threshold)
