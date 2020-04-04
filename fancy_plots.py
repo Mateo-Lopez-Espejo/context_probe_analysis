@@ -10,8 +10,10 @@ import numpy as np
 import scipy.ndimage.filters as sf
 import scipy.signal as ssig
 import scipy.stats as sst
+from scipy.stats import linregress
 
 from cpp_parameter_handlers import _epoch_name_handler, _channel_handler, _fs_handler
+import fits as fts
 from nems.signal import PointProcess
 
 
@@ -21,7 +23,7 @@ from nems.signal import PointProcess
 
 ### helper functions
 
-def subplots_sqr(n_subplots, sp_kwargs={}):
+def subplots_sqr(n_subplots, **sp_kwargs):
     '''
     makes an square array of subplots depending on the total number of subplots desired
     :param n_subplots:
@@ -35,10 +37,10 @@ def subplots_sqr(n_subplots, sp_kwargs={}):
     if rows*cols < n_subplots:
         rows = rows+1
 
-    defautls = {'sharex':False, 'sharey':False, 'squeeze':False}
-    defautls.update(sp_kwargs)
+    defaults = {'sharex':False, 'sharey':False, 'squeeze':False}
+    for key, arg in defaults.items(): sp_kwargs.setdefault(key, arg)
 
-    fig, axes = plt.subplots(rows, cols, **defautls)
+    fig, axes = plt.subplots(rows, cols, **sp_kwargs)
 
     axes = np.ravel(axes)
 
@@ -855,3 +857,72 @@ def plot_dist_with_CI(real, bootstrapped, labels, colors, smp_start, smp_end, sm
         ax.tick_params(axis='both', which='major')
 
     return fig, ax
+
+
+def exp_decay(times, values, ax=None, label=True, **pltkwargs):
+    '''
+    plots an exponential decaye curve fited on times and values
+    :param times:
+    :param values:
+    :param ax:
+    :param label:
+    :param pltkwargs:
+    :return:
+    '''
+    defaults = {'color': 'gray', 'linestyle': '--'}
+    for key, arg in defaults.items(): pltkwargs.setdefault(key, arg)
+
+    if ax == None:
+        fig, ax = plt.subplots()
+    else:
+        ax = ax
+        fig = ax.get_figure()
+
+    try:
+        popt, pvar = fts.exp_decay(times, values)
+    except:
+        print('failed to fit exp decay')
+        return fig, ax, None, None
+
+    if label == True:
+        # scientific notation if number is too big
+        to_display = [popt[0], -1 / popt[1]]
+        formated = list()
+        for vv, value in enumerate(to_display):
+            if value >= 1000:
+                formated.append('{:.2e}'.format(value))
+            else:
+                formated.append('{:.2f}'.format(value))
+
+        label = 'r0={}\nt={}'.format(formated[0], formated[1])
+    elif label == False:
+        label = None
+    else:
+        pass
+
+    ax.plot(times, fts._exp(times, *popt), label=label, **pltkwargs)
+
+    return fig, ax, popt, pvar
+
+
+def lin_reg(x, y, ax=None, label=True, **pltkwargs):
+    defaults = {'color': 'gray', 'linestyle': '--', 'marker':None}
+    for key, arg in defaults.items(): pltkwargs.setdefault(key, arg)
+
+
+    reg = linregress(x, y)
+    m, b, r, _, _ = reg
+
+    if ax == None:
+        fig, ax = plt.subplots()
+    else:
+        ax = ax
+        fig = ax.get_figure()
+
+    if label == True:
+        # scientific notation if number is too big
+        label = 'm={:.2f}, b={:.2f}, r={:.2f}'.format(m, b, r)
+
+    ax.plot(x, m*x+ b, label=label, **pltkwargs)
+
+    return fig, ax, reg

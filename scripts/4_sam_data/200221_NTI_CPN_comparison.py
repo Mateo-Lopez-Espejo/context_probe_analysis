@@ -14,6 +14,8 @@ from cpn_load import load, get_site_ids
 from cpp_cache import make_cache, get_cache
 from reliability import signal_reliability
 from tools import shuffle_along_axis as shuffle
+import fits as fit
+import fancy_plots as fplt
 
 '''
 since applying the dprime CPN analysis toe the NTI data was unsuccessfull, the next alternative to compare Sam and my
@@ -29,58 +31,10 @@ approach is to perform the CPN and NTI analysis to their respective datasets on 
 # 2. Calculates the dPrime for each site and all possible probes, context pairs and cells (?). This is the difficult part
 # to summarize the outcome of all the
 
-def exp(x, a, b):
-    return a * np.exp(b * x)
-
-
-def fit_exp_decay(times, values):
-    """
-    fits a properly constrained exponential decay to the times and values give, retursn the fitted values
-    of the exponential function and the equivalent time constant Tau
-    :param times: np.array. 1D, Time points in seconds, same shape as values
-    :param values: np.array. 1D, y values, same shape as times
-    :return:
-    """
-    popt, pvar = curve_fit(exp, times, values, p0=[1, 0], bounds=([0, -np.inf], [np.inf, 0]))
-    return popt, pvar
-
-
-def plot_exp_decay(times, values, ax=None, label=True, pltkwargs={}):
-    '''
-    plots an exponential decaye curve fited on times and values
-    :param times:
-    :param values:
-    :param ax:
-    :param label:
-    :param pltkwargs:
-    :return:
-    '''
-    defaults = {'color': 'gray', 'linestyle': '--'}
-    defaults.update(**pltkwargs)
-
-    popt, pvar = fit_exp_decay(times, values)
-
-    if ax == None:
-        fig, ax = plt.subplots()
-    else:
-        ax = ax
-        fig = ax.get_figure()
-
-    if label == True:
-        label = 'start={:+.2f}, tau= {:+.2f}'.format(popt[0], -1 / popt[1])
-    elif label == False:
-        label = None
-    else:
-        pass
-
-    ax.plot(times, exp(times, *popt), color='gray', linestyle='--',
-            label=label)
-
-    return fig, ax, popt, pvar
-
 
 def cell_dprime(site, probe, meta):
-    recs = load(site)
+    # recs = load(site, remote=True, rasterfs=meta['raster_fs'], recache=False)
+    recs = load(site, rasterfs=meta['raster_fs'], recache=rec_recache)
     if len(recs) > 2:
         print(f'\n\n{recs.keys()}\n\n')
 
@@ -98,7 +52,7 @@ def cell_dprime(site, probe, meta):
 
     # trialR shape: Trial x Cell x Context x Probe x Time; R shape: Cell x Context x Probe x Time
     trialR, R, _ = cdPCA.format_raster(raster)
-    trialR, R = trialR.squeeze(), R.squeeze()  # squeezes out probe
+    trialR, R = trialR.squeeze(axis=3), R.squeeze(axis=2)  # squeezes out probe
 
     rep, chn, ctx, tme = trialR.shape
 
@@ -124,13 +78,14 @@ def cell_dprime(site, probe, meta):
 
         shuffled.append(cDP.pairwise_dprimes(shuf_trialR, observation_axis=1, condition_axis=3))
 
-    shuffled = np.stack(shuffled, axis=1)  # shape Montecarlo x ContextPair x Cell x Time
+    shuffled = np.stack(shuffled, axis=1).squeeze(axis=0).swapaxes(0, 1)  # shape Montecarlo x ContextPair x Cell x Time
 
     return dprime, shuffled, goodcells, trans_pairs
 
 
 def dPCA_fourway_analysis(site, probe, meta):
-    recs = load(site)
+    # recs = load(site, remote=True, rasterfs=meta['raster_fs'], recache=False)
+    recs = load(site, rasterfs=meta['raster_fs'], recache=rec_recache)
 
     if len(recs) > 2:
         print(f'\n\n{recs.keys()}\n\n')
@@ -149,38 +104,31 @@ def dPCA_fourway_analysis(site, probe, meta):
 
     # trialR shape: Trial x Cell x Context x Probe x Time; R shape: Cell x Context x Probe x Time
     trialR, R, _ = cdPCA.format_raster(raster)
-    trialR, R = trialR.squeeze(), R.squeeze()  # squeezes out probe
+    trialR, R = trialR.squeeze(axis=3), R.squeeze(axis=2)  # squeezes out probe
     Re, C, S, T = trialR.shape
 
     # calculates full dPCA. i.e. considering all 4 categories
-    def fit_transformt(R, trialR):
-        _, dPCA_projection, _, dpca = cdPCA.trials_dpca(R, trialR, significance=False, dPCA_parms={})
-        dPCA_projection = dPCA_projection['ct'][:, 0, ]
-        dPCA_transformation = np.tile(dpca.D['ct'][:, 0][:, None, None], [1, 1, T])
-        return dPCA_projection, dPCA_transformation
-
-    dPCA_projection, dPCA_transformation = fit_transformt(R, trialR)
-    dprime = cDP.pairwise_dprimes(dPCA_projection)
+    dPCA_projection, dPCA_transformation = cdPCA.fit_transform(R, trialR)
+    dprime = cDP.pairwise_dprimes(dPCA_projection, observation_axis=0, condition_axis=1)
 
     # calculates floor (ctx shuffle) and ceiling (simulated data)
     sim_dprime = np.empty([meta['montecarlo']] + list(dprime.shape))
     shuf_dprime = np.empty([meta['montecarlo']] + list(dprime.shape))
 
     ctx_shuffle = trialR.copy()
-
     # pbar = ProgressBar()
     for rr in range(meta['montecarlo']):
         # ceiling: simulates data, calculates dprimes
         sim_trial = np.random.normal(np.mean(trialR, axis=0), np.std(trialR, axis=0),
                                      size=[Re, C, S, T])
-        sim_projection = cLDA.transform_over_time(cLDA._reorder_dims(sim_trial), dPCA_transformation)
-        sim_dprime[rr, ...] = cDP.pairwise_dprimes(cLDA._recover_dims(sim_projection).squeeze())
+        sim_projection = cdPCA.transform(sim_trial, dPCA_transformation)
+        sim_dprime[rr, ...] = cDP.pairwise_dprimes(sim_projection, observation_axis=0, condition_axis=1)
 
         ctx_shuffle = shuffle(ctx_shuffle, shuffle_axis=2, indie_axis=0)
-        shuf_projection = cLDA.transform_over_time(cLDA._reorder_dims(ctx_shuffle), dPCA_transformation)
-        shuf_dprime[rr, ...] = cDP.pairwise_dprimes(cLDA._recover_dims(shuf_projection).squeeze())
+        shuf_projection = cdPCA.transform(ctx_shuffle, dPCA_transformation)
+        shuf_dprime[rr, ...] = cDP.pairwise_dprimes(shuf_projection, observation_axis=0, condition_axis=1)
 
-    return dprime, shuf_dprime, sim_dprime
+    return dprime, shuf_dprime, sim_dprime, goodcells
 
 # transferable plotting parameters
 plt.rcParams['svg.fonttype'] = 'none'
@@ -196,9 +144,13 @@ meta = {'reliability': 0.1,  # r value
         'montecarlo': 1000,
         'zscore': False}
 
+dprime_recache = False
+rec_recache = False
+
 analysis_name = 'NTI_singel_cell_dprime'
 analysis_parameters = '_'.join(['{}-{}'.format(key, str(val)) for key, val in meta.items()])
 code_to_name = {'t': 'Probe', 'ct': 'Context'}
+full_screen = [19.2, 9.83]
 
 all_probes = [2, 3, 5, 6]
 
@@ -210,7 +162,7 @@ sites = ['ley070a',  # good site. A1
          # 'AMT031a', # low response, bad
          'AMT032a']  # great site. PEG
 
-# sites = list(get_site_ids(316).keys())
+sites = list(get_site_ids(316).keys())
 # problem sites:
 # sites = ['AMT031a']
 
@@ -231,31 +183,26 @@ for site in sites:
     this_site_shuffled = list()
     this_site_pvalues = list()
     for pp, probe in enumerate(all_probes):
+        # single cell analysis
         object_name = f'200221_{site}_P{probe}_single_cell_dprime'
-        # cache_folder = pl.Path('U:\\mateo' , 'mychache' , analysis_name , analysis_parameters)
+        analysis_parameters = '_'.join(['{}-{}'.format(key, str(val)) for key, val in meta.items()])
+        analysis_name = 'CPN_singel_cell_dprime'
         cache_folder = pl.Path('C:\\', 'users', 'mateo', 'mycache', analysis_name, analysis_parameters)
 
-        try:
-            cache = make_cache(function=cell_dprime,
-                               func_args={'site': site, 'probe': probe, 'meta': meta},
-                               classobj_name=object_name,
-                               cache_folder=cache_folder,
-                               recache=False)
+        SC_cache = make_cache(function=cell_dprime,
+                              func_args={'site': site, 'probe': probe, 'meta': meta},
+                              classobj_name=object_name,
+                              cache_folder=cache_folder,
+                              recache=dprime_recache)
 
-            real, shuffled, cell_names, trans_pairs = get_cache(cache)
+        dprime, shuf_dprime, cell_names, trans_pairs = get_cache(SC_cache)
 
-        except:
-            bad_sites.append(f"{site}_P{probe}_dPCA")
-            continue
-
-        this_site_reals.append(real)
-        this_site_shuffled.append(shuffled)
+        this_site_reals.append(dprime)
+        this_site_shuffled.append(shuf_dprime)
 
         # single tailed p value base on the montecarlo shuffling
-
-        pvalues = np.sum((shuffled >= real), axis=0) / meta['montecarlo']
-
-        this_site_pvalues.append(pvalues)
+        SC_pvalues = np.sum((shuf_dprime >= dprime), axis=0) / meta['montecarlo']
+        this_site_pvalues.append(SC_pvalues)
 
     this_site_reals = np.stack(this_site_reals, axis=0)
     this_site_shuffled = np.stack(this_site_shuffled, axis=0)
@@ -272,18 +219,27 @@ all_cells = np.array(list(all_pvalues.keys()))
 
 threshold = 0.05
 all_signif = {key: (val <= threshold) for key, val in all_pvalues.items()}
-sig_array = np.stack(list(all_signif.values()), axis=0)  # dimensions: Cell x Probe x trans_pair x time
+
+# stacks arrays, with different time dimentions, padding with NAN
+shape = np.insert(np.max(np.stack([arr.shape for arr in all_signif.values()], axis=0), axis=0), 0,
+                     len(all_signif))
+signif_array = np.empty(shape)
+signif_array[:] = np.nan
+for cc, arr in enumerate(all_signif.values()):
+    t = arr.shape[-1]
+    signif_array[cc, :, :, :t] = arr
+# sig_array = np.stack(list(all_signif.values()), axis=0)  # dimensions: Cell x Probe x trans_pair x time
 
 # calculates exponential decay for each cell, collapsing across all probes and transisions
-nbin = sig_array.shape[-1]
+nbin = signif_array.shape[-1]
 fs = meta['raster_fs']
 times = np.linspace(0, nbin / fs, nbin, endpoint=False) * 1000 # units in ms!!!!
-collapsed = sig_array.mean(axis=(1, 2))
+collapsed = signif_array.mean(axis=(1, 2))
 
 # organizes in a dataframe with columns r0: y intercept, decay: eponential valaue and tau: Time to a 36% amplitude
 df = list()
 for cellid, data in zip(all_cells, collapsed):
-    popt, _ = fit_exp_decay(times, data)
+    popt, _ = fit.exp_decay(times, data)
     df.append({'cellid': cellid,
                'r0_au': popt[0],
                'decay_ms': popt[1]})
@@ -312,6 +268,32 @@ integration_fits.set_index(['cellid'], inplace=True)
 
 # 4. pools together both approache, selects only common cell, plots relationships
 # join='inner' keeps only the intersection between the two Dfs, i.e. the cells that have both approaches
-DF = pd.concat([context_fits, integration_fits], axis=1, join='inner')
+def savefig(fig, root, name):
+    root = pl.Path(f'C:\\users\\mateo\\Pictures\\{root}')
+    if not root.exists(): root.mkdir(parents=True, exist_ok=True)
+    png = root.joinpath(name).with_suffix('.png')
+    fig.savefig(png, transparent=False, dpi=100)
+    # svg = root.joinpath(name).with_suffix('.svg')
+    # fig.savefig(svg, transparent=True)
 
-DF.plot(x='tau_ms', y='intper_ms', kind='scatter')
+DF = pd.concat([context_fits, integration_fits], axis=1, join='inner')
+# filter out anomalous outliers i.e taus over 1 second due to poor fiting
+ff_good = DF['tau_ms'] < 1000
+
+filtered = DF.loc[ff_good, :]
+
+
+fig_root = 'sam_vs_mat'
+x = filtered['tau_ms']
+y = filtered['intper_ms']
+
+fig, ax = plt.subplots(figsize=full_screen)
+ax.scatter(x, y)
+_ = fplt.lin_reg(x,y, ax=ax)
+ax.set_xlabel(x.name)
+ax.set_ylabel(y.name)
+ax.legend()
+fig.tight_layout(rect=(0, 0, 1, 0.95))
+title = 'Sam integration vs Mateo Tau'
+fig.suptitle(title)
+savefig(fig, fig_root, title)
