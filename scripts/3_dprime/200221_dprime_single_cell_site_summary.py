@@ -426,16 +426,23 @@ plt.close(fig)
 for site, arr in dPCA_significance.items():
     fig, axes = plt.subplots(arr.shape[0], arr.shape[1], sharex=True, sharey=True,
                              squeeze=False, figsize=full_screen)
-    color = 'black'
+    region = region_map[site[:7]]
+    color = 'black' if region == 'A1' else 'red'
+
     for rr, (row, probe) in enumerate(zip(axes, all_probes)):
         for cc, (col, pair) in enumerate(zip(row, itt.combinations(meta['transitions'], 2))):
             ax = col
+            line = all_dPCA_reals[site][rr, cc, :]
+            mont = all_dPCA_shuffled[site][:, rr, cc, :]
             hist = arr[rr, cc, :]
-            ax.bar(times[:len(hist)], hist, width=bar_width, align='edge', color=color, edgecolor='white')
+            ax.bar(times[:len(hist)], hist, width=bar_width, align='edge', color=color, edgecolor='white', alpha=0.5)
             _ = fplt.exp_decay(times[:len(hist)], hist, ax=ax)
 
+            ax.plot(times[:len(line)],line, color='blue')
+            _ = fplt._cint(times[:mont.shape[1]], mont, confidence=0.95, ax=ax,
+                           fillkwargs={'color': 'blue', 'alpha': 0.5})
             if cc == 0:
-                ax.set_xlabel('mean significant bins')
+                ax.set_ylabel(f'probe{probe}')
             if rr == 0:
                 ax.set_title(f'{pair[0]}_{pair[1]}')
 
@@ -450,6 +457,8 @@ for site, arr in dPCA_significance.items():
 fig, axes = plt.subplots(len(dPCA_significance), arr.shape[1], sharex=True, sharey=True,
                          squeeze=False, figsize=full_screen)
 for rr, (row, (site, arr)) in enumerate(zip(axes, dPCA_significance.items())):
+    region = region_map[site[:7]]
+    color = 'black' if region == 'A1' else 'red'
     collapsed = np.nanmean(arr, axis=0)
     for cc, (col, pair) in enumerate(zip(row, itt.combinations(meta['transitions'], 2))):
         ax = col
@@ -477,8 +486,8 @@ for row, (site, ax) in enumerate(zip(sites, axes)):
     color = 'red' if site[0:3] == 'AMT' else 'black'
     SC_collapsed = np.nanmean(SC_signif_array[SC_sites == site, :, :, :], axis=(0, 1, 2))
     ax[0].bar(times, SC_collapsed, width=bar_width, align='edge', color=color, edgecolor='white')
-    _ = fplt.exp_decay(times[SC_collapsed], SC_collapsed, ax=ax)
-    ax[0].set_ylabel(f'{site}\nmean significant bins')
+    _ = fplt.exp_decay(times[:len(SC_collapsed)], SC_collapsed, ax=ax[0])
+    ax[0].set_ylabel(site)
     ax[0].set_title('mean of single cells')
     ax[0].legend()
 
@@ -528,6 +537,8 @@ ff_threshold = DF.value < 1000  # drop cells with abnormaly high levels of tau, 
 filtered = DF.loc[ff_param & ff_threshold, :]
 pivoted = filtered.pivot(index='cellid', columns='source', values='value').dropna()
 
+
+# plots the raw dPCA vs single Cell values withou any further filtering besides gross artifacts like taus > 1s
 fig, ax = plt.subplots(figsize=full_screen)
 y = pivoted['dPCA']
 x = pivoted['cell']
@@ -543,7 +554,7 @@ savefig(fig, fig_root, title)
 
 
 # plots all steps of analysis for this cell
-def check_plot(cell, probe, tran_pair, significance=0.05):
+def check_plot(cell, probe, significance=0.05):
     site = cell[:7]
 
     # loads the raw data
@@ -560,47 +571,59 @@ def check_plot(cell, probe, tran_pair, significance=0.05):
     # trialR shape: Trial x Cell x Context x Probe x Time; R shape: Cell x Context x Probe x Time
     trialR, R, _ = cdPCA.format_raster(raster)
     trialR = trialR.squeeze()
+    t = times[:trialR.shape[-1]]
 
-    cell_idx = goodcells.index(cell)
-    prb_idx = all_probes.index(probe)
-    t0_idx = meta['transitions'].index(tran_pair[0])
-    t1_idx = meta['transitions'].index(tran_pair[1])
-    pair_idx = SC_trans_pairs.index(f'{tran_pair[0]}_{tran_pair[1]}')
+    fig, axes = plt.subplots(3, 6, sharex=True, figsize=full_screen)
 
-    fig, axes = plt.subplots(4, 1, sharex=True)
-    axes = np.ravel(axes)
+    for tt, trans in enumerate(itt.combinations(meta['transitions'], 2)):
+        cell_idx = goodcells.index(cell)
+        prb_idx = all_probes.index(probe)
+        t0_idx = meta['transitions'].index(trans[0])
+        t1_idx = meta['transitions'].index(trans[1])
+        pair_idx = SC_trans_pairs.index(f'{trans[0]}_{trans[1]}')
 
-    # plots the PSTH and rasters of the compared responses
-    axes[0].plot(times, trialR[:, cell_idx, t0_idx, :].mean(axis=0), color=trans_color_map[tran_pair[0]])
-    axes[0].plot(times, trialR[:, cell_idx, t1_idx, :].mean(axis=0), color=trans_color_map[tran_pair[1]])
+        # plots the PSTH and rasters of the compared responses
+        axes[0,tt].plot(t, trialR[:, cell_idx, t0_idx, :].mean(axis=0), color=trans_color_map[trans[0]])
+        axes[0,tt].plot(t, trialR[:, cell_idx, t1_idx, :].mean(axis=0), color=trans_color_map[trans[1]])
 
-    bottom, top = axes[0].get_ylim()
-    half = (top - bottom) / 2
-    _ = fplt._raster(times, trialR[:, cell_idx, t0_idx, :], y_offset=0, y_range=(bottom, half), ax=axes[0],
-                     scatter_kws={'color': trans_color_map[tran_pair[0]], 'alpha': 0.8, 's': 10})
-    _ = fplt._raster(times, trialR[:, cell_idx, t1_idx, :], y_offset=0, y_range=(half, top), ax=axes[0],
-                     scatter_kws={'color': trans_color_map[tran_pair[1]], 'alpha': 0.8, 's': 10})
+        bottom, top = axes[0,tt].get_ylim()
+        half = (top - bottom) / 2
+        _ = fplt._raster(t, trialR[:, cell_idx, t0_idx, :], y_offset=0, y_range=(bottom, half), ax=axes[0, tt],
+                         scatter_kws={'color': trans_color_map[trans[0]], 'alpha': 0.8, 's': 10})
+        _ = fplt._raster(t, trialR[:, cell_idx, t1_idx, :], y_offset=0, y_range=(half, top), ax=axes[0, tt],
+                         scatter_kws={'color': trans_color_map[trans[1]], 'alpha': 0.8, 's': 10})
 
-    # plots the real dprime and the shuffled dprime
-    axes[1].plot(times, all_SC_reals[cell][prb_idx, pair_idx, :], color='black')
-    # axes[1].plot(all_shuffled[cell][:, prb_idx, pair_idx, :].T, color='green', alpha=0.01)
-    _ = fplt._cint(times, all_SC_shuffled[cell][:, prb_idx, pair_idx, :], confidence=0.95, ax=axes[1],
-                   fillkwargs={'color': 'black', 'alpha': 0.5})
+        # plots the real dprime and the shuffled dprime
+        axes[1,tt].plot(t, all_SC_reals[cell][prb_idx, pair_idx, :], color='black')
+        # axes[1].plot(all_shuffled[cell][:, prb_idx, pair_idx, :].T, color='green', alpha=0.01)
+        _ = fplt._cint(t, all_SC_shuffled[cell][:, prb_idx, pair_idx, :], confidence=0.95, ax=axes[1,tt],
+                       fillkwargs={'color': 'black', 'alpha': 0.5})
 
-    # plots the the calculated pvalue plust the significant threshold
-    axes[2].plot(times, all_SC_pvalues[cell][prb_idx, pair_idx, :], color='black')
-    axes[2].axhline(significance, color='red', linestyle='--')
+        # # plots the the calculated pvalue plust the significant threshold
+        # axes[2,tt].plot(t, all_SC_pvalues[cell][prb_idx, pair_idx, :], color='black')
+        # axes[2,tt].axhline(significance, color='red', linestyle='--')
 
-    # plots the histogram of significant bins
-    axes[3].bar(times, SC_significance[cell][prb_idx, pair_idx, :], width=bar_width, align='edge', edgecolor='white')
-    return axes
+        # plots the histogram of significant bins
+        axes[2,tt].bar(t, SC_significance[cell][prb_idx, pair_idx, :], width=bar_width, align='edge', edgecolor='white')
+        _ = fplt.exp_decay(t, SC_significance[cell][prb_idx, pair_idx, :], ax=axes[2,tt])
+        if axes[2,tt].get_ylim()[1] < 1:
+            axes[2,tt].set_ylim(0,1)
 
+        # formats legned
+        if tt == 0:
+            axes[0,tt].set_ylabel(f'cell responses')
+            axes[1,tt].set_ylabel(f'dprime')
+            axes[2,tt].set_ylabel(f'significant bins')
 
-cell = 'DRX021a-28-3'
+        axes[0,tt].set_title(f'{trans[0]}_{trans[1]}')
+        axes[2,tt].legend(loc='upper right')
+    return fig, axes
+
+cell = 'AMT029a-57-1'
 probe = 6
-tran_pair = ('silence', 'continuous')
-axes = check_plot(cell, probe=probe, tran_pair=tran_pair, significance=threshold)
-title = f'{cell} sumary, probe {probe}, {tran_pair[0]}vs{tran_pair[1]}'
+fig, axes = check_plot(cell, probe=probe, significance=threshold)
+title = f'{cell} sumary, probe {probe}'
+fig.tight_layout(rect=(0, 0, 1, 0.95))
 fig.suptitle(title)
 fig.set_size_inches([19.2, 9.83])
-# savefig(fig, fig_root, title)
+savefig(fig, fig_root, title)
