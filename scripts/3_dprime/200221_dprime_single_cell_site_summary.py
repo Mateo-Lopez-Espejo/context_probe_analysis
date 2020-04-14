@@ -1,9 +1,8 @@
 import itertools as itt
 import pathlib as pl
-
-# matplotlib.use('Agg')
-# matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
+import skimage.io as skio
+from scipy.io import loadmat
 import numpy as np
 import pandas as pd
 
@@ -15,8 +14,6 @@ from cpn_load import load, get_site_ids
 from cpp_cache import make_cache, get_cache
 from reliability import signal_reliability
 from tools import shuffle_along_axis as shuffle
-
-# from progressbar import ProgressBar
 
 # todo edit motive
 """
@@ -36,6 +33,29 @@ def savefig(fig, root, name):
     fig.savefig(png, transparent=False, dpi=100)
     # svg = root.joinpath(name).with_suffix('.svg')
     # fig.savefig(svg, transparent=True)
+
+
+def bar_line(time, bar, line, ax=None, barkwargs={}, linekwargs={}):
+
+    if ax is None:
+        _, barax = plt.subplots()
+    else:
+        barax = ax
+
+    lineax = barax.twinx()
+
+    bar_defaults = {'color':'C0'}
+    for key, arg in bar_defaults.items(): barkwargs.setdefault(key,arg)
+    line_defaults = {'color':'C1'}
+    for key, arg in line_defaults.items(): linekwargs.setdefault(key,arg)
+
+    barax.bar(time, bar, **barkwargs)
+    lineax.plot(time, line, **linekwargs)
+
+    barax.tick_params(axis='y', labelcolor=barkwargs['color'])
+    lineax.tick_params(axis='y', labelcolor=linekwargs['color'])
+
+    return barax, lineax
 
 
 def cell_dprime(site, probe, meta):
@@ -194,12 +214,8 @@ sites = ['ley070a',  # good site. A1
          # 'AMT031a', # low response, bad
          'AMT032a']  # great site. PEG
 
-sites = list(get_site_ids(316).keys())
-# for site, probe in zip(['AMT029a', 'ley070a'],[5,2]):
-# sites = ['AMT029a'] # example site PEG
-# sites = ['ley070a'] # example site A1
-# all_probes = [5]
-# sites = ['DRX021a']
+# sites = list(get_site_ids(316).keys())
+sites = ['AMT028b', 'AMT029a', 'AMT030a', 'AMT031a', 'AMT032a', 'DRX008b', 'DRX021a', 'ley070a', 'ley072b']
 
 region_map = dict(
     zip(['AMT028b', 'AMT029a', 'AMT030a', 'AMT031a', 'AMT032a', 'DRX008b', 'DRX021a', 'ley070a', 'ley072b'],
@@ -307,21 +323,30 @@ SC_significance = {key: (val <= threshold) for key, val in all_SC_pvalues.items(
 dPCA_significance = {key: (val <= threshold) for key, val in all_dPCA_pvalues.items()}
 
 # stacks arrays, with different time dimentions, padding with NAN
-SC_shape = np.insert(np.max(np.stack([arr.shape for arr in SC_significance.values()], axis=0), axis=0), 0,
-                     len(SC_significance))
-SC_signif_array = np.empty(SC_shape)
-SC_signif_array[:] = np.nan
-for cc, arr in enumerate(SC_significance.values()):
-    t = arr.shape[-1]
-    SC_signif_array[cc, :, :, :t] = arr
+def nanstack(arr_dict):
+    max_time = np.max([arr.shape[-1] for arr in arr_dict.values()])
+    newdict = dict()
+    for cell, arr in arr_dict.items():
+        t = arr.shape[-1]
+        if t < max_time:
+            newshape = list(arr.shape[:-1])
+            newshape.append(max_time)
+            newarr = np.empty(newshape)
+            newarr[:] = np.nan
+            newarr[...,:t] = arr
+        else:
+            newarr = arr
 
-dPCA_shape = np.insert(np.max(np.stack([arr.shape for arr in dPCA_significance.values()], axis=0), axis=0), 0,
-                       len(dPCA_significance))
-dPCA_signif_array = np.empty(dPCA_shape)
-dPCA_signif_array[:] = np.nan
-for ss, arr in enumerate(dPCA_significance.values()):
-    t = arr.shape[-1]
-    dPCA_signif_array[ss, :, :, :t] = arr
+        newdict[cell] = newarr
+
+    stacked = np.stack(list(newdict.values()))
+    return stacked
+
+SC_reals_array = nanstack(all_SC_reals)
+SC_shuff_array = nanstack(all_SC_shuffled).swapaxes(0,1) # swaps cells by monts
+SC_signif_array = nanstack(SC_significance)
+dPCA_signif_array = nanstack(dPCA_significance)
+
 
 # set up the time bin labels in milliseconds, this is critical fro ploting and calculating the tau
 nbin = SC_signif_array.shape[-1]
@@ -348,6 +373,44 @@ for site in sites:
         ax.legend(loc='upper right')
 
     title = f'probes and transitions collapsed, single cell context dprime, {site}'
+    fig.suptitle(title)
+    fig.tight_layout(rect=(0, 0, 1, 0.95))
+    savefig(fig, fig_root, title)
+    plt.close(fig)
+
+
+# for each site collapeses across cells, rows are probes, columns are context pairs
+
+for site in set(SC_sites):
+    site_mask = SC_sites == site
+    arr  = np.nanmean(SC_signif_array[site_mask, ...], axis=0)
+    fig, axes = plt.subplots(arr.shape[0], arr.shape[1], sharex=True, sharey=True,
+                             squeeze=False, figsize=full_screen)
+    region = region_map[site[:7]]
+    color = 'black' if region == 'A1' else 'red'
+
+    for rr, (row, probe) in enumerate(zip(axes, all_probes)):
+        for cc, (col, pair) in enumerate(zip(row, itt.combinations(meta['transitions'], 2))):
+            ax = col
+            line = np.nanmean(SC_reals_array[site_mask,...], axis=0)[rr, cc, :]
+            mont = np.nanmean(SC_shuff_array[:, site_mask,...], axis=0)[:, rr, cc, :]
+            hist = arr[rr, cc, :]
+            barkwargs = dict(width=bar_width, align='edge', color=color, edgecolor='white', alpha=0.5)
+            linekwargs = dict(color='blue')
+
+            ax.bar(times[:len(hist)], hist, **barkwargs)
+            _ = fplt.exp_decay(times[:len(hist)], hist, ax=ax)
+
+            ax.plot(times[:len(line)],line, **linekwargs)
+            _ = fplt._cint(times[:mont.shape[1]], mont, confidence=0.95, ax=ax,
+                           fillkwargs={'color': 'blue', 'alpha': 0.5})
+            if cc == 0:
+                ax.set_ylabel(f'probe{probe}')
+            if rr == 0:
+                ax.set_title(f'{pair[0]}_{pair[1]}')
+
+            ax.legend()
+    title = f'SC, transitions and probes comparison {site}'
     fig.suptitle(title)
     fig.tight_layout(rect=(0, 0, 1, 0.95))
     savefig(fig, fig_root, title)
@@ -620,6 +683,7 @@ def check_plot(cell, probe, significance=0.05):
     return fig, axes
 
 cell = 'AMT029a-57-1'
+cell = 'DRX021a-10-2'
 probe = 6
 fig, axes = check_plot(cell, probe=probe, significance=threshold)
 title = f'{cell} sumary, probe {probe}'
@@ -627,3 +691,106 @@ fig.tight_layout(rect=(0, 0, 1, 0.95))
 fig.suptitle(title)
 fig.set_size_inches([19.2, 9.83])
 savefig(fig, fig_root, title)
+
+
+def compare_plot(cell):
+    site = cell[0:7]
+
+    SC_hist = np.nanmean(SC_significance[cell], axis=(0,1))
+    SC_dprime = np.nanmean(all_SC_reals[cell], axis=(0,1))
+
+    dPCA_hist = np.nanmean(dPCA_significance[site], axis=(0,1))
+    dPCA_dprime = np.nanmean(all_dPCA_reals[site], axis=(0,1))
+
+    fig = plt.figure()
+    gs = fig.add_gridspec(2,3)
+
+    barkwargs = dict(width=bar_width, align='edge', color='black', edgecolor='white')
+    linekwargs = dict(color='blue')
+
+    # single cell summary
+    ax = fig.add_subplot(gs[0,0])
+    SC_barax, SC_lineax = bar_line(times[:len(SC_hist)], SC_hist, SC_dprime, ax=ax,
+                                   barkwargs=barkwargs, linekwargs=linekwargs)
+    _ = fplt.exp_decay(times[:len(SC_hist)], SC_hist, ax=SC_barax)
+    SC_barax.legend()
+
+    # dPCA for this cell site
+    ax = fig.add_subplot(gs[1,0])
+    dPCA_barax, dPCA_lineax = bar_line(times[:len(dPCA_hist)], dPCA_hist, dPCA_dprime, ax=ax,
+                                       barkwargs=barkwargs, linekwargs=linekwargs)
+    _ = fplt.exp_decay(times[:len(dPCA_hist)], dPCA_hist, ax=dPCA_barax)
+    dPCA_barax.legend()
+
+    # share axes, format axes names
+    SC_barax.get_shared_y_axes().join(SC_barax, dPCA_barax)
+    SC_lineax.get_shared_y_axes().join(SC_lineax, dPCA_lineax)
+    SC_barax.get_shared_x_axes().join(SC_barax, SC_lineax, dPCA_barax, dPCA_lineax)
+
+    SC_barax.set_title('Single cell')
+    dPCA_barax.set_title('site dPCA')
+
+    SC_barax.set_ylabel('mean significant bins')
+    SC_lineax.set_ylabel('mean d-prime')
+
+    dPCA_barax.set_ylabel('mean significant bins')
+    dPCA_lineax.set_ylabel('mean d-prime')
+    dPCA_barax.set_xlabel('probe time (ms)')
+
+    # find the PNGs of sam analysis and add to the figure
+    samm_fig_dir = pl.Path('\\\\?\\C:\\users\\mateo\\documents\\science\\code\\integration_quilt\\scrambling-ferrets\\'
+                           'figures\\lag-correlation\\')
+
+    corr_path = list(samm_fig_dir.glob(f'{site}*\\*\\{cell}-win*-range*.png'))[0]
+    model_path = list(samm_fig_dir.glob(f'{site}*\\*\\{cell}-model-prediction-lineplot_*.png'))[0]
+
+    sam_corr = skio.imread(corr_path)
+    sam_model = skio.imread(model_path)
+
+    corr_ax = fig.add_subplot(gs[0, 1:])
+    model_ax = fig.add_subplot(gs[1, 1:])
+
+    # fig, (corr_ax, model_ax) = plt.subplots(2,1)
+
+    corr_ax.imshow(sam_corr[30:570,50:720,:])
+    model_ax.imshow(sam_model[30:570,50:720,:])
+
+    for aa in (corr_ax, model_ax):
+        aa.get_xaxis().set_visible(False)
+        aa.get_yaxis().set_visible(False)
+        for ll in ['top','bottom','right','left']:
+            aa.spines[ll].set_visible(False)
+
+    corr_ax.set_title('lag correlation')
+    model_ax.set_title('model fit')
+
+    return fig
+
+
+# get list of cells with sams analysisi
+file = pl.Path('C:\\', 'Users', 'Mateo', 'Documents', 'Science', 'code', 'integration_quilt', 'scrambling-ferrets',
+               'analysis', 'model_fit_pop_summary').with_suffix('.mat')
+best_fits = loadmat(file)['best_fits'].squeeze()
+# orders the data in DF
+df = list()
+for row in best_fits:
+    df.append({'cellid': row[2][0],
+               'intper_ms': row[0][0][0],
+               'delay_ms': row[1][0][0]})
+integration_fits = pd.DataFrame(df)
+integration_fits.set_index(['cellid'], inplace=True)
+int_cells = set(integration_fits.index.unique())
+cont_cells = set(SC_cells)
+common_cells = cont_cells.intersection(int_cells)
+
+# plots the comparison figures
+cell = 'DRX021a-10-2'
+cell = 'DRX008b-102-4'
+for cell in common_cells:
+    fig = compare_plot(cell)
+    title = f'{cell} context vs integration'
+    fig.tight_layout(rect=(0, 0, 1, 0.95))
+    fig.suptitle(title)
+    fig.set_size_inches([10.13,  9.74])
+    savefig(fig, 'single_cell_comparison', title)
+    plt.close(fig)
