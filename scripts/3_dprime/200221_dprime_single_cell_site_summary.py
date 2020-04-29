@@ -222,15 +222,15 @@ region_map = dict(
         ['PEG', 'PEG', 'PEG', 'PEG', 'PEG', 'A1', 'A1', 'A1', 'A1']))
 
 bad_SC_sites = list()
-all_SC_pvalues = dict()
-all_SC_reals = dict()
-all_SC_shuffled = dict()
+SC_pvalues_dict = dict()
+SC_reals_dict = dict()
+SC_shuffled_dict = dict()
 
 bad_dPCA_sites = list()
-all_dPCA_pvalues = dict()
-all_dPCA_reals = dict()
-all_dPCA_shuffled = dict()
-all_dPCA_simulated = dict()
+dPCA_pvalues_dict = dict()
+dPCA_reals_dict = dict()
+dPCA_shuffled_dict = dict()
+dPCA_simulated_dict = dict()
 
 for site in sites:
 
@@ -299,28 +299,28 @@ for site in sites:
 
     # reorders date in dictionary of cells
     for cc, cell in enumerate(SC_cell_names):
-        all_SC_reals[cell] = this_site_SC_reals[:, :, cc, :]
-        all_SC_shuffled[cell] = this_site_SC_shuffled[:, :, :, cc, :].swapaxes(0, 1)
-        all_SC_pvalues[cell] = this_site_SC_pvalues[:, :, cc, :]
+        SC_reals_dict[cell] = this_site_SC_reals[:, :, cc, :]
+        SC_shuffled_dict[cell] = this_site_SC_shuffled[:, :, :, cc, :].swapaxes(0, 1)
+        SC_pvalues_dict[cell] = this_site_SC_pvalues[:, :, cc, :]
 
-    all_dPCA_reals[site] = this_site_dPCA_reals
-    all_dPCA_shuffled[site] = this_site_dPCA_shuffled.swapaxes(0, 1)
-    all_dPCA_simulated[site] = this_site_dPCA_simulated.swapaxes(0, 1)
-    all_dPCA_pvalues[site] = this_site_dPCA_pvalues
+    dPCA_reals_dict[site] = this_site_dPCA_reals
+    dPCA_shuffled_dict[site] = this_site_dPCA_shuffled.swapaxes(0, 1)
+    dPCA_simulated_dict[site] = this_site_dPCA_simulated.swapaxes(0, 1)
+    dPCA_pvalues_dict[site] = this_site_dPCA_pvalues
 
-##############################
+########################################################################################################################
 # defines arrays that identify cells, sites and regions
-SC_cells = np.array(list(all_SC_pvalues.keys()))
-SC_sites = np.array([cell[0:7] for cell in SC_cells])
-SC_regions = np.array([region_map[cell[0:7]] for cell in SC_cells])  # todo make a dictionary map from site to A1 or PEG
+SC_cells_array = np.array(list(SC_pvalues_dict.keys()))
+SC_sites_array = np.array([cell[0:7] for cell in SC_cells_array])
+SC_regions_array = np.array([region_map[cell[0:7]] for cell in SC_cells_array])  # todo make a dictionary map from site to A1 or PEG
 
-dPCA_site = np.array(list(all_dPCA_pvalues.keys()))
-dPCA_regions = np.array([cell[0:3] for cell in dPCA_site])
+dPCA_site_array = np.array(list(dPCA_pvalues_dict.keys()))
+dPCA_regions_array = np.array([cell[0:3] for cell in dPCA_site_array])
 
 # defines a significatn threshold and transfroms the pvalues into bool (significant vs nonsignificant)
 threshold = 0.05
-SC_significance = {key: (val <= threshold) for key, val in all_SC_pvalues.items()}
-dPCA_significance = {key: (val <= threshold) for key, val in all_dPCA_pvalues.items()}
+SC_significance_dict = {key: (val <= threshold) for key, val in SC_pvalues_dict.items()}
+dPCA_significance_dict = {key: (val <= threshold) for key, val in dPCA_pvalues_dict.items()}
 
 # stacks arrays, with different time dimentions, padding with NAN
 def nanstack(arr_dict):
@@ -342,28 +342,29 @@ def nanstack(arr_dict):
     stacked = np.stack(list(newdict.values()))
     return stacked
 
-SC_reals_array = nanstack(all_SC_reals)
-SC_shuff_array = nanstack(all_SC_shuffled).swapaxes(0,1) # swaps cells by monts
-SC_signif_array = nanstack(SC_significance)
-dPCA_signif_array = nanstack(dPCA_significance)
-
+SC_reals_array = nanstack(SC_reals_dict)
+SC_shuff_array = nanstack(SC_shuffled_dict).swapaxes(0, 1) # swaps cells by monts
+SC_significance_array = nanstack(SC_significance_dict)
+dPCA_signif_array = nanstack(dPCA_significance_dict)
+#########################################################################################################################
 
 # set up the time bin labels in milliseconds, this is critical fro ploting and calculating the tau
-nbin = SC_signif_array.shape[-1]
+nbin = SC_significance_array.shape[-1]
 fs = meta['raster_fs']
 times = np.linspace(0, nbin / fs, nbin, endpoint=False) * 1000
 
-############################################################
-# dimensions to collapse per cell: Probe, Transition.
-# collapse one, then the other, then both, per cell
-# calculates the bins over/under a significant threshold
 bar_width = 1 / fs * 1000
 fig_root = 'single_cell_context_dprime'
 
+#########################################################################################################################
+# dimensions to collapse per cell: Probe, Transition.
+# collapse one, then the other, then both, per cell
+# calculates the bins over/under a significant threshold
+
 # for each cell in each site collapses across probes and context pairs
 for site in sites:
-    collapsed = np.nanmean(SC_signif_array[SC_sites == site, :, :, :], axis=(1, 2))
-    site_cells = SC_cells[SC_sites == site]
+    collapsed = np.nanmean(SC_significance_array[SC_sites_array == site, :, :, :], axis=(1, 2))
+    site_cells = SC_cells_array[SC_sites_array == site]
 
     fig, axes = fplt.subplots_sqr(collapsed.shape[0], sharex=True, sharey=True, figsize=full_screen)
     for ax, hist, cell in zip(axes, collapsed, site_cells):
@@ -378,12 +379,10 @@ for site in sites:
     savefig(fig, fig_root, title)
     plt.close(fig)
 
-
 # for each site collapeses across cells, rows are probes, columns are context pairs
-
-for site in set(SC_sites):
-    site_mask = SC_sites == site
-    arr  = np.nanmean(SC_signif_array[site_mask, ...], axis=0)
+for site in set(SC_sites_array):
+    site_mask = SC_sites_array == site
+    arr  = np.nanmean(SC_significance_array[site_mask, ...], axis=0)
     fig, axes = plt.subplots(arr.shape[0], arr.shape[1], sharex=True, sharey=True,
                              squeeze=False, figsize=full_screen)
     region = region_map[site[:7]]
@@ -423,7 +422,7 @@ fig, axes = plt.subplots(len(sites),
 for row, site in enumerate(sites):
     region = region_map[site[:7]]
     color = 'black' if region == 'A1' else 'red'
-    collapsed = np.nanmean(SC_signif_array[SC_sites == site, :, :, :], axis=(0, 1))
+    collapsed = np.nanmean(SC_significance_array[SC_sites_array == site, :, :, :], axis=(0, 1))
     for col, (ax, hist, pair) in enumerate(
             zip(axes[row], collapsed, itt.combinations(meta['transitions'], 2))):
         ax.bar(times, hist, width=bar_width, align='edge', color=color, edgecolor='white')
@@ -448,7 +447,7 @@ for row, (site, ax) in enumerate(zip(sites, axes)):
     ax = ax[0]
     region = region_map[site[:7]]
     color = 'black' if region == 'A1' else 'red'
-    hist = np.nanmean(SC_signif_array[SC_sites == site, :, :, :], axis=(0, 1, 2))
+    hist = np.nanmean(SC_significance_array[SC_sites_array == site, :, :, :], axis=(0, 1, 2))
     max_sig = hist.max()
     ax.bar(times, hist, width=bar_width, align='edge', color=color, edgecolor='white')
     _ = fplt.exp_decay(times, hist, ax=ax)
@@ -462,10 +461,9 @@ plt.close(fig)
 
 # compares transitions: collapse across PEG vs A1, probe, cell
 fig, axes = plt.subplots(2, 6, sharex=True, sharey=True, figsize=full_screen)
-
 for row, region in enumerate(['A1', 'PEG']):
     color = 'black' if region == 'A1' else 'red'
-    collapsed = np.nanmean(SC_signif_array[SC_regions == region, :, :, :], axis=(0, 1))
+    collapsed = np.nanmean(SC_significance_array[SC_regions_array == region, :, :, :], axis=(0, 1))
 
     for col, (ax, hist, pair) in enumerate(
             zip(axes[row], collapsed, itt.combinations(meta['transitions'], 2))):
@@ -477,16 +475,16 @@ for row, region in enumerate(['A1', 'PEG']):
 
         if col == 0:
             ax.set_ylabel(region)
-
 title = f'cells, probes and region collapsed, region and transisiton comparision'
 fig.suptitle(title)
 fig.tight_layout(rect=(0, 0, 1, 0.95))
 savefig(fig, fig_root, title)
 plt.close(fig)
 
-############################################################
+#########################################################################################################################
+#########################################################################################################################
 # for each site dPCA plots the significant bins for each transition pair and probe
-for site, arr in dPCA_significance.items():
+for site, arr in dPCA_significance_dict.items():
     fig, axes = plt.subplots(arr.shape[0], arr.shape[1], sharex=True, sharey=True,
                              squeeze=False, figsize=full_screen)
     region = region_map[site[:7]]
@@ -495,8 +493,8 @@ for site, arr in dPCA_significance.items():
     for rr, (row, probe) in enumerate(zip(axes, all_probes)):
         for cc, (col, pair) in enumerate(zip(row, itt.combinations(meta['transitions'], 2))):
             ax = col
-            line = all_dPCA_reals[site][rr, cc, :]
-            mont = all_dPCA_shuffled[site][:, rr, cc, :]
+            line = dPCA_reals_dict[site][rr, cc, :]
+            mont = dPCA_shuffled_dict[site][:, rr, cc, :]
             hist = arr[rr, cc, :]
             ax.bar(times[:len(hist)], hist, width=bar_width, align='edge', color=color, edgecolor='white', alpha=0.5)
             _ = fplt.exp_decay(times[:len(hist)], hist, ax=ax)
@@ -517,9 +515,9 @@ for site, arr in dPCA_significance.items():
     plt.close(fig)
 
 # for each site dPCA, plots the significant bins for each transitions pair, collapses probes
-fig, axes = plt.subplots(len(dPCA_significance), arr.shape[1], sharex=True, sharey=True,
+fig, axes = plt.subplots(len(dPCA_significance_dict), arr.shape[1], sharex=True, sharey=True,
                          squeeze=False, figsize=full_screen)
-for rr, (row, (site, arr)) in enumerate(zip(axes, dPCA_significance.items())):
+for rr, (row, (site, arr)) in enumerate(zip(axes, dPCA_significance_dict.items())):
     region = region_map[site[:7]]
     color = 'black' if region == 'A1' else 'red'
     collapsed = np.nanmean(arr, axis=0)
@@ -547,14 +545,14 @@ fig, axes = plt.subplots(len(sites), 2, sharex=True, sharey=True,
                          squeeze=False, figsize=full_screen)
 for row, (site, ax) in enumerate(zip(sites, axes)):
     color = 'red' if site[0:3] == 'AMT' else 'black'
-    SC_collapsed = np.nanmean(SC_signif_array[SC_sites == site, :, :, :], axis=(0, 1, 2))
+    SC_collapsed = np.nanmean(SC_significance_array[SC_sites_array == site, :, :, :], axis=(0, 1, 2))
     ax[0].bar(times, SC_collapsed, width=bar_width, align='edge', color=color, edgecolor='white')
     _ = fplt.exp_decay(times[:len(SC_collapsed)], SC_collapsed, ax=ax[0])
     ax[0].set_ylabel(site)
     ax[0].set_title('mean of single cells')
     ax[0].legend()
 
-    dPCA_collapsed = np.nanmean(dPCA_significance[site], axis=(0, 1))
+    dPCA_collapsed = np.nanmean(dPCA_significance_dict[site], axis=(0, 1))
     ax[1].bar(times[:len(dPCA_collapsed)], dPCA_collapsed, width=bar_width, align='edge', color=color,
               edgecolor='white')
     _ = fplt.exp_decay(times, dPCA_collapsed, ax=ax[1])
@@ -567,17 +565,18 @@ fig.tight_layout(rect=(0, 0, 1, 0.95))
 savefig(fig, fig_root, title)
 plt.close(fig)
 
-############################################################
+#########################################################################################################################
+#########################################################################################################################
 # compares the Taus calculated for each cell against those of the site mean
 # calculates exponential decay of significant bins for each cell, for the site mean and
 # for the site dPCA projection collapsing across all probes and transisions
 
 df = list()
 for site in sites:
-    collapsed = np.nanmean(SC_signif_array[SC_sites == site, :, :, :], axis=(1, 2))
+    collapsed = np.nanmean(SC_significance_array[SC_sites_array == site, :, :, :], axis=(1, 2))
     site_popt, _ = fts.exp_decay(times, np.nanmean(collapsed, axis=0))
-    dPCA_popt, _ = fts.exp_decay(times, np.nanmean(dPCA_significance[site], axis=(0, 1)))
-    site_cells = SC_cells[SC_sites == site]
+    dPCA_popt, _ = fts.exp_decay(times, np.nanmean(dPCA_significance_dict[site], axis=(0, 1)))
+    site_cells = SC_cells_array[SC_sites_array == site]
     for cell, hist in zip(site_cells, collapsed):
         cell_popt, _ = fts.exp_decay(times, hist)
         for sname, source in zip(('mean', 'dPCA', 'cell'), (site_popt, dPCA_popt, cell_popt)):
@@ -657,9 +656,9 @@ def check_plot(cell, probe, significance=0.05):
                          scatter_kws={'color': trans_color_map[trans[1]], 'alpha': 0.8, 's': 10})
 
         # plots the real dprime and the shuffled dprime
-        axes[1,tt].plot(t, all_SC_reals[cell][prb_idx, pair_idx, :], color='black')
+        axes[1,tt].plot(t, SC_reals_dict[cell][prb_idx, pair_idx, :], color='black')
         # axes[1].plot(all_shuffled[cell][:, prb_idx, pair_idx, :].T, color='green', alpha=0.01)
-        _ = fplt._cint(t, all_SC_shuffled[cell][:, prb_idx, pair_idx, :], confidence=0.95, ax=axes[1,tt],
+        _ = fplt._cint(t, SC_shuffled_dict[cell][:, prb_idx, pair_idx, :], confidence=0.95, ax=axes[1, tt],
                        fillkwargs={'color': 'black', 'alpha': 0.5})
 
         # # plots the the calculated pvalue plust the significant threshold
@@ -667,8 +666,8 @@ def check_plot(cell, probe, significance=0.05):
         # axes[2,tt].axhline(significance, color='red', linestyle='--')
 
         # plots the histogram of significant bins
-        axes[2,tt].bar(t, SC_significance[cell][prb_idx, pair_idx, :], width=bar_width, align='edge', edgecolor='white')
-        _ = fplt.exp_decay(t, SC_significance[cell][prb_idx, pair_idx, :], ax=axes[2,tt])
+        axes[2,tt].bar(t, SC_significance_dict[cell][prb_idx, pair_idx, :], width=bar_width, align='edge', edgecolor='white')
+        _ = fplt.exp_decay(t, SC_significance_dict[cell][prb_idx, pair_idx, :], ax=axes[2, tt])
         if axes[2,tt].get_ylim()[1] < 1:
             axes[2,tt].set_ylim(0,1)
 
@@ -692,15 +691,14 @@ fig.suptitle(title)
 fig.set_size_inches([19.2, 9.83])
 savefig(fig, fig_root, title)
 
-
 def compare_plot(cell):
     site = cell[0:7]
 
-    SC_hist = np.nanmean(SC_significance[cell], axis=(0,1))
-    SC_dprime = np.nanmean(all_SC_reals[cell], axis=(0,1))
+    SC_hist = np.nanmean(SC_significance_dict[cell], axis=(0, 1))
+    SC_dprime = np.nanmean(SC_reals_dict[cell], axis=(0, 1))
 
-    dPCA_hist = np.nanmean(dPCA_significance[site], axis=(0,1))
-    dPCA_dprime = np.nanmean(all_dPCA_reals[site], axis=(0,1))
+    dPCA_hist = np.nanmean(dPCA_significance_dict[site], axis=(0, 1))
+    dPCA_dprime = np.nanmean(dPCA_reals_dict[site], axis=(0, 1))
 
     fig = plt.figure()
     gs = fig.add_gridspec(2,3)
@@ -766,7 +764,6 @@ def compare_plot(cell):
 
     return fig
 
-
 # get list of cells with sams analysisi
 file = pl.Path('C:\\', 'Users', 'Mateo', 'Documents', 'Science', 'code', 'integration_quilt', 'scrambling-ferrets',
                'analysis', 'model_fit_pop_summary').with_suffix('.mat')
@@ -778,10 +775,9 @@ for row in best_fits:
                'intper_ms': row[0][0][0],
                'delay_ms': row[1][0][0]})
 integration_fits = pd.DataFrame(df)
-integration_fits.set_index(['cellid'], inplace=True)
-int_cells = set(integration_fits.index.unique())
-cont_cells = set(SC_cells)
-common_cells = cont_cells.intersection(int_cells)
+integration_cells = set(integration_fits['cellid'].unique())
+context_cells = set(SC_cells_array)
+common_cells = context_cells.intersection(integration_cells)
 
 # plots the comparison figures
 cell = 'DRX021a-10-2'
@@ -794,3 +790,162 @@ for cell in common_cells:
     fig.set_size_inches([10.13,  9.74])
     savefig(fig, 'single_cell_comparison', title)
     plt.close(fig)
+
+########################################################################################################################
+# considering the d' itself, and tau fitted to it
+def fit_line(time, value):
+    popt, _=  fts.exp_decay(time[:len(value)], value)
+    line = fts._exp(time[:len(value)], * popt)
+    return line
+
+# first single cell comparisons, fit of the means of mean of the fits ...
+cell = 'DRX021a-10-2'
+for cell in common_cells:
+    fig_folder = 'cell_dprime_signif_fits'
+    title = f'{cell}_dprime_signif_fits'
+    fig_file = pl.Path(f'C:\\users\\mateo\\Pictures\\{fig_folder}\\{title}').with_suffix('.png')
+    if fig_file.exists():
+        print(f'{cell} figure alredy exists')
+        continue
+    else:
+        print(f'{cell} creating figure')
+
+    # plots cell mean significance and dprime
+    fig, axes  = plt.subplots(1,5, figsize=full_screen)
+    signif = np.mean(SC_significance_dict[cell], (0, 1))
+    dprime = np.mean(SC_reals_dict[cell], (0, 1))
+    barkwargs = dict(width=bar_width, align='edge', color='black', edgecolor='white')
+    linekwargs = dict(color='blue')
+    barax, lineax = bar_line(times[:len(signif)], signif, dprime, ax=axes[0],
+                             barkwargs=barkwargs, linekwargs=linekwargs)
+    barax.set_title('full mean of values')
+
+    # 1.mean probe and transition, 2 fit
+    try:
+        s_fit = fit_line(times[:len(signif)], signif)
+        d_fit = fit_line(times[:len(dprime)], dprime)
+        axes[1].plot(times[:len(s_fit)], s_fit, color='black')
+        twinx1 = axes[1].twinx()
+        twinx1.plot(times[:len(d_fit)], d_fit, color='blue')
+        axes[1].set_title('fit(mean(transitions x probes))')
+    except:
+        pass
+
+    # 1. mean of probes 2. fit of transitions 3. mean of transitions
+    try:
+        signif = np.mean(SC_significance_dict[cell], (0))
+        dprime = np.mean(SC_reals_dict[cell], (0))
+        s_fit = np.mean(np.stack([fit_line(times[:len(s)], s) for s in signif]), 0)
+        d_fit = np.mean(np.stack([fit_line(times[:len(d)], d) for d in dprime]), 0)
+        axes[2].plot(times[:len(s_fit)], s_fit, color='black')
+        twinx2 = axes[2].twinx()
+        twinx2.plot(times[:len(d_fit)], d_fit, color='blue')
+        axes[2].set_title('mean(fit(transitions x mean(probes)))')
+    except:
+        pass
+
+    # 1. mean of transitions 2. fit of probes 3. mean of transitions
+    try:
+        signif = np.mean(SC_significance_dict[cell], (1))
+        dprime = np.mean(SC_reals_dict[cell], (1))
+        s_fit = np.mean(np.stack([fit_line(times[:len(s)], s) for s in signif]), 0)
+        d_fit = np.mean(np.stack([fit_line(times[:len(d)], d) for d in dprime]), 0)
+        axes[3].plot(times[:len(s_fit)], s_fit, color='black')
+        twinx3 = axes[3].twinx()
+        twinx3.plot(times[:len(d_fit)], d_fit, color='blue')
+        axes[3].set_title('mean(fit(probes x mean(transitions)))')
+    except:
+        pass
+
+    # 1. fit of probes x transitions 2. mean of fits
+    try:
+        signif = SC_significance_dict[cell]
+        dprime = SC_reals_dict[cell]
+        signif_fits = list()
+        dprime_fits = list()
+        nprobes, ntrans, ntimes = SC_significance_dict[cell].shape
+        for pp, tt in itt.product(range(nprobes), range(ntrans)):
+            signif_fits.append(fit_line(times[:ntimes], signif[pp,tt,:]))
+            dprime_fits.append(fit_line(times[:ntimes], dprime[pp,tt,:]))
+        signif_fits = np.stack(signif_fits, axis=0)
+        dprime_fits = np.stack(dprime_fits, axis=0)
+        s_fit = np.mean(signif_fits, 0)
+        d_fit = np.mean(dprime_fits, 0)
+        axes[4].plot(times[:len(s_fit)], s_fit, color='black')
+        twinx4 = axes[4].twinx()
+        twinx4  .plot(times[:len(d_fit)], d_fit, color='blue')
+        axes[4].set_title('mean(fit(probe x transition))')
+    except:
+        pass
+
+    # format the figure
+    barax.get_shared_y_axes().join(barax, axes[1], axes[2], axes[3], axes[4])
+    lineax.get_shared_y_axes().join(lineax, twinx1, twinx2, twinx3, twinx4)
+    fig.suptitle(title)
+    fig.tight_layout(rect=(0, 0, 1, 0.95))
+    savefig(fig, fig_folder, title)
+    plt.close(fig)
+
+# Second site comparisons, fit of the means or mean of the fits
+site = sites[0]
+for site in sites:
+    fig_folder = 'site_dprime_signif_fits'
+    title = f'{site}_dprime_signif_fits'
+    fig_file = pl.Path(f'C:\\users\\mateo\\Pictures\\{fig_folder}\\{title}').with_suffix('.png')
+    # if fig_file.exists():
+    #     print(f'{cell} figure alredy exists')
+    #     continue
+    # else:
+    #     print(f'{cell} creating figure')
+
+    full_signif = SC_significance_array[SC_sites_array == site]
+    full_dprime = SC_reals_array[SC_sites_array==site]
+
+    # plots cell mean significance and dprime
+    fig, axes  = plt.subplots(1,3, figsize=full_screen)
+    signif = np.mean(full_signif, (0,1,2))
+    dprime = np.mean(full_dprime, (0,1,2))
+    barkwargs = dict(width=bar_width, align='edge', color='black', edgecolor='white')
+    linekwargs = dict(color='blue')
+    barax, lineax = bar_line(times[:len(signif)], signif, dprime, ax=axes[0],
+                             barkwargs=barkwargs, linekwargs=linekwargs)
+    barax.set_title('full mean of values')
+
+    # fit of the mean
+    try:
+        s_fit = fit_line(times[:len(signif)], signif)
+        d_fit = fit_line(times[:len(dprime)], dprime)
+        axes[1].plot(times[:len(s_fit)], s_fit, color='black')
+        twinx1 = axes[1].twinx()
+        twinx1.plot(times[:len(d_fit)], d_fit, color='blue')
+        axes[1].set_title('fit of the mean')
+    except:
+        pass
+
+    # mean of the fits
+    try:
+        signif_fits = list()
+        dprime_fits = list()
+        ncells, nprobes, ntrans, ntimes = full_signif.shape
+        for cc, pp, tt in itt.product(range(ncells), range(nprobes), range(ntrans)):
+            signif_fits.append(fit_line(times[:ntimes], full_signif[cc,pp,tt,:]))
+            dprime_fits.append(fit_line(times[:ntimes], full_dprime[cc,pp,tt,:]))
+        signif_fits = np.stack(signif_fits, axis=0)
+        dprime_fits = np.stack(dprime_fits, axis=0)
+        s_fit = np.mean(signif_fits, 0)
+        d_fit = np.mean(dprime_fits, 0)
+        axes[2].plot(times[:len(s_fit)], s_fit, color='black')
+        twinx2 = axes[2].twinx()
+        twinx2  .plot(times[:len(d_fit)], d_fit, color='blue')
+        axes[2].set_title('mean of the fits')
+    except:
+        pass
+    # format the figure
+    barax.get_shared_y_axes().join(barax, axes[1], axes[2])
+    lineax.get_shared_y_axes().join(lineax, twinx1, twinx2)
+    fig.suptitle(title)
+    fig.tight_layout(rect=(0, 0, 1, 0.95))
+    savefig(fig, fig_folder, title)
+    plt.close(fig)
+
+

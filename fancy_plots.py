@@ -902,7 +902,7 @@ def exp_decay(times, values, ax=None, label=True, **pltkwargs):
 
     ax.plot(times, fts._exp(times, *popt), label=label, **pltkwargs)
 
-    return fig, ax, popt, pvar
+    return fig, ax, popt, pvar, fts._exp(times, *popt)
 
 
 def lin_reg(x, y, ax=None, label=True, **pltkwargs):
