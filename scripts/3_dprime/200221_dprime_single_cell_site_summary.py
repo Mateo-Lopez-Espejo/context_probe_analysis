@@ -736,8 +736,8 @@ def compare_plot(cell):
     dPCA_barax.set_xlabel('probe time (ms)')
 
     # find the PNGs of sam analysis and add to the figure
-    samm_fig_dir = pl.Path('\\\\?\\C:\\users\\mateo\\documents\\science\\code\\integration_quilt\\scrambling-ferrets\\'
-                           'figures\\lag-correlation\\')
+    samm_fig_dir = pl.Path('//?/C:/users/mateo/documents/science/code/integration_quilt/scrambling-ferrets/'
+                           'figures/lag-correlation/')
 
     corr_path = list(samm_fig_dir.glob(f'{site}*\\*\\{cell}-win*-range*.png'))[0]
     model_path = list(samm_fig_dir.glob(f'{site}*\\*\\{cell}-model-prediction-lineplot_*.png'))[0]
@@ -765,8 +765,8 @@ def compare_plot(cell):
     return fig
 
 # get list of cells with sams analysisi
-file = pl.Path('C:\\', 'Users', 'Mateo', 'Documents', 'Science', 'code', 'integration_quilt', 'scrambling-ferrets',
-               'analysis', 'model_fit_pop_summary').with_suffix('.mat')
+file = pl.Path('C:/Users/Mateo/Documents/Science/code/integration_quilt/scrambling-ferrets/analysis'
+               '/model_fit_pop_summary.mat')
 best_fits = loadmat(file)['best_fits'].squeeze()
 # orders the data in DF
 df = list()
