@@ -1,16 +1,18 @@
 import itertools as itt
 import pathlib as pl
+from configparser import ConfigParser
+
 import matplotlib.pyplot as plt
-import skimage.io as skio
-from scipy.io import loadmat
 import numpy as np
 import pandas as pd
+import skimage.io as skio
+from scipy.io import loadmat
 
 import cpn_dPCA as cdPCA
 import cpn_dprime as cDP
 import fancy_plots as fplt
 import fits as fts
-from cpn_load import load, get_site_ids
+from cpn_load import load
 from cpp_cache import make_cache, get_cache
 from reliability import signal_reliability
 from tools import shuffle_along_axis as shuffle
@@ -27,7 +29,7 @@ category
 
 
 def savefig(fig, root, name):
-    root = pl.Path(f'C:\\users\\mateo\\Pictures\\{root}')
+    root = pl.Path(config['paths']['figures']) / f'{root}'
     if not root.exists(): root.mkdir(parents=True, exist_ok=True)
     png = root.joinpath(name).with_suffix('.png')
     fig.savefig(png, transparent=False, dpi=100)
@@ -36,7 +38,6 @@ def savefig(fig, root, name):
 
 
 def bar_line(time, bar, line, ax=None, barkwargs={}, linekwargs={}):
-
     if ax is None:
         _, barax = plt.subplots()
     else:
@@ -44,10 +45,10 @@ def bar_line(time, bar, line, ax=None, barkwargs={}, linekwargs={}):
 
     lineax = barax.twinx()
 
-    bar_defaults = {'color':'C0'}
-    for key, arg in bar_defaults.items(): barkwargs.setdefault(key,arg)
-    line_defaults = {'color':'C1'}
-    for key, arg in line_defaults.items(): linekwargs.setdefault(key,arg)
+    bar_defaults = {'color': 'C0'}
+    for key, arg in bar_defaults.items(): barkwargs.setdefault(key, arg)
+    line_defaults = {'color': 'C1'}
+    for key, arg in line_defaults.items(): linekwargs.setdefault(key, arg)
 
     barax.bar(time, bar, **barkwargs)
     lineax.plot(time, line, **linekwargs)
@@ -157,6 +158,9 @@ def dPCA_fourway_analysis(site, probe, meta):
     return dprime, shuf_dprime, sim_dprime, goodcells
 
 
+config = ConfigParser()
+config.read(pl.Path('../context_probe_analysis/config/settings.ini'))
+
 CB_color_cycle = ['#377eb8', '#ff7f00', '#4daf4a', '#a65628',  # blue, orange, green, brow,
                   '#984ea3', '#999999', '#e41a1c', '#dede00']  # purple, gray, scarlet, lime
 
@@ -249,7 +253,7 @@ for site in sites:
         object_name = f'200221_{site}_P{probe}_single_cell_dprime'
         analysis_parameters = '_'.join(['{}-{}'.format(key, str(val)) for key, val in meta.items()])
         analysis_name = 'CPN_singel_cell_dprime'
-        cache_folder = pl.Path('C:\\', 'users', 'mateo', 'mycache', analysis_name, analysis_parameters)
+        cache_folder = pl.Path(config['paths']['analysis_cache']) / f'{analysis_name}/{analysis_parameters}'
 
         SC_cache = make_cache(function=cell_dprime,
                               func_args={'site': site, 'probe': probe, 'meta': meta},
@@ -271,7 +275,7 @@ for site in sites:
         object_name = f'200221_{site}_P{probe}_single_cell_dprime'
         analysis_parameters = '_'.join(['{}-{}'.format(key, str(val)) for key, val in meta.items()])
         analysis_name = 'CPN_dPCA_dprime'
-        cache_folder = pl.Path('C:\\', 'users', 'mateo', 'mycache', analysis_name, analysis_parameters)
+        cache_folder = pl.Path(config['paths']['analysis_cache']) / f'{analysis_name}/{analysis_parameters}'
 
         dPCA_cache = make_cache(function=dPCA_fourway_analysis,
                                 func_args={'site': site, 'probe': probe, 'meta': meta},
@@ -312,7 +316,8 @@ for site in sites:
 # defines arrays that identify cells, sites and regions
 SC_cells_array = np.array(list(SC_pvalues_dict.keys()))
 SC_sites_array = np.array([cell[0:7] for cell in SC_cells_array])
-SC_regions_array = np.array([region_map[cell[0:7]] for cell in SC_cells_array])  # todo make a dictionary map from site to A1 or PEG
+SC_regions_array = np.array(
+    [region_map[cell[0:7]] for cell in SC_cells_array])  # todo make a dictionary map from site to A1 or PEG
 
 dPCA_site_array = np.array(list(dPCA_pvalues_dict.keys()))
 dPCA_regions_array = np.array([cell[0:3] for cell in dPCA_site_array])
@@ -321,6 +326,7 @@ dPCA_regions_array = np.array([cell[0:3] for cell in dPCA_site_array])
 threshold = 0.05
 SC_significance_dict = {key: (val <= threshold) for key, val in SC_pvalues_dict.items()}
 dPCA_significance_dict = {key: (val <= threshold) for key, val in dPCA_pvalues_dict.items()}
+
 
 # stacks arrays, with different time dimentions, padding with NAN
 def nanstack(arr_dict):
@@ -333,7 +339,7 @@ def nanstack(arr_dict):
             newshape.append(max_time)
             newarr = np.empty(newshape)
             newarr[:] = np.nan
-            newarr[...,:t] = arr
+            newarr[..., :t] = arr
         else:
             newarr = arr
 
@@ -342,8 +348,9 @@ def nanstack(arr_dict):
     stacked = np.stack(list(newdict.values()))
     return stacked
 
+
 SC_reals_array = nanstack(SC_reals_dict)
-SC_shuff_array = nanstack(SC_shuffled_dict).swapaxes(0, 1) # swaps cells by monts
+SC_shuff_array = nanstack(SC_shuffled_dict).swapaxes(0, 1)  # swaps cells by monts
 SC_significance_array = nanstack(SC_significance_dict)
 dPCA_signif_array = nanstack(dPCA_significance_dict)
 #########################################################################################################################
@@ -382,7 +389,7 @@ for site in sites:
 # for each site collapeses across cells, rows are probes, columns are context pairs
 for site in set(SC_sites_array):
     site_mask = SC_sites_array == site
-    arr  = np.nanmean(SC_significance_array[site_mask, ...], axis=0)
+    arr = np.nanmean(SC_significance_array[site_mask, ...], axis=0)
     fig, axes = plt.subplots(arr.shape[0], arr.shape[1], sharex=True, sharey=True,
                              squeeze=False, figsize=full_screen)
     region = region_map[site[:7]]
@@ -391,8 +398,8 @@ for site in set(SC_sites_array):
     for rr, (row, probe) in enumerate(zip(axes, all_probes)):
         for cc, (col, pair) in enumerate(zip(row, itt.combinations(meta['transitions'], 2))):
             ax = col
-            line = np.nanmean(SC_reals_array[site_mask,...], axis=0)[rr, cc, :]
-            mont = np.nanmean(SC_shuff_array[:, site_mask,...], axis=0)[:, rr, cc, :]
+            line = np.nanmean(SC_reals_array[site_mask, ...], axis=0)[rr, cc, :]
+            mont = np.nanmean(SC_shuff_array[:, site_mask, ...], axis=0)[:, rr, cc, :]
             hist = arr[rr, cc, :]
             barkwargs = dict(width=bar_width, align='edge', color=color, edgecolor='white', alpha=0.5)
             linekwargs = dict(color='blue')
@@ -400,7 +407,7 @@ for site in set(SC_sites_array):
             ax.bar(times[:len(hist)], hist, **barkwargs)
             _ = fplt.exp_decay(times[:len(hist)], hist, ax=ax)
 
-            ax.plot(times[:len(line)],line, **linekwargs)
+            ax.plot(times[:len(line)], line, **linekwargs)
             _ = fplt._cint(times[:mont.shape[1]], mont, confidence=0.95, ax=ax,
                            fillkwargs={'color': 'blue', 'alpha': 0.5})
             if cc == 0:
@@ -499,7 +506,7 @@ for site, arr in dPCA_significance_dict.items():
             ax.bar(times[:len(hist)], hist, width=bar_width, align='edge', color=color, edgecolor='white', alpha=0.5)
             _ = fplt.exp_decay(times[:len(hist)], hist, ax=ax)
 
-            ax.plot(times[:len(line)],line, color='blue')
+            ax.plot(times[:len(line)], line, color='blue')
             _ = fplt._cint(times[:mont.shape[1]], mont, confidence=0.95, ax=ax,
                            fillkwargs={'color': 'blue', 'alpha': 0.5})
             if cc == 0:
@@ -599,7 +606,6 @@ ff_threshold = DF.value < 1000  # drop cells with abnormaly high levels of tau, 
 filtered = DF.loc[ff_param & ff_threshold, :]
 pivoted = filtered.pivot(index='cellid', columns='source', values='value').dropna()
 
-
 # plots the raw dPCA vs single Cell values withou any further filtering besides gross artifacts like taus > 1s
 fig, ax = plt.subplots(figsize=full_screen)
 y = pivoted['dPCA']
@@ -645,10 +651,10 @@ def check_plot(cell, probe, significance=0.05):
         pair_idx = SC_trans_pairs.index(f'{trans[0]}_{trans[1]}')
 
         # plots the PSTH and rasters of the compared responses
-        axes[0,tt].plot(t, trialR[:, cell_idx, t0_idx, :].mean(axis=0), color=trans_color_map[trans[0]])
-        axes[0,tt].plot(t, trialR[:, cell_idx, t1_idx, :].mean(axis=0), color=trans_color_map[trans[1]])
+        axes[0, tt].plot(t, trialR[:, cell_idx, t0_idx, :].mean(axis=0), color=trans_color_map[trans[0]])
+        axes[0, tt].plot(t, trialR[:, cell_idx, t1_idx, :].mean(axis=0), color=trans_color_map[trans[1]])
 
-        bottom, top = axes[0,tt].get_ylim()
+        bottom, top = axes[0, tt].get_ylim()
         half = (top - bottom) / 2
         _ = fplt._raster(t, trialR[:, cell_idx, t0_idx, :], y_offset=0, y_range=(bottom, half), ax=axes[0, tt],
                          scatter_kws={'color': trans_color_map[trans[0]], 'alpha': 0.8, 's': 10})
@@ -656,7 +662,7 @@ def check_plot(cell, probe, significance=0.05):
                          scatter_kws={'color': trans_color_map[trans[1]], 'alpha': 0.8, 's': 10})
 
         # plots the real dprime and the shuffled dprime
-        axes[1,tt].plot(t, SC_reals_dict[cell][prb_idx, pair_idx, :], color='black')
+        axes[1, tt].plot(t, SC_reals_dict[cell][prb_idx, pair_idx, :], color='black')
         # axes[1].plot(all_shuffled[cell][:, prb_idx, pair_idx, :].T, color='green', alpha=0.01)
         _ = fplt._cint(t, SC_shuffled_dict[cell][:, prb_idx, pair_idx, :], confidence=0.95, ax=axes[1, tt],
                        fillkwargs={'color': 'black', 'alpha': 0.5})
@@ -666,20 +672,22 @@ def check_plot(cell, probe, significance=0.05):
         # axes[2,tt].axhline(significance, color='red', linestyle='--')
 
         # plots the histogram of significant bins
-        axes[2,tt].bar(t, SC_significance_dict[cell][prb_idx, pair_idx, :], width=bar_width, align='edge', edgecolor='white')
+        axes[2, tt].bar(t, SC_significance_dict[cell][prb_idx, pair_idx, :], width=bar_width, align='edge',
+                        edgecolor='white')
         _ = fplt.exp_decay(t, SC_significance_dict[cell][prb_idx, pair_idx, :], ax=axes[2, tt])
-        if axes[2,tt].get_ylim()[1] < 1:
-            axes[2,tt].set_ylim(0,1)
+        if axes[2, tt].get_ylim()[1] < 1:
+            axes[2, tt].set_ylim(0, 1)
 
         # formats legned
         if tt == 0:
-            axes[0,tt].set_ylabel(f'cell responses')
-            axes[1,tt].set_ylabel(f'dprime')
-            axes[2,tt].set_ylabel(f'significant bins')
+            axes[0, tt].set_ylabel(f'cell responses')
+            axes[1, tt].set_ylabel(f'dprime')
+            axes[2, tt].set_ylabel(f'significant bins')
 
-        axes[0,tt].set_title(f'{trans[0]}_{trans[1]}')
-        axes[2,tt].legend(loc='upper right')
+        axes[0, tt].set_title(f'{trans[0]}_{trans[1]}')
+        axes[2, tt].legend(loc='upper right')
     return fig, axes
+
 
 cell = 'AMT029a-57-1'
 cell = 'DRX021a-10-2'
@@ -691,6 +699,7 @@ fig.suptitle(title)
 fig.set_size_inches([19.2, 9.83])
 savefig(fig, fig_root, title)
 
+
 def compare_plot(cell):
     site = cell[0:7]
 
@@ -701,20 +710,20 @@ def compare_plot(cell):
     dPCA_dprime = np.nanmean(dPCA_reals_dict[site], axis=(0, 1))
 
     fig = plt.figure()
-    gs = fig.add_gridspec(2,3)
+    gs = fig.add_gridspec(2, 3)
 
     barkwargs = dict(width=bar_width, align='edge', color='black', edgecolor='white')
     linekwargs = dict(color='blue')
 
     # single cell summary
-    ax = fig.add_subplot(gs[0,0])
+    ax = fig.add_subplot(gs[0, 0])
     SC_barax, SC_lineax = bar_line(times[:len(SC_hist)], SC_hist, SC_dprime, ax=ax,
                                    barkwargs=barkwargs, linekwargs=linekwargs)
     _ = fplt.exp_decay(times[:len(SC_hist)], SC_hist, ax=SC_barax)
     SC_barax.legend()
 
     # dPCA for this cell site
-    ax = fig.add_subplot(gs[1,0])
+    ax = fig.add_subplot(gs[1, 0])
     dPCA_barax, dPCA_lineax = bar_line(times[:len(dPCA_hist)], dPCA_hist, dPCA_dprime, ax=ax,
                                        barkwargs=barkwargs, linekwargs=linekwargs)
     _ = fplt.exp_decay(times[:len(dPCA_hist)], dPCA_hist, ax=dPCA_barax)
@@ -736,8 +745,7 @@ def compare_plot(cell):
     dPCA_barax.set_xlabel('probe time (ms)')
 
     # find the PNGs of sam analysis and add to the figure
-    samm_fig_dir = pl.Path('//?/C:/users/mateo/documents/science/code/integration_quilt/scrambling-ferrets/'
-                           'figures/lag-correlation/')
+    samm_fig_dir = pl.Path(config['paths']['sam_analysis']) / 'figures/lag-correlation/'
 
     corr_path = list(samm_fig_dir.glob(f'{site}*\\*\\{cell}-win*-range*.png'))[0]
     model_path = list(samm_fig_dir.glob(f'{site}*\\*\\{cell}-model-prediction-lineplot_*.png'))[0]
@@ -750,13 +758,13 @@ def compare_plot(cell):
 
     # fig, (corr_ax, model_ax) = plt.subplots(2,1)
 
-    corr_ax.imshow(sam_corr[30:570,50:720,:])
-    model_ax.imshow(sam_model[30:570,50:720,:])
+    corr_ax.imshow(sam_corr[30:570, 50:720, :])
+    model_ax.imshow(sam_model[30:570, 50:720, :])
 
     for aa in (corr_ax, model_ax):
         aa.get_xaxis().set_visible(False)
         aa.get_yaxis().set_visible(False)
-        for ll in ['top','bottom','right','left']:
+        for ll in ['top', 'bottom', 'right', 'left']:
             aa.spines[ll].set_visible(False)
 
     corr_ax.set_title('lag correlation')
@@ -764,9 +772,9 @@ def compare_plot(cell):
 
     return fig
 
+
 # get list of cells with sams analysisi
-file = pl.Path('C:/Users/Mateo/Documents/Science/code/integration_quilt/scrambling-ferrets/analysis'
-               '/model_fit_pop_summary.mat')
+file = pl.Path(config['paths']['sam_analysis']) / 'analysis/model_fit_pop_summary.mat'
 best_fits = loadmat(file)['best_fits'].squeeze()
 # orders the data in DF
 df = list()
@@ -787,23 +795,25 @@ for cell in common_cells:
     title = f'{cell} context vs integration'
     fig.tight_layout(rect=(0, 0, 1, 0.95))
     fig.suptitle(title)
-    fig.set_size_inches([10.13,  9.74])
+    fig.set_size_inches([10.13, 9.74])
     savefig(fig, 'single_cell_comparison', title)
     plt.close(fig)
+
 
 ########################################################################################################################
 # considering the d' itself, and tau fitted to it
 def fit_line(time, value):
-    popt, _=  fts.exp_decay(time[:len(value)], value)
-    line = fts._exp(time[:len(value)], * popt)
+    popt, _ = fts.exp_decay(time[:len(value)], value)
+    line = fts._exp(time[:len(value)], *popt)
     return line
+
 
 # first single cell comparisons, fit of the means of mean of the fits ...
 cell = 'DRX021a-10-2'
 for cell in common_cells:
     fig_folder = 'cell_dprime_signif_fits'
     title = f'{cell}_dprime_signif_fits'
-    fig_file = pl.Path(f'C:\\users\\mateo\\Pictures\\{fig_folder}\\{title}').with_suffix('.png')
+    fig_file = pl.Path(config['paths']['figures']) / f'{fig_folder}/{title}.png'
     if fig_file.exists():
         print(f'{cell} figure alredy exists')
         continue
@@ -811,7 +821,7 @@ for cell in common_cells:
         print(f'{cell} creating figure')
 
     # plots cell mean significance and dprime
-    fig, axes  = plt.subplots(1,5, figsize=full_screen)
+    fig, axes = plt.subplots(1, 5, figsize=full_screen)
     signif = np.mean(SC_significance_dict[cell], (0, 1))
     dprime = np.mean(SC_reals_dict[cell], (0, 1))
     barkwargs = dict(width=bar_width, align='edge', color='black', edgecolor='white')
@@ -865,15 +875,15 @@ for cell in common_cells:
         dprime_fits = list()
         nprobes, ntrans, ntimes = SC_significance_dict[cell].shape
         for pp, tt in itt.product(range(nprobes), range(ntrans)):
-            signif_fits.append(fit_line(times[:ntimes], signif[pp,tt,:]))
-            dprime_fits.append(fit_line(times[:ntimes], dprime[pp,tt,:]))
+            signif_fits.append(fit_line(times[:ntimes], signif[pp, tt, :]))
+            dprime_fits.append(fit_line(times[:ntimes], dprime[pp, tt, :]))
         signif_fits = np.stack(signif_fits, axis=0)
         dprime_fits = np.stack(dprime_fits, axis=0)
         s_fit = np.mean(signif_fits, 0)
         d_fit = np.mean(dprime_fits, 0)
         axes[4].plot(times[:len(s_fit)], s_fit, color='black')
         twinx4 = axes[4].twinx()
-        twinx4  .plot(times[:len(d_fit)], d_fit, color='blue')
+        twinx4.plot(times[:len(d_fit)], d_fit, color='blue')
         axes[4].set_title('mean(fit(probe x transition))')
     except:
         pass
@@ -891,7 +901,7 @@ site = sites[0]
 for site in sites:
     fig_folder = 'site_dprime_signif_fits'
     title = f'{site}_dprime_signif_fits'
-    fig_file = pl.Path(f'C:\\users\\mateo\\Pictures\\{fig_folder}\\{title}').with_suffix('.png')
+    fig_file = pl.Path(config['paths']['figures']) / f'{fig_folder}/{title}.png'
     # if fig_file.exists():
     #     print(f'{cell} figure alredy exists')
     #     continue
@@ -899,12 +909,12 @@ for site in sites:
     #     print(f'{cell} creating figure')
 
     full_signif = SC_significance_array[SC_sites_array == site]
-    full_dprime = SC_reals_array[SC_sites_array==site]
+    full_dprime = SC_reals_array[SC_sites_array == site]
 
     # plots cell mean significance and dprime
-    fig, axes  = plt.subplots(1,3, figsize=full_screen)
-    signif = np.mean(full_signif, (0,1,2))
-    dprime = np.mean(full_dprime, (0,1,2))
+    fig, axes = plt.subplots(1, 3, figsize=full_screen)
+    signif = np.mean(full_signif, (0, 1, 2))
+    dprime = np.mean(full_dprime, (0, 1, 2))
     barkwargs = dict(width=bar_width, align='edge', color='black', edgecolor='white')
     linekwargs = dict(color='blue')
     barax, lineax = bar_line(times[:len(signif)], signif, dprime, ax=axes[0],
@@ -928,15 +938,15 @@ for site in sites:
         dprime_fits = list()
         ncells, nprobes, ntrans, ntimes = full_signif.shape
         for cc, pp, tt in itt.product(range(ncells), range(nprobes), range(ntrans)):
-            signif_fits.append(fit_line(times[:ntimes], full_signif[cc,pp,tt,:]))
-            dprime_fits.append(fit_line(times[:ntimes], full_dprime[cc,pp,tt,:]))
+            signif_fits.append(fit_line(times[:ntimes], full_signif[cc, pp, tt, :]))
+            dprime_fits.append(fit_line(times[:ntimes], full_dprime[cc, pp, tt, :]))
         signif_fits = np.stack(signif_fits, axis=0)
         dprime_fits = np.stack(dprime_fits, axis=0)
         s_fit = np.mean(signif_fits, 0)
         d_fit = np.mean(dprime_fits, 0)
         axes[2].plot(times[:len(s_fit)], s_fit, color='black')
         twinx2 = axes[2].twinx()
-        twinx2  .plot(times[:len(d_fit)], d_fit, color='blue')
+        twinx2.plot(times[:len(d_fit)], d_fit, color='blue')
         axes[2].set_title('mean of the fits')
     except:
         pass
@@ -947,5 +957,3 @@ for site in sites:
     fig.tight_layout(rect=(0, 0, 1, 0.95))
     savefig(fig, fig_folder, title)
     plt.close(fig)
-
-
