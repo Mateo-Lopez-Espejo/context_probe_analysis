@@ -1,4 +1,8 @@
 import collections as col
+from configparser import ConfigParser
+import joblib as jl
+import pathlib as pl
+from cpp_cache import set_name
 import nems.recording as recording
 import nems_lbhb.baphy as nb
 import cpp_epochs as cpe
@@ -7,7 +11,10 @@ from nems import db as nd
 
 "I am lazy, this is a one liner to load a formated cpp/cpn signal"
 
-def load(site, **kwargs):
+config = ConfigParser()
+config.read(pl.Path('../context_probe_analysis/config/settings.ini'))
+
+def load(site, boxload=True, **kwargs):
 
     # defaults
     options = {'batch': 316,
@@ -19,9 +26,23 @@ def load(site, **kwargs):
                'stim': False}  # ToDo chace stims, spectrograms???
 
     options.update(**kwargs)
-    # print(options)
-    load_URI = nb.baphy_load_recording_uri(**options)
-    loaded_rec = recording.load_recording(load_URI)
+
+    toname = options.copy()
+    del toname['recache']
+    filename = pl.Path(config['paths']['recording_cache']) / set_name(toname)
+
+    if boxload is True:
+        print('loading recording from box')
+        loaded_rec = jl.load(filename)
+
+    elif boxload is False:
+        load_URI = nb.baphy_load_recording_uri(**options)
+        loaded_rec = recording.load_recording(load_URI)
+        print('cacheing recoring in box')
+        jl.dump(loaded_rec, filename)
+
+    else:
+        raise ValueError('boxload must be boolean')
 
     CPN_rec = cpe.set_recording_subepochs(loaded_rec)
 
