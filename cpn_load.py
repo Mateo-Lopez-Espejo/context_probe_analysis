@@ -23,23 +23,33 @@ def load(site, boxload=True, **kwargs):
                'rasterfs': 100,
                'recache': False,
                'runclass': 'CPN',
-               'stim': False}  # ToDo chace stims, spectrograms???
+               'stim': False}
 
     options.update(**kwargs)
 
-    toname = options.copy()
-    del toname['recache']
-    filename = pl.Path(config['paths']['recording_cache']) / set_name(toname)
-
     if boxload is True:
-        print('loading recording from box')
-        loaded_rec = jl.load(filename)
+        toname = options.copy()
+        del toname['recache']
+        filename = pl.Path(config['paths']['recording_cache']) / set_name(toname)
+
+        if not filename.parent.exists():
+            filename.parent.mkdir()
+
+        if filename.exists() and options['recache'] is False:
+            print('loading recording from box')
+            loaded_rec = jl.load(filename)
+
+        elif filename.exists() is False or options['recache'] is True:
+            load_URI, _ = nb.baphy_load_recording_uri(**options)
+            loaded_rec = recording.load_recording(load_URI)
+            print('cacheing recoring in box')
+            jl.dump(loaded_rec, filename)
+        else:
+            raise SystemError('WTF?')
 
     elif boxload is False:
-        load_URI = nb.baphy_load_recording_uri(**options)
+        load_URI, _ = nb.baphy_load_recording_uri(**options)
         loaded_rec = recording.load_recording(load_URI)
-        print('cacheing recoring in box')
-        jl.dump(loaded_rec, filename)
 
     else:
         raise ValueError('boxload must be boolean')
