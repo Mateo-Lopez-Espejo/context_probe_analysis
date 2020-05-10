@@ -12,7 +12,12 @@ from nems import db as nd
 "I am lazy, this is a one liner to load a formated cpp/cpn signal"
 
 config = ConfigParser()
-config.read(pl.Path('../context_probe_analysis/config/settings.ini'))
+if pl.Path('../context_probe_analysis/config/settings.ini').exists():
+    config.read(pl.Path('../context_probe_analysis/config/settings.ini'))
+elif pl.Path('../../../context_probe_analysis/config/settings.ini').exists():
+    config.read(pl.Path('../../../context_probe_analysis/config/settings.ini'))
+else:
+    raise FileNotFoundError('config file coluld not be foud')
 
 def load(site, boxload=True, **kwargs):
 

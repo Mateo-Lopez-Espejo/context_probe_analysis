@@ -84,6 +84,14 @@ def ndarray_dprime(array0, array1, axis, absolute=True):
         else:
             raise ValueError(f'absolute must be bool but is {type(absolute)}')
 
+    # flip value signs so the highest absolute dprime value is possitive
+    if absolute == False:
+        toflip = (np.abs(np.min(dprime,axis=-1)) > np.max(dprime,axis=-1))[...,None]
+        dprime = np.negative(dprime, where=toflip, out=dprime)
+
+
+
+
 
     return dprime
 
@@ -104,7 +112,7 @@ def param_sim_resp(array, **kwargs):
 
 # full array pairwise functions
 
-def pairwise_dprimes(array, observation_axis, condition_axis):
+def pairwise_dprimes(array, observation_axis, condition_axis, absolute=True):
     '''
     calculates the dprime in an array where different conditions and different observations correspond to two of the
     dimension of the array.
@@ -119,7 +127,7 @@ def pairwise_dprimes(array, observation_axis, condition_axis):
 
         arr0 = np.expand_dims(array.take(c0, axis=condition_axis), axis=condition_axis)
         arr1 = np.expand_dims(array.take(c1, axis=condition_axis), axis=condition_axis)
-        dprimes.append(ndarray_dprime(arr0, arr1, axis=observation_axis))
+        dprimes.append(ndarray_dprime(arr0, arr1, axis=observation_axis, absolute=absolute))
 
     # stack the condition pairs along a new first dimension, eliminates the dimension of the original conditions
     dprimes = np.stack(dprimes, axis=0).squeeze(axis=condition_axis)

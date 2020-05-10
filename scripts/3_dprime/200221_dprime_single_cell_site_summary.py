@@ -85,7 +85,7 @@ def cell_dprime(site, probe, meta):
 
     trans_pairs = [f'{x}_{y}' for x, y in itt.combinations(meta['transitions'], 2)]
 
-    dprime = cDP.pairwise_dprimes(trialR, observation_axis=0, condition_axis=2)  # shape CellPair x Cell x Time
+    dprime = cDP.pairwise_dprimes(trialR, observation_axis=0, condition_axis=2, absolute=meta['dprime_absolute'])  # shape CellPair x Cell x Time
 
     # Shuffles the rasters n times and organizes in an array with the same shape the raster plus one dimension
     # with size n containing each shuffle
@@ -103,7 +103,8 @@ def cell_dprime(site, probe, meta):
         for rr in range(meta['montecarlo']):
             shuf_trialR[rr, ...] = shuffle(ctx_shuffle, shuffle_axis=2, indie_axis=0)
 
-        shuffled.append(cDP.pairwise_dprimes(shuf_trialR, observation_axis=1, condition_axis=3))
+        shuffled.append(cDP.pairwise_dprimes(shuf_trialR, observation_axis=1, condition_axis=3,
+                                             absolute=meta['dprime_absolute']))
 
     shuffled = np.stack(shuffled, axis=1).squeeze(axis=0).swapaxes(0, 1)  # shape Montecarlo x ContextPair x Cell x Time
 
@@ -136,7 +137,8 @@ def dPCA_fourway_analysis(site, probe, meta):
 
     # calculates full dPCA. i.e. considering all 4 categories
     dPCA_projection, dPCA_transformation = cdPCA.fit_transform(R, trialR)
-    dprime = cDP.pairwise_dprimes(dPCA_projection, observation_axis=0, condition_axis=1)
+    dprime = cDP.pairwise_dprimes(dPCA_projection, observation_axis=0, condition_axis=1,
+                                  absolute=meta['dprime_absolute'])
 
     # calculates floor (ctx shuffle) and ceiling (simulated data)
     sim_dprime = np.empty([meta['montecarlo']] + list(dprime.shape))
@@ -149,17 +151,24 @@ def dPCA_fourway_analysis(site, probe, meta):
         sim_trial = np.random.normal(np.mean(trialR, axis=0), np.std(trialR, axis=0),
                                      size=[Re, C, S, T])
         sim_projection = cdPCA.transform(sim_trial, dPCA_transformation)
-        sim_dprime[rr, ...] = cDP.pairwise_dprimes(sim_projection, observation_axis=0, condition_axis=1)
+        sim_dprime[rr, ...] = cDP.pairwise_dprimes(sim_projection, observation_axis=0, condition_axis=1,
+                                                   absolute=meta['dprime_absolute'])
 
         ctx_shuffle = shuffle(ctx_shuffle, shuffle_axis=2, indie_axis=0)
         shuf_projection = cdPCA.transform(ctx_shuffle, dPCA_transformation)
-        shuf_dprime[rr, ...] = cDP.pairwise_dprimes(shuf_projection, observation_axis=0, condition_axis=1)
+        shuf_dprime[rr, ...] = cDP.pairwise_dprimes(shuf_projection, observation_axis=0, condition_axis=1,
+                                                    absolute=meta['dprime_absolute'])
 
     return dprime, shuf_dprime, sim_dprime, goodcells
 
 
 config = ConfigParser()
-config.read(pl.Path('../context_probe_analysis/config/settings.ini'))
+if pl.Path('../context_probe_analysis/config/settings.ini').exists():
+    config.read(pl.Path('../context_probe_analysis/config/settings.ini'))
+elif pl.Path('../../../context_probe_analysis/config/settings.ini').exists():
+    config.read(pl.Path('../../../context_probe_analysis/config/settings.ini'))
+else:
+    raise FileNotFoundError('config file coluld not be foud')
 
 CB_color_cycle = ['#377eb8', '#ff7f00', '#4daf4a', '#a65628',  # blue, orange, green, brow,
                   '#984ea3', '#999999', '#e41a1c', '#dede00']  # purple, gray, scarlet, lime
@@ -185,7 +194,8 @@ meta = {'reliability': 0.1,  # r value
         'raster_fs': 30,
         'transitions': ['silence', 'continuous', 'similar', 'sharp'],
         'montecarlo': 1000,
-        'zscore': False}
+        'zscore': False,
+        'dprime_absolute':False}
 
 tran_type = list()
 for t0, t1 in itt.combinations(meta['transitions'], 2):
@@ -207,6 +217,7 @@ for t0, t1 in itt.combinations(meta['transitions'], 2):
 
 dprime_recache = False
 rec_recache = False
+two_tail_p = True
 
 all_probes = [2, 3, 5, 6]
 
@@ -266,9 +277,15 @@ for site in sites:
         this_site_SC_reals.append(SC_dprime)
         this_site_SC_shuffled.append(SC_shuf_dprime)
 
-        # single tailed p value base on the montecarlo shuffling
-        SC_pvalues = np.sum((SC_shuf_dprime >= SC_dprime), axis=0) / meta['montecarlo']
-        this_site_SC_pvalues.append(SC_pvalues)
+        #  p value base on the montecarlo shuffling
+        if two_tail_p is True:
+            top_pval = np.sum((SC_shuf_dprime >= SC_dprime), axis=0) / meta['montecarlo']
+            bottom_pval = np.sum((SC_shuf_dprime <= SC_dprime), axis=0) / meta['montecarlo']
+            SC_pvalues = np.where(SC_dprime >= np.mean(SC_shuf_dprime, axis=0), top_pval, bottom_pval)
+            this_site_SC_pvalues.append(SC_pvalues)
+        elif two_tail_p is False:
+            SC_pvalues = np.sum((SC_shuf_dprime >= SC_dprime), axis=0) / meta['montecarlo']
+            this_site_SC_pvalues.append(SC_pvalues)
 
         ##############################
         # dPCA analysis
@@ -288,9 +305,30 @@ for site in sites:
         this_site_dPCA_shuffled.append(dPCA_shuf_dprime)
         this_site_dPCA_simulated.append(dPCA_sim_dprime)
 
-        # single tailed p value base on the montecarlo shuffling
-        dPCA_pvalues = np.sum((dPCA_shuf_dprime >= dPCA_dprime), axis=0) / meta['montecarlo']
-        this_site_dPCA_pvalues.append(dPCA_pvalues)
+        #  p value base on the montecarlo shuffling
+        if two_tail_p is True:
+            top_pval = np.sum((dPCA_shuf_dprime >= dPCA_dprime), axis=0) / meta['montecarlo']
+            bottom_pval = np.sum((dPCA_shuf_dprime <= dPCA_dprime), axis=0) / meta['montecarlo']
+            dPCA_pvalues = np.where(dPCA_dprime >= np.mean(dPCA_shuf_dprime, axis=0), top_pval, bottom_pval)
+            this_site_dPCA_pvalues.append(dPCA_pvalues)
+        elif two_tail_p is False:
+            dPCA_pvalues = np.sum((dPCA_shuf_dprime >= dPCA_dprime), axis=0) / meta['montecarlo']
+            this_site_dPCA_pvalues.append(dPCA_pvalues)
+
+        # todo, eliminate test after everything works
+        # pair_idx = 5 # 6 total
+        # cell_idx = -2 # 79 total
+        # dPCA_significance = dPCA_pvalues <= 0.05
+        # barkwargs = dict(width=1, align='edge', color='black', edgecolor='white', alpha=0.5)
+        # fig, ax = plt.subplots()
+        # line = dPCA_dprime[pair_idx,:]
+        # mont = dPCA_shuf_dprime[:,pair_idx,:]
+        # hist = dPCA_significance[pair_idx,:]
+        # np.arange(30)
+        # ax.plot(np.arange(30), line, color='black')
+        # _ = fplt._cint(np.arange(30), mont, confidence=0.95, ax=ax,
+        #                fillkwargs={'color': 'blue', 'alpha': 0.5})
+        # ax.bar(np.arange(30), hist, **barkwargs)
 
     this_site_SC_reals = np.stack(this_site_SC_reals, axis=0)
     this_site_SC_shuffled = np.stack(this_site_SC_shuffled, axis=0)
@@ -323,7 +361,7 @@ dPCA_site_array = np.array(list(dPCA_pvalues_dict.keys()))
 dPCA_regions_array = np.array([cell[0:3] for cell in dPCA_site_array])
 
 # defines a significatn threshold and transfroms the pvalues into bool (significant vs nonsignificant)
-threshold = 0.05
+threshold = 0.01
 SC_significance_dict = {key: (val <= threshold) for key, val in SC_pvalues_dict.items()}
 dPCA_significance_dict = {key: (val <= threshold) for key, val in dPCA_pvalues_dict.items()}
 
@@ -387,6 +425,7 @@ for site in sites:
     plt.close(fig)
 
 # for each site collapeses across cells, rows are probes, columns are context pairs
+site = 'DRX008b'
 for site in set(SC_sites_array):
     site_mask = SC_sites_array == site
     arr = np.nanmean(SC_significance_array[site_mask, ...], axis=0)
@@ -399,7 +438,7 @@ for site in set(SC_sites_array):
         for cc, (col, pair) in enumerate(zip(row, itt.combinations(meta['transitions'], 2))):
             ax = col
             line = np.nanmean(SC_reals_array[site_mask, ...], axis=0)[rr, cc, :]
-            mont = np.nanmean(SC_shuff_array[:, site_mask, ...], axis=0)[:, rr, cc, :]
+            mont = np.nanmean(SC_shuff_array[:, site_mask, ...], axis=1)[:, rr, cc, :] #todo check that simiar lines were not wrong
             hist = arr[rr, cc, :]
             barkwargs = dict(width=bar_width, align='edge', color=color, edgecolor='white', alpha=0.5)
             linekwargs = dict(color='blue')
