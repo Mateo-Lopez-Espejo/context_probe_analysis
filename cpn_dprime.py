@@ -51,47 +51,44 @@ def dprime(array0, array1, absolute=True):
     return dprime
 
 
-def ndarray_dprime(array0, array1, axis, absolute=True):
+def ndarray_dprime(array0, array1, axis, flip=True):
     '''
     general fucntion to calculate the dprime between two arrays with the same shape. the dprime is calculated in
     a dimension wise manner but for the specified axis, which is treated asobservations/repetitions
     :param array0: ndarray
     :param array1: ndarray
     :param axis: int. observation axis
-    :param absolute: bool. wether to return the absolute d' (direction agnostic) or the signed d'
+    :param flip: bool. wether to return the absolute d' (direction agnostic) or the signed d'
     :return: ndarray with one less dimension as the input arrays
     '''
 
     # main dprime calculation
-    if absolute is True:
-        dprime = (np.abs(np.mean(array0, axis=axis) - np.mean(array1, axis=axis)) /
-                  np.sqrt(0.5 * (np.var(array0, axis=axis) + np.var(array1, axis=axis))))
-    elif absolute is False:
-        dprime = (np.mean(array0, axis=axis) - np.mean(array1, axis=axis) /
-                  np.sqrt(0.5 * (np.var(array0, axis=axis) + np.var(array1, axis=axis))))
-    else:
-        raise ValueError(f'absolute must be bool but is {type(absolute)}')
+    dprime = (np.mean(array0, axis=axis) - np.mean(array1, axis=axis) /
+              np.sqrt(0.5 * (np.var(array0, axis=axis) + np.var(array1, axis=axis))))
 
     # check for edge cases
     if np.any(np.isnan(dprime)):
         dprime[np.where(np.isnan(dprime))] = 0
 
     if np.any(np.isinf(dprime)):
-        if absolute == True:
-            dprime[np.where(np.isinf(dprime))] = (np.abs((array0.mean(axis=axis) - array1.mean(axis=axis))))[np.isinf(dprime)]
-        elif absolute == False:
-            dprime[np.where(np.isinf(dprime))] = (array0.mean(axis=axis) - array1.mean(axis=axis))[np.isinf(dprime)]
-        else:
-            raise ValueError(f'absolute must be bool but is {type(absolute)}')
+        dprime[np.where(np.isinf(dprime))] = (array0.mean(axis=axis) - array1.mean(axis=axis))[np.isinf(dprime)]
 
-    # flip value signs so the highest absolute dprime value is possitive
-    if absolute == False:
-        toflip = (np.abs(np.min(dprime,axis=-1)) > np.max(dprime,axis=-1))[...,None]
+
+
+    if flip == 'absolute':
+        dprime = np.abs(dprime)
+
+    elif flip == 'max':
+        # flip value signs so the highest absolute dprime value is possitive
+        toflip = (np.abs(np.min(dprime,axis=-1)) > np.max(dprime,axis=-1))[...,None] # asume last dimensio is time
         dprime = np.negative(dprime, where=toflip, out=dprime)
 
+    elif flip == 'first':
+        toflip = (dprime[...,0] < 0)[...,None] # asumes last dimension is time
+        dprime = np.negative(dprime, where=toflip, out=dprime)
 
-
-
+    elif flip is None:
+        pass
 
     return dprime
 
@@ -112,7 +109,7 @@ def param_sim_resp(array, **kwargs):
 
 # full array pairwise functions
 
-def pairwise_dprimes(array, observation_axis, condition_axis, absolute=True):
+def pairwise_dprimes(array, observation_axis, condition_axis, flip=True):
     '''
     calculates the dprime in an array where different conditions and different observations correspond to two of the
     dimension of the array.
@@ -127,7 +124,7 @@ def pairwise_dprimes(array, observation_axis, condition_axis, absolute=True):
 
         arr0 = np.expand_dims(array.take(c0, axis=condition_axis), axis=condition_axis)
         arr1 = np.expand_dims(array.take(c1, axis=condition_axis), axis=condition_axis)
-        dprimes.append(ndarray_dprime(arr0, arr1, axis=observation_axis, absolute=absolute))
+        dprimes.append(ndarray_dprime(arr0, arr1, axis=observation_axis, flip=flip))
 
     # stack the condition pairs along a new first dimension, eliminates the dimension of the original conditions
     dprimes = np.stack(dprimes, axis=0).squeeze(axis=condition_axis)

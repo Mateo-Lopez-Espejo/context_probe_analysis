@@ -85,7 +85,7 @@ def cell_dprime(site, probe, meta):
 
     trans_pairs = [f'{x}_{y}' for x, y in itt.combinations(meta['transitions'], 2)]
 
-    dprime = cDP.pairwise_dprimes(trialR, observation_axis=0, condition_axis=2, absolute=meta['dprime_absolute'])  # shape CellPair x Cell x Time
+    dprime = cDP.pairwise_dprimes(trialR, observation_axis=0, condition_axis=2, flip=meta['dprime_absolute'])  # shape CellPair x Cell x Time
 
     # Shuffles the rasters n times and organizes in an array with the same shape the raster plus one dimension
     # with size n containing each shuffle
@@ -104,7 +104,7 @@ def cell_dprime(site, probe, meta):
             shuf_trialR[rr, ...] = shuffle(ctx_shuffle, shuffle_axis=2, indie_axis=0)
 
         shuffled.append(cDP.pairwise_dprimes(shuf_trialR, observation_axis=1, condition_axis=3,
-                                             absolute=meta['dprime_absolute']))
+                                             flip=meta['dprime_absolute']))
 
     shuffled = np.stack(shuffled, axis=1).squeeze(axis=0).swapaxes(0, 1)  # shape Montecarlo x ContextPair x Cell x Time
 
@@ -138,7 +138,7 @@ def dPCA_fourway_analysis(site, probe, meta):
     # calculates full dPCA. i.e. considering all 4 categories
     dPCA_projection, dPCA_transformation = cdPCA.fit_transform(R, trialR)
     dprime = cDP.pairwise_dprimes(dPCA_projection, observation_axis=0, condition_axis=1,
-                                  absolute=meta['dprime_absolute'])
+                                  flip=meta['dprime_absolute'])
 
     # calculates floor (ctx shuffle) and ceiling (simulated data)
     sim_dprime = np.empty([meta['montecarlo']] + list(dprime.shape))
@@ -152,12 +152,12 @@ def dPCA_fourway_analysis(site, probe, meta):
                                      size=[Re, C, S, T])
         sim_projection = cdPCA.transform(sim_trial, dPCA_transformation)
         sim_dprime[rr, ...] = cDP.pairwise_dprimes(sim_projection, observation_axis=0, condition_axis=1,
-                                                   absolute=meta['dprime_absolute'])
+                                                   flip=meta['dprime_absolute'])
 
         ctx_shuffle = shuffle(ctx_shuffle, shuffle_axis=2, indie_axis=0)
         shuf_projection = cdPCA.transform(ctx_shuffle, dPCA_transformation)
         shuf_dprime[rr, ...] = cDP.pairwise_dprimes(shuf_projection, observation_axis=0, condition_axis=1,
-                                                    absolute=meta['dprime_absolute'])
+                                                    flip=meta['dprime_absolute'])
 
     return dprime, shuf_dprime, sim_dprime, goodcells
 
@@ -195,7 +195,7 @@ meta = {'reliability': 0.1,  # r value
         'transitions': ['silence', 'continuous', 'similar', 'sharp'],
         'montecarlo': 1000,
         'zscore': False,
-        'dprime_absolute':False}
+        'dprime_absolute':None}
 
 tran_type = list()
 for t0, t1 in itt.combinations(meta['transitions'], 2):
@@ -616,7 +616,6 @@ plt.close(fig)
 # compares the Taus calculated for each cell against those of the site mean
 # calculates exponential decay of significant bins for each cell, for the site mean and
 # for the site dPCA projection collapsing across all probes and transisions
-
 df = list()
 for site in sites:
     collapsed = np.nanmean(SC_significance_array[SC_sites_array == site, :, :, :], axis=(1, 2))
@@ -678,27 +677,36 @@ def check_plot(cell, probe, significance=0.05):
     # trialR shape: Trial x Cell x Context x Probe x Time; R shape: Cell x Context x Probe x Time
     trialR, R, _ = cdPCA.format_raster(raster)
     trialR = trialR.squeeze()
+    trialR = trialR*meta['raster_fs']
+
     t = times[:trialR.shape[-1]]
+    fig, axes = plt.subplots(2, 6, sharex='all', sharey='row')
 
-    fig, axes = plt.subplots(3, 6, sharex=True, figsize=full_screen)
+    #  PSTH
+    for tt, trans in enumerate(itt.combinations(meta['transitions'], 2)):
+        cell_idx = goodcells.index(cell)
 
+        t0_idx = meta['transitions'].index(trans[0])
+        t1_idx = meta['transitions'].index(trans[1])
+
+        axes[0, tt].plot(t, trialR[:, cell_idx, t0_idx, :].mean(axis=0), color=trans_color_map[trans[0]], linewidth=3)
+        axes[0, tt].plot(t, trialR[:, cell_idx, t1_idx, :].mean(axis=0), color=trans_color_map[trans[1]], linewidth=3)
+
+    # Raster, dprime, CI
+    bottom, top = axes[0, 0].get_ylim()
+    half = ((top - bottom) / 2) + bottom
     for tt, trans in enumerate(itt.combinations(meta['transitions'], 2)):
         cell_idx = goodcells.index(cell)
         prb_idx = all_probes.index(probe)
-        t0_idx = meta['transitions'].index(trans[0])
-        t1_idx = meta['transitions'].index(trans[1])
         pair_idx = SC_trans_pairs.index(f'{trans[0]}_{trans[1]}')
 
-        # plots the PSTH and rasters of the compared responses
-        axes[0, tt].plot(t, trialR[:, cell_idx, t0_idx, :].mean(axis=0), color=trans_color_map[trans[0]])
-        axes[0, tt].plot(t, trialR[:, cell_idx, t1_idx, :].mean(axis=0), color=trans_color_map[trans[1]])
+        t0_idx = meta['transitions'].index(trans[0])
+        t1_idx = meta['transitions'].index(trans[1])
 
-        bottom, top = axes[0, tt].get_ylim()
-        half = (top - bottom) / 2
         _ = fplt._raster(t, trialR[:, cell_idx, t0_idx, :], y_offset=0, y_range=(bottom, half), ax=axes[0, tt],
-                         scatter_kws={'color': trans_color_map[trans[0]], 'alpha': 0.8, 's': 10})
+                         scatter_kws={'color': trans_color_map[trans[0]], 'alpha': 0.4, 's': 10})
         _ = fplt._raster(t, trialR[:, cell_idx, t1_idx, :], y_offset=0, y_range=(half, top), ax=axes[0, tt],
-                         scatter_kws={'color': trans_color_map[trans[1]], 'alpha': 0.8, 's': 10})
+                         scatter_kws={'color': trans_color_map[trans[1]], 'alpha': 0.4, 's': 10})
 
         # plots the real dprime and the shuffled dprime
         axes[1, tt].plot(t, SC_reals_dict[cell][prb_idx, pair_idx, :], color='black')
@@ -706,36 +714,42 @@ def check_plot(cell, probe, significance=0.05):
         _ = fplt._cint(t, SC_shuffled_dict[cell][:, prb_idx, pair_idx, :], confidence=0.95, ax=axes[1, tt],
                        fillkwargs={'color': 'black', 'alpha': 0.5})
 
-        # # plots the the calculated pvalue plust the significant threshold
-        # axes[2,tt].plot(t, all_SC_pvalues[cell][prb_idx, pair_idx, :], color='black')
-        # axes[2,tt].axhline(significance, color='red', linestyle='--')
-
+    # significance bars
+    bar_bottom = axes[1, 0].get_ylim()[0]
+    for tt, trans in enumerate(itt.combinations(meta['transitions'], 2)):
+        prb_idx = all_probes.index(probe)
+        pair_idx = SC_trans_pairs.index(f'{trans[0]}_{trans[1]}')
         # plots the histogram of significant bins
-        axes[2, tt].bar(t, SC_significance_dict[cell][prb_idx, pair_idx, :], width=bar_width, align='edge',
-                        edgecolor='white')
-        _ = fplt.exp_decay(t, SC_significance_dict[cell][prb_idx, pair_idx, :], ax=axes[2, tt])
-        if axes[2, tt].get_ylim()[1] < 1:
-            axes[2, tt].set_ylim(0, 1)
+        axes[1, tt].bar(t, SC_significance_dict[cell][prb_idx, pair_idx, :], width=bar_width, align='edge',
+                        edgecolor='white', bottom=bar_bottom)
+        # _ = fplt.exp_decay(t, SC_significance_dict[cell][prb_idx, pair_idx, :], ax=axes[2, tt])
+        # if axes[2, tt].get_ylim()[1] < 1:
+        #     axes[2, tt].set_ylim(0, 1)
 
-        # formats legned
+        # formats legend
         if tt == 0:
-            axes[0, tt].set_ylabel(f'cell responses')
-            axes[1, tt].set_ylabel(f'dprime')
-            axes[2, tt].set_ylabel(f'significant bins')
-
-        axes[0, tt].set_title(f'{trans[0]}_{trans[1]}')
-        axes[2, tt].legend(loc='upper right')
+            axes[0, tt].set_ylabel(f'spike rate', fontsize=ax_lab_size)
+            axes[1, tt].set_ylabel(f'dprime', fontsize=ax_lab_size)
+            axes[0, tt].tick_params(labelsize=ax_val_size)
+            axes[1, tt].tick_params(labelsize=ax_val_size)
+            # axes[2, tt].set_ylabel(f'significant bins')
+        axes[1, tt].set_xlabel('time (ms)', fontsize=ax_lab_size)
+        axes[1, tt].tick_params(labelsize=ax_val_size)
+        axes[0, tt].set_title(f'{trans[0]}_{trans[1]}', fontsize=sub_title_size)
+        # axes[2, tt].legend(loc='upper right')
     return fig, axes
 
 
 cell = 'AMT029a-57-1'
 cell = 'DRX021a-10-2'
+cell = 'DRX008b-99-7'
 probe = 6
 fig, axes = check_plot(cell, probe=probe, significance=threshold)
+half_screen = (full_screen[0], full_screen[1]/2)
+fig.set_size_inches(half_screen)
 title = f'{cell} sumary, probe {probe}'
-fig.tight_layout(rect=(0, 0, 1, 0.95))
 fig.suptitle(title)
-fig.set_size_inches([19.2, 9.83])
+fig.tight_layout(rect=(0, 0, 1, 0.95))
 savefig(fig, fig_root, title)
 
 
@@ -811,7 +825,6 @@ def compare_plot(cell):
 
     return fig
 
-
 # get list of cells with sams analysisi
 file = pl.Path(config['paths']['sam_analysis']) / 'analysis/model_fit_pop_summary.mat'
 best_fits = loadmat(file)['best_fits'].squeeze()
@@ -848,7 +861,7 @@ def fit_line(time, value):
 
 
 # first single cell comparisons, fit of the means of mean of the fits ...
-cell = 'DRX021a-10-2'
+cell = 'DRX008b-99-7'
 for cell in common_cells:
     fig_folder = 'cell_dprime_signif_fits'
     title = f'{cell}_dprime_signif_fits'
