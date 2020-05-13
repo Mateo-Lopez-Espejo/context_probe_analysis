@@ -1,17 +1,8 @@
 import numpy as np
-from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
-from sklearn.decomposition import PCA
-import pandas as pd
-from itertools import permutations
-import scipy.fftpack as fp
-import scipy.signal as ss
-import logging
 import itertools as itt
 
 
-
-# base functionse
-def dprime(array0, array1, absolute=True):
+def dprime(array0, array1, absolute=None):
     '''
     calculates the unidimensional timewise dprime between two two-dimensional arrays with shape Trial x Time
     :param array0: ndarray
@@ -58,7 +49,8 @@ def ndarray_dprime(array0, array1, axis, flip=True):
     :param array0: ndarray
     :param array1: ndarray
     :param axis: int. observation axis
-    :param flip: bool. wether to return the absolute d' (direction agnostic) or the signed d'
+    :param flip: str, None (default). 'absolute' returns the absolute value of dprimes, 'max' flips the values so the max
+    absolute value is positive, 'first' flips the values so the first time time value is positive
     :return: ndarray with one less dimension as the input arrays
     '''
 
@@ -73,17 +65,17 @@ def ndarray_dprime(array0, array1, axis, flip=True):
     if np.any(np.isinf(dprime)):
         dprime[np.where(np.isinf(dprime))] = (array0.mean(axis=axis) - array1.mean(axis=axis))[np.isinf(dprime)]
 
-
-
+    # multiple options to flip the dprime
     if flip == 'absolute':
         dprime = np.abs(dprime)
 
     elif flip == 'max':
-        # flip value signs so the highest absolute dprime value is possitive
+        # flip value signs so the highest absolute dprime value is positive
         toflip = (np.abs(np.min(dprime,axis=-1)) > np.max(dprime,axis=-1))[...,None] # asume last dimensio is time
         dprime = np.negative(dprime, where=toflip, out=dprime)
 
     elif flip == 'first':
+        # flips value signs so the first value in time is positive.
         toflip = (dprime[...,0] < 0)[...,None] # asumes last dimension is time
         dprime = np.negative(dprime, where=toflip, out=dprime)
 
@@ -92,22 +84,6 @@ def ndarray_dprime(array0, array1, axis, flip=True):
 
     return dprime
 
-def param_sim_resp(array, **kwargs):
-    # ToDo complete function
-    '''
-    Calculates center and dispersion of trial responses from each neuron at each time point,
-    simulates new reponses based on these parameters (assumes gaussian distributions).
-    :param array: ndarray with shape Trial x Cell x Time
-    :param kwargs:
-    :return: ndarray with the same shape as the input array. Parametric simulation of neuronal responses.
-    '''
-    sim_resp = np.random.normal(np.mean(array, axis=0),
-                                np.std(array, axis=0),
-                                size=array.shape)
-    return sim_resp
-
-
-# full array pairwise functions
 
 def pairwise_dprimes(array, observation_axis, condition_axis, flip=True):
     '''
@@ -131,11 +107,43 @@ def pairwise_dprimes(array, observation_axis, condition_axis, flip=True):
 
     return dprimes
 
-# montecarlo functions
 
-def pair_ctx_shuffle_dprime(array, montecarlo):
-    return None
+def flip_dprimes(dprime_array, montecarlo=None, flip='first'):
+    '''
+    flips the sign of the dprime over time following the rule specifiede by the keyword argument flip. If a montecarlo arrays
+    is provided, its assumed that is related to the dprime_array, and the montecarlo repetitions are flipped in a form
+    consistant with the original data from dprime_array i.e. if a dprime time series signs are flipped, the all the correspondent
+    montecarlo repetitions are flipped too, regardless of their actual values.
+    :param dprime_array: nd arrays of dprime values over time, where the last dimension is time
+    :param montecarlo: nd arrays. same shape as dprime_array but with an extra first dimension of montecarlo repetitions.
+    :param flip: str. 'first' flips dprimes in time so the first time point is positive
+    :return: flipped dpriem_array,  flipped montecarlo array
+    '''
 
+    # defines a boolean mask of what signs are to be flipped in dprime_array
+    if flip == 'first':
+        # first value is positive
+        toflip = (dprime_array[...,0] < 0)[...,None] # asumes last dimension is time
 
-def pair_sim_dprimes(array, montecarlo):
-    return None
+    elif flip == 'max':
+        # flip value signs so the highest absolute dprime value is positive
+        toflip = (np.abs(np.min(dprime_array,axis=-1)) > np.max(dprime_array,axis=-1))[...,None] # asume last dimensio is time
+    elif flip == None:
+        toflip = np.empty(dprime_array.shape)
+        toflip[:] = False
+    else:
+        raise ValueError('flip mode not recognized')
+
+    mont_toflip = toflip[None,...] # asumes first dimension of montecarlo are the repetitions
+
+    # using the mask flips the sings
+    flipped_dprime = dprime_array.copy()
+    flipped_dprime = np.negative(dprime_array, where=toflip, out=flipped_dprime)
+
+    if montecarlo is None:
+        flipped_montecarlo = None
+    else:
+        flipped_montecarlo = montecarlo.copy()
+        flipped_montecarlo = np.negative(montecarlo, where=mont_toflip, out=flipped_montecarlo)
+
+    return flipped_dprime, flipped_montecarlo

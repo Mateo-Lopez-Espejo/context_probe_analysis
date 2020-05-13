@@ -227,7 +227,7 @@ def fit_transform(R, trialR, dPCA_params={}):
     :param R: ndarray, shape Cells x Contexts x Time
     :param trialR: ndarray, shape Repetitions x Cells x Contexts x Time
     :param dPCA_params:
-    :return:
+    :return: first dPC ndarray (Resp x Ctx x Time), transformation function ndarray (Cells x dPCs x Time)
     '''
     Re, C, S, T = trialR.shape
     _, dPCA_projection, dpca = trials_dpca(R, trialR, dPCA_parms=dPCA_params)
