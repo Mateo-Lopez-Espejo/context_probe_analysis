@@ -265,17 +265,18 @@ def variance_explained(dpca, ax=None, names=None, colors=None):
         ax.set_xticks(range(1,n_comp+1, 4))
         ax.set_xticklabels(range(1,n_comp+1, 4))
         ax.set_ylabel('explained variance (%)')
+        ax.set_xlabel('dPC')
         bar_bottom += y
 
     # adds a noise value as whatever var not explained by marginalizations
     noise_frac = np.asarray(100 - np.sum(summed))[None]
     summed = np.concatenate([summed, noise_frac])
-    inset = inset_axes(ax, width="50%", height="50%", loc=1)
+    inset = inset_axes(ax, width="65%", height="65%", loc=1)
     explode = np.zeros(len(summed))
     explode[-2] = 0.1 # explodes the second to last fractions, asumes it is the marignaliztion of interest.
     if names is not None: names.append('noise')
     if colors is not None: colors.append('lightgray')
-    inset.pie(summed, explode, names, colors, autopct='%1.1f%%')
+    inset = inset.pie(summed, explode, names, colors, autopct='%1.1f%%')
 
     return fig, ax, inset
 

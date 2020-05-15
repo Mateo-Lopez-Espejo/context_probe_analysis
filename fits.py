@@ -6,9 +6,9 @@ def _exp(x, a, b):
     return a * np.exp(b * x)
 
 
-def exp_decay(times, values):
+def exp_decay(times, values, skip_error=False):
     """
-    fits a properly constrained exponential decay to the times and values give, retursn the fitted values
+    fits a properly constrained exponential decay to the times and values give, returns the fitted values
     of the exponential function and the equivalent time constant Tau
     :param times: np.array. 1D, Time points in seconds, same shape as values
     :param values: np.array. 1D, y values, same shape as times
@@ -22,5 +22,16 @@ def exp_decay(times, values):
     values = values[not_nan]
     times = times[not_nan]
 
-    popt, pvar = curve_fit(_exp, times, values, p0=[1, 0], bounds=([0, -np.inf], [np.inf, 0]))
+    if skip_error is False:
+        popt, pvar = curve_fit(_exp, times, values, p0=[1, 0], bounds=([0, -np.inf], [np.inf, 0]))
+    elif skip_error is True:
+        try:
+            popt, pvar = curve_fit(_exp, times, values, p0=[1, 0], bounds=([0, -np.inf], [np.inf, 0]))
+        except:
+            print('Optimal parameters not found, returnin Nan')
+            popt = np.empty((2)); popt[:] = np.nan
+            pvar = np.empty((2,2)); pvar[:] = np.nan
+
+    else:
+        raise ValueError('skip_error must be boolean')
     return popt, pvar

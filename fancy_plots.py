@@ -926,3 +926,21 @@ def lin_reg(x, y, ax=None, label=True, **pltkwargs):
     ax.plot(x, m*x+ b, label=label, **pltkwargs)
 
     return fig, ax, reg
+
+def unit_line(ax, square_shape=False, **pltkwargs):
+
+    defaults = {'linestyle': '--', 'color': 'gray'}
+    for key, arg in defaults.items(): pltkwargs.setdefault(key, arg)
+
+    plot_lim = np.stack([ax.get_xlim(), ax.get_ylim()], axis=0)
+    if square_shape is False:
+        # finds the minimum common range between x and y axis
+        range = np.min(plot_lim, axis=0)
+
+    if square_shape is True:
+        # finds the max comon range across x and y axis
+        range = np.max(plot_lim, axis=0)
+
+    ax.plot(range, range, **pltkwargs)
+
+    return ax

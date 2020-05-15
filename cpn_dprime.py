@@ -58,12 +58,18 @@ def ndarray_dprime(array0, array1, axis, flip=True):
     dprime = (np.mean(array0, axis=axis) - np.mean(array1, axis=axis) /
               np.sqrt(0.5 * (np.var(array0, axis=axis) + np.var(array1, axis=axis))))
 
+
+
     # check for edge cases
     if np.any(np.isnan(dprime)):
         dprime[np.where(np.isnan(dprime))] = 0
 
     if np.any(np.isinf(dprime)):
         dprime[np.where(np.isinf(dprime))] = (array0.mean(axis=axis) - array1.mean(axis=axis))[np.isinf(dprime)]
+
+    # due to floating point error, variancese that should be zero are really small numbers, which lead to really big dprimes
+    # most of the time due zero spikes
+    dprime[dprime > 100000] = 0
 
     # multiple options to flip the dprime
     if flip == 'absolute':
