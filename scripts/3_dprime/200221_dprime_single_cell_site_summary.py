@@ -8,6 +8,7 @@ from statannot import add_stat_annotation
 
 import numpy as np
 import pandas as pd
+import scipy.stats as sst
 import skimage.io as skio
 from scipy.io import loadmat
 import joblib as jl
@@ -831,7 +832,7 @@ ax.set_xlabel('', fontsize=ax_lab_size)
 ax.tick_params(labelsize=ax_val_size)
 
 fig = ax.figure
-fig.set_size_inches((8,8))
+fig.set_size_inches((6,6))
 title = f'summary significance-tau comparison between probes'
 fig.suptitle(title)
 fig.tight_layout(rect=(0, 0, 1, 0.95))
@@ -862,12 +863,13 @@ stat_resutls = add_stat_annotation(ax, data=molten, x='transition_pair', y='valu
                                    box_pairs=box_pairs, comparisons_correction=None)
 
 ax.set_ylabel(f'tau (ms)', fontsize=ax_lab_size)
+ax.set_xticklabels(ax.get_xticklabels(), rotation=45, horizontalalignment='right')
 ax.tick_params(labelsize=ax_val_size)
 ax.set_xlabel('', fontsize=ax_lab_size)
 ax.tick_params(labelsize=ax_val_size)
 
 fig = ax.figure
-fig.set_size_inches((9.5,8))
+fig.set_size_inches((6,6))
 title = f'summary significance-tau comparison between transitions'
 fig.suptitle(title)
 fig.tight_layout(rect=(0, 0, 1, 0.95))
@@ -902,7 +904,7 @@ ax.set_xlabel('', fontsize=ax_lab_size)
 ax.tick_params(labelsize=ax_val_size)
 
 fig = ax.figure
-fig.set_size_inches((8,8))
+fig.set_size_inches((6,6))
 title = f'summary dprime-r0 comparison between probes'
 fig.suptitle(title)
 fig.tight_layout(rect=(0, 0, 1, 0.95))
@@ -937,12 +939,13 @@ stat_resutls = add_stat_annotation(ax, data=molten, x='transition_pair', y='valu
                                    box_pairs=box_pairs, comparisons_correction=None)
 
 ax.set_ylabel(f'amplitude (z-score)', fontsize=ax_lab_size)
+ax.set_xticklabels(ax.get_xticklabels(), rotation=45, horizontalalignment='right')
 ax.tick_params(labelsize=ax_val_size)
 ax.set_xlabel('', fontsize=ax_lab_size)
 ax.tick_params(labelsize=ax_val_size)
 
 fig = ax.figure
-fig.set_size_inches((9.5,8))
+fig.set_size_inches((6,6))
 title = f'summary dprime-r0 comparison between transitions'
 fig.suptitle(title)
 fig.tight_layout(rect=(0, 0, 1, 0.95))
@@ -977,18 +980,21 @@ ax.set_ylabel(f'tau (ms)', fontsize=ax_lab_size)
 ax.set_xlabel('amplitude (z-score)', fontsize=ax_lab_size)
 ax.tick_params(labelsize=ax_val_size)
 
+_,_,r2,_,_ = sst.linregress(pivoted.r0, pivoted.tau)
+
 fig = ax.figure
-fig.set_size_inches((8,8))
-title = f'all cell summary parameter space'
+fig.set_size_inches((6,6))
+title = f'all cell summary parameter space r={r2}'
 fig.suptitle(title)
 fig.tight_layout(rect=(0, 0, 1, 0.95))
 savefig(fig, 'wip3_figures', title)
 
 #########################################################
-
+# cells in parameter space colored by site
 fig, ax = plt.subplots()
 # ax = sns.scatterplot(x='r0', y='tau', data=pivoted, color='black')
-ax = sns.scatterplot(x='r0', y='tau', hue, data=pivoted, color='black')
+ax = sns.scatterplot(x='r0', y='tau', hue='siteid', data=pivoted, legend='full')
+ax.legend(loc='upper right', fontsize='large', markerscale=1, frameon=False)
 sns.despine(ax=ax)
 
 ax.set_ylabel(f'tau (ms)', fontsize=ax_lab_size)
@@ -996,17 +1002,18 @@ ax.set_xlabel('amplitude (z-score)', fontsize=ax_lab_size)
 ax.tick_params(labelsize=ax_val_size)
 
 fig = ax.figure
-fig.set_size_inches((8,8))
-title = f'all cell summary parameter space'
-fig.suptitle(title)
+fig.set_size_inches((6,6))
+title = f'cells in parameter space by site'
+fig.suptitle(title, fontsize=sub_title_size)
 fig.tight_layout(rect=(0, 0, 1, 0.95))
 savefig(fig, 'wip3_figures', title)
 
 #########################################################
-
+# cells in parameter space colored by region
 fig, ax = plt.subplots()
 # ax = sns.scatterplot(x='r0', y='tau', data=pivoted, color='black')
-ax = sns.regplot(x='r0', y='tau', data=pivoted, color='black')
+ax = sns.scatterplot(x='r0', y='tau', hue='region', data=pivoted, legend='full')
+ax.legend(loc='upper right', fontsize='large', markerscale=1, frameon=False)
 sns.despine(ax=ax)
 
 ax.set_ylabel(f'tau (ms)', fontsize=ax_lab_size)
@@ -1014,15 +1021,62 @@ ax.set_xlabel('amplitude (z-score)', fontsize=ax_lab_size)
 ax.tick_params(labelsize=ax_val_size)
 
 fig = ax.figure
-fig.set_size_inches((8,8))
-title = f'all cell summary parameter space'
-fig.suptitle(title)
+fig.set_size_inches((6,6))
+title = f'cells in parameter space by region'
+fig.suptitle(title, fontsize=sub_title_size)
 fig.tight_layout(rect=(0, 0, 1, 0.95))
 savefig(fig, 'wip3_figures', title)
 
-#########################################################
+########################################################################################################################
+# single cell comparison between regions and parameters
+ff_anal = DF.analysis == 'single_cell'
+ff_probe = DF.probe == 'mean'
+ff_trans = DF.transition_pair == 'mean'
+ff_param = DF.parameter == 'r0'
+ff_source = DF.source == 'dprime'
+R0 = DF.loc[ff_anal & ff_probe & ff_trans & ff_param & ff_source,
+            ['region', 'siteid', 'cellid', 'parameter', 'value']]
 
-best_cells = pivoted.loc[(pivoted.r0>0.5) & (pivoted.tau>250) & (pivoted.tau<1000),:],
+ff_param = DF.parameter == 'tau'
+ff_source = DF.source == 'significance'
+ff_outliers = DF.value < 2000
+Tau = DF.loc[ff_anal & ff_probe & ff_trans & ff_param & ff_source & ff_outliers,
+             ['region', 'siteid', 'cellid', 'parameter', 'value']]
+
+filtered = pd.concat([R0, Tau])
+# molten = pivoted.melt(id_vars='cellid', var_name='transition_pair')
+
+g = sns.catplot(x='region', y='value', col='parameter', data=filtered,  kind="violin", cut=0,
+                sharex=True, sharey=False)
+sns.despine()
+
+# add significnace
+for ax, param in zip(np.ravel(g.axes), filtered.parameter.unique()):
+
+    sub_filtered = filtered.loc[filtered.parameter == param, :]
+
+    box_pairs = [('PEG', 'A1')]
+    stat_resutls = add_stat_annotation(ax, data=sub_filtered, x='region', y='value', test='Mann-Whitney',
+                                       box_pairs=box_pairs, comparisons_correction=None)
+
+    if param == 'r0':
+        param = 'z-score'
+    elif param == 'tau':
+        param = 'ms'
+    ax.set_ylabel(f'{param}', fontsize=ax_lab_size)
+    ax.tick_params(labelsize=ax_val_size)
+    ax.set_xlabel('', fontsize=ax_lab_size)
+    ax.tick_params(labelsize=ax_val_size)
+
+fig = ax.figure
+fig.set_size_inches((6,6))
+title = f'SC parameter comparison between regions'
+fig.suptitle(title, fontsize=sub_title_size)
+fig.tight_layout(rect=(0, 0, 1, 0.95))
+savefig(fig, 'wip3_figures', title)
+
+
+# best_cells = pivoted.loc[(pivoted.r0>0.5) & (pivoted.tau>250) & (pivoted.tau<1000),:],
 ########################################################################################################################
 # Compares tau between dprime and significance
 ff_anal = DF.analysis == 'single_cell'
@@ -1053,41 +1107,337 @@ savefig(fig, 'wip3_figures', title)
 
 
 ########################################################################################################################
-#
+# dCPA dPCA
+########################################################################################################################
+# dPCA compare tau between different probe means
+ff_anal = DF.analysis == 'dPCA'
+ff_probe = DF.probe != 'mean'
+ff_trans = DF.transition_pair == 'mean'
+ff_param = DF.parameter == 'tau'
+ff_source = DF.source == 'significance'
+ff_outliers = DF.value < 2000
 
+filtered = DF.loc[ff_anal & ff_probe & ff_trans & ff_param & ff_source & ff_outliers,
+                  ['siteid', 'probe', 'value']]
+pivoted = filtered.pivot(index='siteid', columns='probe', values='value').dropna().reset_index()
+molten = pivoted.melt(id_vars='siteid', var_name='probe')
 
+fig, ax = plt.subplots()
+# ax = sns.violinplot(x='probe', y='value', data=molten, ax=ax, color='gray', cut=0)
+ax = sns.swarmplot(x='probe', y='value', data=molten, ax=ax, color='gray')
+sns.despine(ax=ax)
 
+# box_pairs = list(itt.combinations(filtered.probe.unique(), 2))
+# box_pairs = [('probe_2', 'probe_3'), ('probe_3', 'probe_5')]
+# stat_resutls = add_stat_annotation(ax, data=molten, x='probe', y='value', test='Wilcoxon',
+#                                    box_pairs=box_pairs, comparisons_correction=None)
 
+ax.set_ylabel(f'tau (ms)', fontsize=ax_lab_size)
+ax.tick_params(labelsize=ax_val_size)
+ax.set_xlabel('', fontsize=ax_lab_size)
+ax.tick_params(labelsize=ax_val_size)
 
+fig = ax.figure
+fig.set_size_inches((6,6))
+title = f'dPCA summary significance-tau comparison between probes'
+fig.suptitle(title)
+fig.tight_layout(rect=(0, 0, 1, 0.95))
+savefig(fig, 'wip3_figures', title)
+########################################################################################################################
+# dPCA compare tau between different transition pair means
+ff_anal = DF.analysis == 'dPCA'
+ff_probe = DF.probe == 'mean'
+ff_trans = DF.transition_pair != 'mean'
+ff_param = DF.parameter == 'tau'
+ff_source = DF.source == 'significance'
+ff_outliers = DF.value < 2000
 
+filtered = DF.loc[ff_anal & ff_probe & ff_trans & ff_param & ff_source& ff_outliers,
+                  ['siteid', 'transition_pair', 'value']]
+pivoted = filtered.pivot(index='siteid', columns='transition_pair', values='value').dropna().reset_index()
+molten = pivoted.melt(id_vars='siteid', var_name='transition_pair')
 
+fig, ax = plt.subplots()
+# ax = sns.violinplot(x='transition_pair', y='value', data=molten, ax=ax, color='gray', cut=0)
+ax = sns.swarmplot(x='transition_pair', y='value', data=molten, ax=ax, color='gray')
+sns.despine(ax=ax)
+
+# box_pairs = list(itt.combinations(filtered.transition_pair.unique(), 2))
+# box_pairs = [('continuous_similar', 'silence_continuous'), ('continuous_similar', 'silence_sharp'),
+#              ('continuous_similar', 'silence_similar')]
+# stat_resutls = add_stat_annotation(ax, data=molten, x='transition_pair', y='value', test='Wilcoxon',
+#                                    box_pairs=box_pairs, comparisons_correction=None)
+
+ax.set_ylabel(f'tau (ms)', fontsize=ax_lab_size)
+ax.set_xticklabels(ax.get_xticklabels(), rotation=45, horizontalalignment='right')
+ax.tick_params(labelsize=ax_val_size)
+ax.set_xlabel('', fontsize=ax_lab_size)
+ax.tick_params(labelsize=ax_val_size)
+
+fig = ax.figure
+fig.set_size_inches((6,6))
+title = f'dPCA summary significance-tau comparison between transitions'
+fig.suptitle(title)
+fig.tight_layout(rect=(0, 0, 1, 0.95))
+savefig(fig, 'wip3_figures', title)
+
+########################################################################################################################
+# dPCA compare r0 between different probe means
+ff_anal = DF.analysis == 'dPCA'
+ff_probe = DF.probe != 'mean'
+ff_trans = DF.transition_pair == 'mean'
+ff_param = DF.parameter == 'r0'
+ff_source = DF.source == 'dprime'
+
+filtered = DF.loc[ff_anal & ff_probe & ff_trans & ff_param & ff_source,
+                  ['siteid', 'probe', 'value']]
+pivoted = filtered.pivot(index='siteid', columns='probe', values='value').dropna().reset_index()
+molten = pivoted.melt(id_vars='siteid', var_name='probe')
+
+fig, ax = plt.subplots()
+# ax = sns.violinplot(x='probe', y='value', data=molten, ax=ax, color='gray', cut=0)
+ax = sns.swarmplot(x='probe', y='value', data=molten, ax=ax, color='gray')
+sns.despine(ax=ax)
+
+# box_pairs = list(itt.combinations(filtered.probe.unique(), 2))
+# box_pairs = [('probe_2', 'probe_6')]
+# stat_resutls = add_stat_annotation(ax, data=molten, x='probe', y='value', test='Wilcoxon',
+#                                    box_pairs=box_pairs, comparisons_correction=None)
+
+ax.set_ylabel(f'amplitude (z-score)', fontsize=ax_lab_size)
+ax.tick_params(labelsize=ax_val_size)
+ax.set_xlabel('', fontsize=ax_lab_size)
+ax.tick_params(labelsize=ax_val_size)
+
+fig = ax.figure
+fig.set_size_inches((6,6))
+title = f'dPCA summary dprime-r0 comparison between probes'
+fig.suptitle(title)
+fig.tight_layout(rect=(0, 0, 1, 0.95))
+savefig(fig, 'wip3_figures', title)
+
+########################################################################################################################
+# dPCA compare r0 between different transition pair means
+ff_anal = DF.analysis == 'dPCA'
+ff_probe = DF.probe == 'mean'
+ff_trans = DF.transition_pair != 'mean'
+ff_param = DF.parameter == 'r0'
+ff_source = DF.source == 'dprime'
+
+filtered = DF.loc[ff_anal & ff_probe & ff_trans & ff_param & ff_source,
+                  ['siteid', 'transition_pair', 'value']]
+pivoted = filtered.pivot(index='siteid', columns='transition_pair', values='value').dropna().reset_index()
+molten = pivoted.melt(id_vars='siteid', var_name='transition_pair')
+
+fig, ax = plt.subplots()
+# ax = sns.violinplot(x='transition_pair', y='value', data=molten, ax=ax, color='gray', cut=0)
+ax = sns.swarmplot(x='transition_pair', y='value', data=molten, ax=ax, color='gray')
+sns.despine(ax=ax)
+
+# box_pairs = list(itt.combinations(filtered.transition_pair.unique(), 2))
+# box_pairs = [('continuous_sharp', 'continuous_similar'), ('continuous_sharp', 'silence_continuous'),
+#              ('continuous_sharp', 'silence_sharp'), ('continuous_sharp', 'silence_similar' ),
+#              ('continuous_similar', 'silence_continuous'), ('continuous_similar', 'silence_sharp'),
+#              ('continuous_similar', 'silence_similar'), ('continuous_similar', 'similar_sharp'),
+#              ('silence_continuous', 'similar_sharp'), ('silence_sharp', 'similar_sharp'),
+#              ('silence_similar', 'similar_sharp')]
+# stat_resutls = add_stat_annotation(ax, data=molten, x='transition_pair', y='value', test='Wilcoxon',
+#                                    box_pairs=box_pairs, comparisons_correction=None)
+
+ax.set_ylabel(f'amplitude (z-score)', fontsize=ax_lab_size)
+ax.set_xticklabels(ax.get_xticklabels(), rotation=45, horizontalalignment='right')
+ax.tick_params(labelsize=ax_val_size)
+ax.set_xlabel('', fontsize=ax_lab_size)
+ax.tick_params(labelsize=ax_val_size)
+
+fig = ax.figure
+fig.set_size_inches((6,6))
+title = f'dPCA summary dprime-r0 comparison between transitions'
+fig.suptitle(title)
+fig.tight_layout(rect=(0, 0, 1, 0.95))
+savefig(fig, 'wip3_figures', title)
+########################################################################################################################
+# dPCA comparison between regions and parameters
+ff_anal = DF.analysis == 'dPCA'
+ff_probe = DF.probe == 'mean'
+ff_trans = DF.transition_pair == 'mean'
+ff_param = DF.parameter == 'r0'
+ff_source = DF.source == 'dprime'
+R0 = DF.loc[ff_anal & ff_probe & ff_trans & ff_param & ff_source,
+            ['region', 'siteid', 'cellid', 'parameter', 'value']]
+
+ff_param = DF.parameter == 'tau'
+ff_source = DF.source == 'significance'
+ff_outliers = DF.value < 2000
+Tau = DF.loc[ff_anal & ff_probe & ff_trans & ff_param & ff_source & ff_outliers,
+             ['region', 'siteid', 'cellid', 'parameter', 'value']]
+
+filtered = pd.concat([R0, Tau])
+
+# g = sns.catplot(x='region', y='value', col='parameter', data=filtered,  kind="violin", cut=0,
+#                 sharex=True, sharey=False)
+g = sns.catplot(x='region', y='value', col='parameter', data=filtered,  kind="swarm",
+                sharex=True, sharey=False)
+sns.despine()
+
+# add significnace
+for ax, param in zip(np.ravel(g.axes), filtered.parameter.unique()):
+
+    sub_filtered = filtered.loc[filtered.parameter == param, :]
+
+    box_pairs = [('PEG', 'A1')]
+    stat_resutls = add_stat_annotation(ax, data=sub_filtered, x='region', y='value', test='Mann-Whitney',
+                                       box_pairs=box_pairs, comparisons_correction=None)
+
+    if param == 'r0':
+        param = 'z-score'
+    elif param == 'tau':
+        param = 'ms'
+    ax.set_ylabel(f'{param}', fontsize=ax_lab_size)
+    ax.tick_params(labelsize=ax_val_size)
+    ax.set_xlabel('', fontsize=ax_lab_size)
+    ax.tick_params(labelsize=ax_val_size)
+
+fig = ax.figure
+fig.set_size_inches((6,6))
+title = f'dPCA parameter comparison between regions'
+fig.suptitle(title, fontsize=sub_title_size)
+fig.tight_layout(rect=(0, 0, 1, 0.95))
+savefig(fig, 'wip3_figures', title)
 
 
 ########################################################################################################################
-# # add tau defined as the inverse of the decay constant
-# decay = DF.loc[DF.parameter == 'decay', :].copy()
-# decay['parameter'] = 'tau'
-# decay['value'] = -1 / decay['value']
-# DF = pd.concat((DF, decay), axis=0)
-#
-# ff_param = DF.parameter == 'tau'
-# ff_threshold = DF.value < 1000  # drop cells with abnormally high levels of tau, i.e, over 1 second
-# filtered = DF.loc[ff_param & ff_threshold, :]
-# pivoted = filtered.pivot(index='cellid', columns='source', values='value').dropna()
-#
-# # plots the raw dPCA vs single Cell values without any further filtering besides gross artifacts like taus > 1s
-# fig, ax = plt.subplots(figsize=full_screen)
-# y = pivoted['dPCA']
-# x = pivoted['cell']
-# ax.scatter(x, y)
-# _ = fplt.lin_reg(x, y, ax=ax)
-# ax.set_xlabel(x.name)
-# ax.set_ylabel(y.name)
-# ax.legend()
-# title = 'dPCA vs sigle cell comparison'
-# fig.suptitle(title)
-# fig.tight_layout(rect=(0, 0, 1, 0.95))
-# # savefig(fig, fig_root, title)
+# SC vs dPCA taus, filtering SC with r0 of dPCA
+ff_anal = DF.analysis == 'single_cell'
+ff_probe = DF.probe == 'mean'
+ff_trans = DF.transition_pair == 'mean'
+ff_param = DF.parameter == 'tau'
+ff_source = DF.source == 'significance'
+ff_outliers = DF.value < 2000
+sing = DF.loc[ff_anal & ff_probe & ff_trans & ff_param & ff_source & ff_outliers,
+            ['region', 'siteid', 'cellid', 'parameter', 'value']]
+
+sing_pivot = sing.pivot(index='siteid', columns='cellid', values='value')
+
+sing_pivot['max'] = sing_pivot.mean(axis=1)
+
+
+ff_anal = DF.analysis == 'dPCA'
+pops = DF.loc[ff_anal & ff_probe & ff_trans & ff_param & ff_source & ff_outliers,
+             ['region', 'siteid', 'cellid', 'parameter', 'value']]
+
+pops = pops.set_index('siteid')
+
+toplot = pd.concat((pops.loc[:, ['region', 'value']], sing_pivot.loc[:, 'max']), axis=1)
+
+fig, ax = plt.subplots()
+ax = sns.regplot(x ='value', y= 'max', data=toplot, color='black', ax=ax)
+sns.despine(ax=ax)
+_,_,r2,_,_ = sst.linregress(toplot['value'], toplot['max'])
+_ = fplt.unit_line(ax, square_shape=False)
+
+ax.set_xlabel(f'dPCA tau (ms)', fontsize=ax_lab_size)
+ax.set_ylabel(f'single cell mean tau (ms)', fontsize=ax_lab_size)
+ax.tick_params(labelsize=ax_val_size)
+ax.tick_params(labelsize=ax_val_size)
+
+fig = ax.figure
+fig.set_size_inches((6,6))
+title = f'SC dPCA tau comparison r={r2}'
+fig.suptitle(title, fontsize=sub_title_size)
+fig.tight_layout(rect=(0, 0, 1, 0.95))
+savefig(fig, 'wip3_figures', title)
+
+########################################################################################################################
+# SC vs dPCA r0, filtering SC with r0 of dPCA
+ff_anal = DF.analysis == 'single_cell'
+ff_probe = DF.probe == 'mean'
+ff_trans = DF.transition_pair == 'mean'
+ff_param = DF.parameter == 'r0'
+ff_source = DF.source == 'dprime'
+ff_outliers = DF.value < 2000
+sing = DF.loc[ff_anal & ff_probe & ff_trans & ff_param & ff_source & ff_outliers,
+              ['region', 'siteid', 'cellid', 'parameter', 'value']]
+
+sing_pivot = sing.pivot(index='siteid', columns='cellid', values='value')
+
+sing_pivot['max'] = sing_pivot.mean(axis=1)
+
+
+ff_anal = DF.analysis == 'dPCA'
+pops = DF.loc[ff_anal & ff_probe & ff_trans & ff_param & ff_source & ff_outliers,
+              ['region', 'siteid', 'cellid', 'parameter', 'value']]
+
+pops = pops.set_index('siteid')
+
+toplot = pd.concat((pops.loc[:, ['region', 'value']], sing_pivot.loc[:, 'max']), axis=1)
+
+fig, ax = plt.subplots()
+ax = sns.regplot(x ='value', y= 'max', data=toplot, color='black', ax=ax)
+sns.despine(ax=ax)
+_,_,r2,_,_ = sst.linregress(toplot['value'], toplot['max'])
+_ = fplt.unit_line(ax, square_shape=False)
+
+ax.set_xlabel(f'dPCA amplitude (z-score)', fontsize=ax_lab_size)
+ax.set_ylabel(f'single cell mean amplitude (z-score)', fontsize=ax_lab_size)
+ax.tick_params(labelsize=ax_val_size)
+ax.tick_params(labelsize=ax_val_size)
+
+fig = ax.figure
+fig.set_size_inches((6,6))
+title = f'SC dPCA r0 comparison r={r2}'
+fig.suptitle(title, fontsize=sub_title_size)
+fig.tight_layout(rect=(0, 0, 1, 0.95))
+savefig(fig, 'wip3_figures', title)
+
+########################################################################################################################
+# SC vs dPCA taus, filtering SC with r0 of dPCA
+# defienes population dataframe
+ff_anal = DF.analysis == 'dPCA'
+ff_probe = DF.probe == 'mean'
+ff_trans = DF.transition_pair == 'mean'
+ff_param = DF.parameter == 'tau'
+ff_source = DF.source == 'significance'
+ff_outliers = DF.value < 2000
+dPCA_tau = DF.loc[ff_anal & ff_probe & ff_trans & ff_param & ff_source & ff_outliers,
+              ['region', 'siteid', 'cellid', 'parameter', 'value']]
+ff_param = DF.parameter == 'r0'
+ff_source = DF.source == 'dprime'
+dPCA_r0 = DF.loc[ff_anal & ff_probe & ff_trans & ff_param & ff_source & ff_outliers,
+             ['region', 'siteid', 'cellid', 'parameter', 'value']]
+dPCA_filtered = pd.concat((dPCA_tau, dPCA_r0))
+dPCA_pivoted = dPCA_filtered.pivot(index='siteid', columns='parameter', values='value')
+
+# defienes single cell dataframe
+ff_anal = DF.analysis == 'single_cell'
+ff_probe = DF.probe == 'mean'
+ff_trans = DF.transition_pair == 'mean'
+ff_param = DF.parameter == 'tau'
+ff_source = DF.source == 'significance'
+ff_outliers = DF.value < 2000
+SC_tau = DF.loc[ff_anal & ff_probe & ff_trans & ff_param & ff_source & ff_outliers,
+                  ['region', 'siteid', 'cellid', 'parameter', 'value']]
+ff_param = DF.parameter == 'r0'
+ff_source = DF.source == 'dprime'
+SC_r0 = DF.loc[ff_anal & ff_probe & ff_trans & ff_param & ff_source & ff_outliers,
+                 ['region', 'siteid', 'cellid', 'parameter', 'value']]
+SC_filtered = pd.concat((SC_tau, SC_r0))
+SC_pivoted = SC_filtered.pivot_table(index=['siteid','cellid'], columns='parameter', values='value').reset_index()
+
+x = list()
+y = list()
+for index, row in dPCA_pivoted.iterrows():
+    f_site = SC_pivoted.siteid == index
+    f_r0 = SC_pivoted.r0 > row.r0
+    sub_filt = SC_pivoted.loc[f_site & f_r0, ['cellid','tau']]
+    f_tau = SC_pivoted['tau'] == sub_filt['tau'].max()
+    best_cell = SC_pivoted.loc[f_site & f_r0 & f_tau, ['cellid', 'tau']].squeeze()
+    x.append(row['tau'])
+    y.append(best_cell['tau'])
+
+fig, ax = plt.subplots()
+ax.scatter(x, y)
+
 
 ########################################################################################################################
 ########################################################################################################################
@@ -1214,7 +1564,7 @@ def site_check_plot(site, probe):
     _, simulations = cDP.flip_dprimes(dPCA_reals_dict[site], dPCA_simulated_dict[site], flip='max')
 
     t = times[:dPCs.shape[-1]]
-    fig, axes = plt.subplots(3, 6, sharex='all', sharey='row')
+    fig, axes = plt.subplots(2, 6, sharex='all', sharey='row')
 
     #  PSTH
     for tt, trans in enumerate(itt.combinations(meta['transitions'], 2)):
@@ -1235,10 +1585,10 @@ def site_check_plot(site, probe):
         t0_idx = meta['transitions'].index(trans[0])
         t1_idx = meta['transitions'].index(trans[1])
 
-        _ = fplt._raster(t, dPCs[:, t0_idx, :], y_offset=0, y_range=(bottom, half), ax=axes[0, tt],
-                         scatter_kws={'color': trans_color_map[trans[0]], 'alpha': 0.4, 's': 10})
-        _ = fplt._raster(t, dPCs[:, t1_idx, :], y_offset=0, y_range=(half, top), ax=axes[0, tt],
-                         scatter_kws={'color': trans_color_map[trans[1]], 'alpha': 0.4, 's': 10})
+        # _ = fplt._raster(t, dPCs[:, t0_idx, :], y_offset=0, y_range=(bottom, half), ax=axes[0, tt],
+        #                  scatter_kws={'color': trans_color_map[trans[0]], 'alpha': 0.4, 's': 10})
+        # _ = fplt._raster(t, dPCs[:, t1_idx, :], y_offset=0, y_range=(half, top), ax=axes[0, tt],
+        #                  scatter_kws={'color': trans_color_map[trans[1]], 'alpha': 0.4, 's': 10})
 
         # plots the real dprime and the shuffled dprime
         axes[1, tt].plot(t, dprimes[prb_idx, pair_idx, :], color='black')
@@ -1246,14 +1596,14 @@ def site_check_plot(site, probe):
                        fillkwargs={'color': 'black', 'alpha': 0.5})
 
 
-        # plots the real dprime and simulatede dprime
-        axes[2, tt].plot(t, dprimes[prb_idx, pair_idx, :], color='black')
-        _ = fplt._cint(t, simulations[:, prb_idx, pair_idx, :], confidence=0.95, ax=axes[2, tt],
-                       fillkwargs={'color': 'black', 'alpha': 0.5})
+        # # plots the real dprime and simulatede dprime
+        # axes[2, tt].plot(t, dprimes[prb_idx, pair_idx, :], color='black')
+        # _ = fplt._cint(t, simulations[:, prb_idx, pair_idx, :], confidence=0.95, ax=axes[2, tt],
+        #                fillkwargs={'color': 'black', 'alpha': 0.5})
 
     # significance bars
     ax1_bottom = axes[1, 0].get_ylim()[0]
-    ax2_bottom = axes[2, 0].get_ylim()[0]
+    # ax2_bottom = axes[2, 0].get_ylim()[0]
     for tt, trans in enumerate(itt.combinations(meta['transitions'], 2)):
         prb_idx = all_probes.index(probe)
         pair_idx = SC_trans_pairs.index(f'{trans[0]}_{trans[1]}')
@@ -1262,8 +1612,8 @@ def site_check_plot(site, probe):
                         edgecolor='white', bottom=ax1_bottom)
 
         # population effects
-        axes[2, tt].bar(t, dPCA_sim_significance_dict[site][prb_idx, pair_idx, :], width=bar_width, align='center',
-                        edgecolor='white', bottom=ax2_bottom)
+        # axes[2, tt].bar(t, dPCA_sim_significance_dict[site][prb_idx, pair_idx, :], width=bar_width, align='center',
+        #                 edgecolor='white', bottom=ax2_bottom)
 
         # _ = fplt.exp_decay(t, SC_significance_dict[cell][prb_idx, pair_idx, :], ax=axes[2, tt])
         # if axes[2, tt].get_ylim()[1] < 1:
@@ -1273,13 +1623,13 @@ def site_check_plot(site, probe):
         if tt == 0:
             axes[0, tt].set_ylabel(f'dPC', fontsize=ax_lab_size)
             axes[1, tt].set_ylabel(f'dprime', fontsize=ax_lab_size)
-            axes[2, tt].set_ylabel(f'dprime', fontsize=ax_lab_size)
+            # axes[2, tt].set_ylabel(f'dprime', fontsize=ax_lab_size)
             axes[0, tt].tick_params(labelsize=ax_val_size)
             axes[1, tt].tick_params(labelsize=ax_val_size)
-            axes[2, tt].tick_params(labelsize=ax_val_size)
+            # axes[2, tt].tick_params(labelsize=ax_val_size)
 
-        axes[2, tt].set_xlabel('time (ms)', fontsize=ax_lab_size)
-        axes[2, tt].tick_params(labelsize=ax_val_size)
+        axes[1, tt].set_xlabel('time (ms)', fontsize=ax_lab_size)
+        axes[1, tt].tick_params(labelsize=ax_val_size)
         axes[0, tt].set_title(f'{trans[0]}_{trans[1]}', fontsize=sub_title_size)
 
         for ax in np.ravel(axes):
@@ -1289,6 +1639,8 @@ def site_check_plot(site, probe):
     return fig, axes
 
 for site in ['AMT028b', 'DRX008b']:
+    site = 'AMT030a'
+    site = 'DRX008b'
     probe = 2
     fig, axes = site_check_plot(site, probe=probe)
     half_screen = (full_screen[0], full_screen[1]/2)
