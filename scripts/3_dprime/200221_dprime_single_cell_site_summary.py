@@ -19,6 +19,7 @@ import fancy_plots as fplt
 import fits as fts
 from cpn_load import load
 from cpp_cache import make_cache, get_cache, set_name
+from fancy_plots import savefig
 from reliability import signal_reliability
 from tools import shuffle_along_axis as shuffle
 
@@ -30,15 +31,6 @@ The two metrics extracted are the total number of significant time bins and the 
 it is highly recomended to add a way of keeping track of the distibution of significant bins over time across each
 category
 """
-
-
-def savefig(fig, root, name):
-    root = pl.Path(config['paths']['figures']) / f'{root}'
-    if not root.exists(): root.mkdir(parents=True, exist_ok=True)
-    png = root.joinpath(name).with_suffix('.png')
-    fig.savefig(png, transparent=False, dpi=100)
-    # svg = root.joinpath(name).with_suffix('.svg')
-    # fig.savefig(svg, transparent=True)
 
 
 def bar_line(time, bar, line, ax=None, barkwargs={}, linekwargs={}):
@@ -821,10 +813,11 @@ ax = sns.violinplot(x='probe', y='value', data=molten, ax=ax, color='gray', cut=
 # ax = sns.swarmplot(x='probe', y='value', data=molten, ax=ax, color='gray')
 sns.despine(ax=ax)
 
+# no significant comparisons
 # box_pairs = list(itt.combinations(filtered.probe.unique(), 2))
-box_pairs = [('probe_2', 'probe_3'), ('probe_3', 'probe_5')]
-stat_resutls = add_stat_annotation(ax, data=molten, x='probe', y='value', test='Wilcoxon',
-                                   box_pairs=box_pairs, comparisons_correction=None)
+# box_pairs = [('probe_2', 'probe_3'), ('probe_3', 'probe_5')]
+# stat_resutls = add_stat_annotation(ax, data=molten, x='probe', y='value', test='Wilcoxon',
+#                                    box_pairs=box_pairs, comparisons_correction=None)
 
 ax.set_ylabel(f'tau (ms)', fontsize=ax_lab_size)
 ax.tick_params(labelsize=ax_val_size)
@@ -857,8 +850,9 @@ ax = sns.violinplot(x='transition_pair', y='value', data=molten, ax=ax, color='g
 sns.despine(ax=ax)
 
 # box_pairs = list(itt.combinations(filtered.transition_pair.unique(), 2))
-box_pairs = [('continuous_similar', 'silence_continuous'), ('continuous_similar', 'silence_sharp'),
-             ('continuous_similar', 'silence_similar')]
+box_pairs = [('continuous_sharp', 'continuous_similar'), ('continuous_similar', 'silence_continuous'),
+             ('continuous_similar', 'silence_sharp'), ('continuous_similar', 'silence_similar'),
+             ('continuous_similar', 'similar_sharp')]
 stat_resutls = add_stat_annotation(ax, data=molten, x='transition_pair', y='value', test='Wilcoxon',
                                    box_pairs=box_pairs, comparisons_correction=None)
 
@@ -894,7 +888,7 @@ ax = sns.violinplot(x='probe', y='value', data=molten, ax=ax, color='gray', cut=
 sns.despine(ax=ax)
 
 # box_pairs = list(itt.combinations(filtered.probe.unique(), 2))
-box_pairs = [('probe_2', 'probe_6')]
+box_pairs = [('probe_2', 'probe_3')]
 stat_resutls = add_stat_annotation(ax, data=molten, x='probe', y='value', test='Wilcoxon',
                                    box_pairs=box_pairs, comparisons_correction=None)
 
@@ -933,7 +927,6 @@ box_pairs = [('continuous_sharp', 'continuous_similar'), ('continuous_sharp', 's
              ('continuous_sharp', 'silence_sharp'), ('continuous_sharp', 'silence_similar' ),
              ('continuous_similar', 'silence_continuous'), ('continuous_similar', 'silence_sharp'),
              ('continuous_similar', 'silence_similar'), ('continuous_similar', 'similar_sharp'),
-             ('silence_continuous', 'similar_sharp'), ('silence_sharp', 'similar_sharp'),
              ('silence_similar', 'similar_sharp')]
 stat_resutls = add_stat_annotation(ax, data=molten, x='transition_pair', y='value', test='Wilcoxon',
                                    box_pairs=box_pairs, comparisons_correction=None)
@@ -1075,7 +1068,6 @@ fig.suptitle(title, fontsize=sub_title_size)
 fig.tight_layout(rect=(0, 0, 1, 0.95))
 savefig(fig, 'wip3_figures', title)
 
-
 # best_cells = pivoted.loc[(pivoted.r0>0.5) & (pivoted.tau>250) & (pivoted.tau<1000),:],
 ########################################################################################################################
 # Compares tau between dprime and significance
@@ -1104,7 +1096,6 @@ title = f'significance vs dprime fitted params comparison'
 fig.suptitle(title, fontsize=20)
 fig.tight_layout(rect=(0, 0, 1, 0.95))
 savefig(fig, 'wip3_figures', title)
-
 
 ########################################################################################################################
 # dCPA dPCA
@@ -1163,10 +1154,9 @@ ax = sns.swarmplot(x='transition_pair', y='value', data=molten, ax=ax, color='gr
 sns.despine(ax=ax)
 
 # box_pairs = list(itt.combinations(filtered.transition_pair.unique(), 2))
-# box_pairs = [('continuous_similar', 'silence_continuous'), ('continuous_similar', 'silence_sharp'),
-#              ('continuous_similar', 'silence_similar')]
-# stat_resutls = add_stat_annotation(ax, data=molten, x='transition_pair', y='value', test='Wilcoxon',
-#                                    box_pairs=box_pairs, comparisons_correction=None)
+box_pairs = [('continuous_sharp', 'continuous_similar'), ('continuous_similar', 'silence_continuous')]
+stat_resutls = add_stat_annotation(ax, data=molten, x='transition_pair', y='value', test='Wilcoxon',
+                                   box_pairs=box_pairs, comparisons_correction=None)
 
 ax.set_ylabel(f'tau (ms)', fontsize=ax_lab_size)
 ax.set_xticklabels(ax.get_xticklabels(), rotation=45, horizontalalignment='right')
@@ -1200,9 +1190,9 @@ ax = sns.swarmplot(x='probe', y='value', data=molten, ax=ax, color='gray')
 sns.despine(ax=ax)
 
 # box_pairs = list(itt.combinations(filtered.probe.unique(), 2))
-# box_pairs = [('probe_2', 'probe_6')]
-# stat_resutls = add_stat_annotation(ax, data=molten, x='probe', y='value', test='Wilcoxon',
-#                                    box_pairs=box_pairs, comparisons_correction=None)
+box_pairs = [('probe_2', 'probe_3')]
+stat_resutls = add_stat_annotation(ax, data=molten, x='probe', y='value', test='Wilcoxon',
+                                   box_pairs=box_pairs, comparisons_correction=None)
 
 ax.set_ylabel(f'amplitude (z-score)', fontsize=ax_lab_size)
 ax.tick_params(labelsize=ax_val_size)
@@ -1235,14 +1225,9 @@ ax = sns.swarmplot(x='transition_pair', y='value', data=molten, ax=ax, color='gr
 sns.despine(ax=ax)
 
 # box_pairs = list(itt.combinations(filtered.transition_pair.unique(), 2))
-# box_pairs = [('continuous_sharp', 'continuous_similar'), ('continuous_sharp', 'silence_continuous'),
-#              ('continuous_sharp', 'silence_sharp'), ('continuous_sharp', 'silence_similar' ),
-#              ('continuous_similar', 'silence_continuous'), ('continuous_similar', 'silence_sharp'),
-#              ('continuous_similar', 'silence_similar'), ('continuous_similar', 'similar_sharp'),
-#              ('silence_continuous', 'similar_sharp'), ('silence_sharp', 'similar_sharp'),
-#              ('silence_similar', 'similar_sharp')]
-# stat_resutls = add_stat_annotation(ax, data=molten, x='transition_pair', y='value', test='Wilcoxon',
-#                                    box_pairs=box_pairs, comparisons_correction=None)
+box_pairs = [('continuous_sharp', 'continuous_similar')]
+stat_resutls = add_stat_annotation(ax, data=molten, x='transition_pair', y='value', test='Wilcoxon',
+                                   box_pairs=box_pairs, comparisons_correction=None)
 
 ax.set_ylabel(f'amplitude (z-score)', fontsize=ax_lab_size)
 ax.set_xticklabels(ax.get_xticklabels(), rotation=45, horizontalalignment='right')
@@ -1343,7 +1328,7 @@ ax.tick_params(labelsize=ax_val_size)
 
 fig = ax.figure
 fig.set_size_inches((6,6))
-title = f'SC dPCA tau comparison r={r2}'
+title = 'SC dPCA tau comparison r={:.2f}'.format(r2)
 fig.suptitle(title, fontsize=sub_title_size)
 fig.tight_layout(rect=(0, 0, 1, 0.95))
 savefig(fig, 'wip3_figures', title)
@@ -1392,13 +1377,16 @@ savefig(fig, 'wip3_figures', title)
 
 ########################################################################################################################
 # SC vs dPCA taus, filtering SC with r0 of dPCA
+# filters out anomalous taus over 2 seconds
+tau_threshold = 2000
+
 # defienes population dataframe
 ff_anal = DF.analysis == 'dPCA'
 ff_probe = DF.probe == 'mean'
 ff_trans = DF.transition_pair == 'mean'
 ff_param = DF.parameter == 'tau'
 ff_source = DF.source == 'significance'
-ff_outliers = DF.value < 2000
+ff_outliers = DF.value < tau_threshold
 dPCA_tau = DF.loc[ff_anal & ff_probe & ff_trans & ff_param & ff_source & ff_outliers,
               ['region', 'siteid', 'cellid', 'parameter', 'value']]
 ff_param = DF.parameter == 'r0'
@@ -1414,7 +1402,7 @@ ff_probe = DF.probe == 'mean'
 ff_trans = DF.transition_pair == 'mean'
 ff_param = DF.parameter == 'tau'
 ff_source = DF.source == 'significance'
-ff_outliers = DF.value < 2000
+ff_outliers = DF.value < tau_threshold
 SC_tau = DF.loc[ff_anal & ff_probe & ff_trans & ff_param & ff_source & ff_outliers,
                   ['region', 'siteid', 'cellid', 'parameter', 'value']]
 ff_param = DF.parameter == 'r0'
@@ -1443,6 +1431,8 @@ ax.scatter(x, y)
 ########################################################################################################################
 # plots all steps of analysis for example cell and site
 def cell_check_plot(cell, probe):
+    # cell = 'DRX008b-04-1'
+    # probe = 3
     site = cell[:7]
 
     # loads the raw data
@@ -1463,6 +1453,15 @@ def cell_check_plot(cell, probe):
 
     # flips signs of dprimes and montecarlos as neede
     dprimes, shuffleds = cDP.flip_dprimes(SC_reals_dict[cell], SC_shuffled_dict[cell], flip='max')
+
+    # # single transition pair
+    # t = times[:trialR.shape[-1]]
+    # rrr = SC_reals_dict[cell][1, 2, :]
+    # sss = SC_shuffled_dict[cell][:, 1, 2, :]
+    # fig, ax = plt.subplots()
+    # ax.plot(t, rrr, color='black')
+    # fplt._cint(t, sss, confidence=0.95, ax=ax,
+    #            fillkwargs={'color': 'black', 'alpha': 0.5})
 
     t = times[:trialR.shape[-1]]
     fig, axes = plt.subplots(2, 6, sharex='all', sharey='row')
@@ -1539,18 +1538,19 @@ for cell in ['AMT028b-20-1', 'DRX008b-04-1']:
     savefig(fig, 'wip3_figures', title)
 
 def site_check_plot(site, probe):
-
     # loads the raw data
-    # recs = load(site)
     recs = load(site, rasterfs=meta['raster_fs'], recache=rec_recache)
     sig = recs['trip0']['resp']
+
     # calculates response realiability and select only good cells to improve analysis
     r_vals, goodcells = signal_reliability(sig, r'\ASTIM_*', threshold=meta['reliability'])
     goodcells = goodcells.tolist()
+
     # get the full data raster Context x Probe x Rep x Neuron x Time
     raster = cdPCA.raster_from_sig(sig, probe, channels=goodcells, transitions=meta['transitions'],
                                    smooth_window=meta['smoothing_window'], raster_fs=meta['raster_fs'],
                                    zscore=meta['zscore'], part='probe')
+
     # trialR shape: Trial x Cell x Context x Probe x Time; R shape: Cell x Context x Probe x Time
     trialR, R, _ = cdPCA.format_raster(raster)
     trialR, R = trialR.squeeze(axis=3), R.squeeze(axis=2)  # squeezes out probe
@@ -1564,7 +1564,7 @@ def site_check_plot(site, probe):
     _, simulations = cDP.flip_dprimes(dPCA_reals_dict[site], dPCA_simulated_dict[site], flip='max')
 
     t = times[:dPCs.shape[-1]]
-    fig, axes = plt.subplots(2, 6, sharex='all', sharey='row')
+    fig, axes = plt.subplots(3, 6, sharex='all', sharey='row')
 
     #  PSTH
     for tt, trans in enumerate(itt.combinations(meta['transitions'], 2)):
@@ -1582,28 +1582,19 @@ def site_check_plot(site, probe):
         prb_idx = all_probes.index(probe)
         pair_idx = SC_trans_pairs.index(f'{trans[0]}_{trans[1]}')
 
-        t0_idx = meta['transitions'].index(trans[0])
-        t1_idx = meta['transitions'].index(trans[1])
-
-        # _ = fplt._raster(t, dPCs[:, t0_idx, :], y_offset=0, y_range=(bottom, half), ax=axes[0, tt],
-        #                  scatter_kws={'color': trans_color_map[trans[0]], 'alpha': 0.4, 's': 10})
-        # _ = fplt._raster(t, dPCs[:, t1_idx, :], y_offset=0, y_range=(half, top), ax=axes[0, tt],
-        #                  scatter_kws={'color': trans_color_map[trans[1]], 'alpha': 0.4, 's': 10})
-
         # plots the real dprime and the shuffled dprime
         axes[1, tt].plot(t, dprimes[prb_idx, pair_idx, :], color='black')
         _ = fplt._cint(t, shuffleds[:, prb_idx, pair_idx, :], confidence=0.95, ax=axes[1, tt],
                        fillkwargs={'color': 'black', 'alpha': 0.5})
 
-
-        # # plots the real dprime and simulatede dprime
-        # axes[2, tt].plot(t, dprimes[prb_idx, pair_idx, :], color='black')
-        # _ = fplt._cint(t, simulations[:, prb_idx, pair_idx, :], confidence=0.95, ax=axes[2, tt],
-        #                fillkwargs={'color': 'black', 'alpha': 0.5})
+        # plots the real dprime and simulatede dprime
+        axes[2, tt].plot(t, dprimes[prb_idx, pair_idx, :], color='black')
+        _ = fplt._cint(t, simulations[:, prb_idx, pair_idx, :], confidence=0.95, ax=axes[2, tt],
+                       fillkwargs={'color': 'black', 'alpha': 0.5})
 
     # significance bars
     ax1_bottom = axes[1, 0].get_ylim()[0]
-    # ax2_bottom = axes[2, 0].get_ylim()[0]
+    ax2_bottom = axes[2, 0].get_ylim()[0]
     for tt, trans in enumerate(itt.combinations(meta['transitions'], 2)):
         prb_idx = all_probes.index(probe)
         pair_idx = SC_trans_pairs.index(f'{trans[0]}_{trans[1]}')
@@ -1612,24 +1603,20 @@ def site_check_plot(site, probe):
                         edgecolor='white', bottom=ax1_bottom)
 
         # population effects
-        # axes[2, tt].bar(t, dPCA_sim_significance_dict[site][prb_idx, pair_idx, :], width=bar_width, align='center',
-        #                 edgecolor='white', bottom=ax2_bottom)
-
-        # _ = fplt.exp_decay(t, SC_significance_dict[cell][prb_idx, pair_idx, :], ax=axes[2, tt])
-        # if axes[2, tt].get_ylim()[1] < 1:
-        #     axes[2, tt].set_ylim(0, 1)
+        axes[2, tt].bar(t, dPCA_sim_significance_dict[site][prb_idx, pair_idx, :], width=bar_width, align='center',
+                        edgecolor='white', bottom=ax2_bottom)
 
         # formats legend
         if tt == 0:
             axes[0, tt].set_ylabel(f'dPC', fontsize=ax_lab_size)
             axes[1, tt].set_ylabel(f'dprime', fontsize=ax_lab_size)
-            # axes[2, tt].set_ylabel(f'dprime', fontsize=ax_lab_size)
+            axes[2, tt].set_ylabel(f'dprime', fontsize=ax_lab_size)
             axes[0, tt].tick_params(labelsize=ax_val_size)
             axes[1, tt].tick_params(labelsize=ax_val_size)
-            # axes[2, tt].tick_params(labelsize=ax_val_size)
+            axes[2, tt].tick_params(labelsize=ax_val_size)
 
-        axes[1, tt].set_xlabel('time (ms)', fontsize=ax_lab_size)
-        axes[1, tt].tick_params(labelsize=ax_val_size)
+        axes[2, tt].set_xlabel('time (ms)', fontsize=ax_lab_size)
+        axes[2, tt].tick_params(labelsize=ax_val_size)
         axes[0, tt].set_title(f'{trans[0]}_{trans[1]}', fontsize=sub_title_size)
 
         for ax in np.ravel(axes):
@@ -1639,8 +1626,6 @@ def site_check_plot(site, probe):
     return fig, axes
 
 for site in ['AMT028b', 'DRX008b']:
-    site = 'AMT030a'
-    site = 'DRX008b'
     probe = 2
     fig, axes = site_check_plot(site, probe=probe)
     half_screen = (full_screen[0], full_screen[1]/2)
@@ -1650,7 +1635,7 @@ for site in ['AMT028b', 'DRX008b']:
     fig.tight_layout(rect=(0, 0, 1, 0.95))
     savefig(fig, 'wip3_figures', title)
 ########################################################################################################################
-# sumamry plots for example cell and site
+# summary plots for example cell and site
 
 def cell_summary_plot(cell):
     # flips signs of dprimes and montecarlos as neede

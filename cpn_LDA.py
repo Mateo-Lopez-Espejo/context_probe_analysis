@@ -1,5 +1,5 @@
 import numpy as np
-# from sklearn.discriminant_analysis import LDA
+from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 
 def _fit(X, N=1):
     '''
@@ -51,20 +51,39 @@ def _fit(X, N=1):
 
     return discrimination_axis
 
+def _fit2(X, N=1):
+    '''
+    LDA using sklearn, returns the transformation matrix
+    :param X: array with shape Categories x Observations x Dimensions
+    :return: array with shape Dimensions x Components
+    '''
+    C, O, D = X.shape
+
+    X = X.reshape([-1, D])
+    y = np.repeat(np.arange(C), O)
+    clf = LinearDiscriminantAnalysis()
+    clf.fit(X, y)
+    transformation = clf.scalings_[:,0][:,None]
+
+    return transformation
+
 def fit_over_time(X, N=1):
     '''
     calculates the LDA axis for an array with shape Categories x Observations x Dimensions x Time.
     The LDA is calculated independently for each time bin, attempting to discriminate between categories defined by the
     first dimension of the array
-    :param X: arrays with shape Categories x Observations x Dimensions x Time.
+    :param X: arrays with shape Observations x Dimensions x Categories x Time.
     :param N: number of components of the LDA, by default 1
     :return: array with shape, Dimensions x Components x Time
     '''
 
+    X = _reorder_dims(X)
+
     C, O, D, T = X.shape # Categories x Observations x Dimensions x Time.
     transformations = np.zeros([D, N, T])
     for tt in range(T):
-        transformations[..., tt] = _fit(X[..., tt], N=N)
+        # transformations[..., tt] = _fit(X[..., tt], N=N)
+        transformations[..., tt] = _fit2(X[..., tt])
 
     return transformations
 
@@ -72,10 +91,11 @@ def transform_over_time(X, trans_vectors):
     '''
     Transforms the array X , in a timewise manner, using the collection of transformations of trans vectors.
     The transformation is performed in an arraywise manner for each dimension previous to the third to last dimension
-    :param X: array with shape ... x Observations x Dimension x Time
+    :param X: array with shape Observations x Dimensions x Categories x Time
     :param trans_vectors: array with shape ... x Dimensions x Components x Time
-    :return: array with shape ... x Observations x Components x Time
+    :return: array with shape Observations x Dimensions x Categories x Time
     '''
+    X = _reorder_dims(X)
 
     # the projected array should have the same shape as the input array except for the Dimensions/Components dimension
     newshape= list(X.shape)
@@ -84,6 +104,8 @@ def transform_over_time(X, trans_vectors):
     projection = np.zeros(newshape)
     for tt in range(newshape[-1]):
         projection[...,tt] = np.matmul(X[..., tt], trans_vectors[..., tt])
+
+    projection = _recover_dims(projection)
 
     return projection
 
@@ -117,10 +139,9 @@ def fit_transform_over_time(array, N=1):
     '''
 
     # swaps dimensions into LDA compatible format
-    array = _reorder_dims(array)
 
     transformations = fit_over_time(array, N=N)
-    projections = _recover_dims(transform_over_time(array, transformations))
+    projections = transform_over_time(array, transformations)
 
     return projections, transformations
 

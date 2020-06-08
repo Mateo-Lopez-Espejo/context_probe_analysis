@@ -55,10 +55,8 @@ def ndarray_dprime(array0, array1, axis, flip=True):
     '''
 
     # main dprime calculation
-    dprime = (np.mean(array0, axis=axis) - np.mean(array1, axis=axis) /
+    dprime = ((np.mean(array0, axis=axis) - np.mean(array1, axis=axis)) /
               np.sqrt(0.5 * (np.var(array0, axis=axis) + np.var(array1, axis=axis))))
-
-
 
     # check for edge cases
     if np.any(np.isnan(dprime)):

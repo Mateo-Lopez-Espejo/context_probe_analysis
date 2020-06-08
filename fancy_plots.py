@@ -1,4 +1,6 @@
 import math
+import pathlib as pl
+from configparser import ConfigParser
 import warnings
 
 import matplotlib.pyplot as plt
@@ -15,6 +17,16 @@ from scipy.stats import linregress
 from cpp_parameter_handlers import _epoch_name_handler, _channel_handler, _fs_handler
 import fits as fts
 from nems.signal import PointProcess
+
+
+config = ConfigParser()
+if pl.Path('../context_probe_analysis/config/settings.ini').exists():
+    config.read(pl.Path('../context_probe_analysis/config/settings.ini'))
+elif pl.Path('../../../context_probe_analysis/config/settings.ini').exists():
+    config.read(pl.Path('../../../context_probe_analysis/config/settings.ini'))
+else:
+    raise FileNotFoundError('config file coluld not be foud')
+
 
 
 # todo redo the distribution of axes in figures for psth, there is not purpose in plotig multiple signals as different
@@ -944,3 +956,20 @@ def unit_line(ax, square_shape=False, **pltkwargs):
     ax.plot(range, range, **pltkwargs)
 
     return ax
+
+
+def savefig(fig, root, name, type='png'):
+    root = pl.Path(config['paths']['figures']) / f'{root}'
+    if not root.exists():
+        root.mkdir(parents=True, exist_ok=True)
+
+    if type == 'png':
+        png = root.joinpath(name).with_suffix('.png')
+        fig.savefig(png, transparent=False, dpi=100)
+    elif type == 'svg':
+        svg = root.joinpath(name).with_suffix('.svg')
+        fig.savefig(svg, transparent=True)
+    else:
+        raise ValueError(f"type must be 'png' or 'svg' but {type} was given")
+
+    return None
