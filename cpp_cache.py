@@ -1,6 +1,5 @@
 import collections as coll
 import os
-import subprocess
 import joblib as jl
 import inspect
 import hashlib
@@ -48,7 +47,7 @@ def cache_wrap(obj_name, folder='/home/mateo/mycache', obj=None, recache=False):
     # forces save
     if recache == True:
         if obj != None:
-            # resavese
+            # re-saves
             jl.dump(obj, path)
             print(save_msg)
             return obj
@@ -112,9 +111,6 @@ def make_cache(function, func_args, classobj_name, recache=False, cache_folder='
 
     ordered_args = coll.OrderedDict(sorted(funct_defaults.items(), key=lambda t: t[0]))
     arg_string = ', '.join(['{}={}'.format(key, str(val)) for key, val in ordered_args.items()])
-
-    # get the last commit that modified the file containing the function
-    # label = subprocess.check_output(['git', 'rev-parse', 'HEAD']) # todo is adding this really smart??
 
     unique_name = '{}-{}({})'.format(classobj_name, function.__name__, arg_string)
     name_hash = hashlib.sha1(unique_name.encode()).hexdigest()
