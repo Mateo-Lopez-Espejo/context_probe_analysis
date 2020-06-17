@@ -269,8 +269,9 @@ rec_recache = False
 two_tail_p = True
 
 all_probes = [2, 3, 5, 6]
-# sites = list(get_site_ids(316).keys())
-sites = ['AMT028b', 'AMT029a', 'AMT030a', 'AMT031a', 'AMT032a', 'DRX008b', 'DRX021a', 'ley070a', 'ley072b']
+# sites = set(get_site_ids(316).keys())
+# 'AMT031a' bad
+sites = {'AMT028b', 'AMT029a', 'AMT030a', 'AMT032a', 'DRX008b', 'DRX021a', 'ley070a', 'ley072b'}
 
 analysis_functions = {'SC': cell_dprime, 'dPCA': dPCA_fourway_analysis, 'LDA': LDA_fourway_analysis}
 # initilizede nested dictionary with three layer: 1. Analysis type 2. calculated values 3. cell or site
@@ -337,6 +338,12 @@ for site, (func_key, func) in itt.product(sites, analysis_functions.items()):
 
         del batch_dprimes[func_key][source][site]
 
+# set defaultdict factory functions as None to allowe pickling
+
+for middle_dict in batch_dprimes.values():
+    middle_dict.default_factory = None
+batch_dprimes.default_factory = None
+
 
 # caches the bulk dprimes
 batch_dprime_file = pl.Path(config['paths']['analysis_cache']) / 'batch_dprimes' / set_name(meta)
@@ -344,4 +351,4 @@ if batch_dprime_file.parent.exists() is False:
     batch_dprime_file.parent.mkdir()
 
 _ = jl.dump(batch_dprimes, batch_dprime_file)
-
+print(f'cacheing batch dprimes to {batch_dprime_file}')

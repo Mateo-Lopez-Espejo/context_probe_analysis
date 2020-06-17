@@ -21,11 +21,13 @@ from tools import shuffle_along_axis as shuffle
 
 """
 Summary of the d' context discrimination significance, and propulation effect significance across all combinations of 
-sites and probes.
-The two metrics extracted are the total number of significant time bins and the position of the last time bin.
+sites and probes. In particular comparing the significance of population dprimes from LDA or dPCA dimensionality reductions
 
-it is highly recomended to add a way of keeping track of the distibution of significant bins over time across each
-category
+This tries to recapitulate some old comparison, but this time using the more streamlined dprime analysis
+
+overall it seems that LDA is to efficient at capturing arbitrary discrimination hiperplanes, thus it significantly 
+increases the dprimes of shuffled and simulated trials, increasing the nonsignificant floor and thus decreasing the
+overall significance of the real dprime
 """
 
 def bar_line(time, bar, line, ax=None, barkwargs={}, linekwargs={}):
@@ -97,182 +99,6 @@ sites = ['AMT028b', 'AMT029a', 'AMT030a', 'AMT031a', 'AMT032a', 'DRX008b', 'DRX0
 region_map = dict(
     zip(['AMT028b', 'AMT029a', 'AMT030a', 'AMT031a', 'AMT032a', 'DRX008b', 'DRX021a', 'ley070a', 'ley072b'],
         ['PEG', 'PEG', 'PEG', 'PEG', 'PEG', 'A1', 'A1', 'A1', 'A1']))
-
-SC_pvalues_dict = dict()
-SC_reals_dict = dict()
-SC_shuffled_dict = dict()
-
-dPCA_pvalues_dict = dict()
-dPCA_sim_pvalues_dict = dict()
-dPCA_reals_dict = dict()
-dPCA_shuffled_dict = dict()
-dPCA_simulated_dict = dict()
-
-LDA_pvalues_dict = dict()
-LDA_sim_pvalues_dict = dict()
-LDA_reals_dict = dict()
-LDA_shuffled_dict = dict()
-LDA_simulated_dict = dict()
-
-# sites = [sites[5]]
-for site in sites:
-
-    this_site_SC_reals = list()
-    this_site_SC_shuffled = list()
-    this_site_SC_pvalues = list()
-
-    this_site_dPCA_reals = list()
-    this_site_dPCA_shuffled = list()
-    this_site_dPCA_simulated = list()
-    this_site_dPCA_pvalues = list()
-    this_site_dPCA_sim_pvalues = list()
-
-    this_site_LDA_reals = list()
-    this_site_LDA_shuffled = list()
-    this_site_LDA_simulated = list()
-    this_site_LDA_pvalues = list()
-    this_site_LDA_sim_pvalues = list()
-
-    for pp, probe in enumerate(all_probes):
-        ##############################
-        # single cell analysis
-        object_name = f'200221_{site}_P{probe}_single_cell_dprime'
-        analysis_parameters = '_'.join(['{}-{}'.format(key, str(val)) for key, val in meta.items()])
-        analysis_name = 'CPN_singel_cell_dprime'
-        cache_folder = pl.Path(config['paths']['analysis_cache']) / f'{analysis_name}/{analysis_parameters}'
-
-        SC_cache = make_cache(function=cell_dprime,
-                              func_args={'site': site, 'probe': probe, 'meta': meta},
-                              classobj_name=object_name,
-                              cache_folder=cache_folder,
-                              recache=dprime_recache)
-
-        SC_dprime, SC_shuf_dprime, SC_cell_names, SC_trans_pairs = get_cache(SC_cache)
-
-        this_site_SC_reals.append(SC_dprime)
-        this_site_SC_shuffled.append(SC_shuf_dprime)
-
-        #  p value base on the montecarlo shuffling
-        if two_tail_p is True:
-            top_pval = np.sum((SC_shuf_dprime >= SC_dprime), axis=0) / meta['montecarlo']
-            bottom_pval = np.sum((SC_shuf_dprime <= SC_dprime), axis=0) / meta['montecarlo']
-            SC_pvalues = np.where(SC_dprime >= np.mean(SC_shuf_dprime, axis=0), top_pval, bottom_pval)
-            this_site_SC_pvalues.append(SC_pvalues)
-        elif two_tail_p is False:
-            SC_pvalues = np.sum((SC_shuf_dprime >= SC_dprime), axis=0) / meta['montecarlo']
-            this_site_SC_pvalues.append(SC_pvalues)
-
-        ##############################
-        # dPCA analysis
-        object_name = f'200221_{site}_P{probe}_single_cell_dprime'
-        analysis_parameters = '_'.join(['{}-{}'.format(key, str(val)) for key, val in meta.items()])
-        analysis_name = 'CPN_dPCA_dprime'
-        cache_folder = pl.Path(config['paths']['analysis_cache']) / f'{analysis_name}/{analysis_parameters}'
-
-        dPCA_cache = make_cache(function=dPCA_fourway_analysis,
-                                func_args={'site': site, 'probe': probe, 'meta': meta},
-                                classobj_name=object_name,
-                                cache_folder=cache_folder,
-                                recache=dprime_recache)
-        dPCA_dprime, dPCA_shuf_dprime, dPCA_sim_dprime, dPCA_cell_names = get_cache(dPCA_cache)
-
-        this_site_dPCA_reals.append(dPCA_dprime)
-        this_site_dPCA_shuffled.append(dPCA_shuf_dprime)
-        this_site_dPCA_simulated.append(dPCA_sim_dprime)
-
-        #  p value base on the montecarlo shuffling
-        if two_tail_p is True:
-            top_pval = np.sum((dPCA_shuf_dprime >= dPCA_dprime), axis=0) / meta['montecarlo']
-            bottom_pval = np.sum((dPCA_shuf_dprime <= dPCA_dprime), axis=0) / meta['montecarlo']
-            dPCA_pvalues = np.where(dPCA_dprime >= np.mean(dPCA_shuf_dprime, axis=0), top_pval, bottom_pval)
-            this_site_dPCA_pvalues.append(dPCA_pvalues)
-        elif two_tail_p is False:
-            dPCA_pvalues = np.sum((dPCA_shuf_dprime >= dPCA_dprime), axis=0) / meta['montecarlo']
-            this_site_dPCA_pvalues.append(dPCA_pvalues)
-
-        #  p value base on the montecarlo simulations
-        if two_tail_p is True:
-            top_pval = np.sum((dPCA_sim_dprime >= dPCA_dprime), axis=0) / meta['montecarlo']
-            bottom_pval = np.sum((dPCA_sim_dprime <= dPCA_dprime), axis=0) / meta['montecarlo']
-            dPCA_sim_pvalues = np.where(dPCA_dprime >= np.mean(dPCA_sim_dprime, axis=0), top_pval, bottom_pval)
-            this_site_dPCA_sim_pvalues.append(dPCA_sim_pvalues)
-        elif two_tail_p is False:
-            dPCA_sim_pvalues = np.sum((dPCA_sim_dprime >= dPCA_dprime), axis=0) / meta['montecarlo']
-            this_site_dPCA_sim_pvalues.append(dPCA_sim_pvalues)
-
-        ##############################
-        # LDA analysis
-        object_name = f'200527_{site}_P{probe}_LDA_dprime'
-        analysis_parameters = '_'.join(['{}-{}'.format(key, str(val)) for key, val in meta.items()])
-        analysis_name = 'CPN_LDA_dprime'
-        cache_folder = pl.Path(config['paths']['analysis_cache']) / f'{analysis_name}/{analysis_parameters}'
-        LDA_cache = make_cache(function=LDA_fourway_analysis,
-                               func_args={'site': site, 'probe': probe, 'meta': meta},
-                               classobj_name=object_name,
-                               cache_folder=cache_folder,
-                               recache=dprime_recache)
-
-        LDA_dprime, LDA_shuf_dprime, LDA_sim_dprime, LDA_cell_names = get_cache(LDA_cache)
-
-        this_site_LDA_reals.append(LDA_dprime)
-        this_site_LDA_shuffled.append(LDA_shuf_dprime)
-        this_site_LDA_simulated.append(LDA_sim_dprime)
-
-        #  p value base on the montecarlo shuffling
-        if two_tail_p is True:
-            top_pval = np.sum((LDA_shuf_dprime >= LDA_dprime), axis=0) / meta['montecarlo']
-            bottom_pval = np.sum((LDA_shuf_dprime <= LDA_dprime), axis=0) / meta['montecarlo']
-            LDA_pvalues = np.where(LDA_dprime >= np.mean(LDA_shuf_dprime, axis=0), top_pval, bottom_pval)
-            this_site_LDA_pvalues.append(LDA_pvalues)
-        elif two_tail_p is False:
-            LDA_pvalues = np.sum((LDA_shuf_dprime >= LDA_dprime), axis=0) / meta['montecarlo']
-            this_site_LDA_pvalues.append(LDA_pvalues)
-
-        #  p value base on the montecarlo simulations
-        if two_tail_p is True:
-            top_pval = np.sum((LDA_sim_dprime >= LDA_dprime), axis=0) / meta['montecarlo']
-            bottom_pval = np.sum((LDA_sim_dprime <= LDA_dprime), axis=0) / meta['montecarlo']
-            LDA_sim_pvalues = np.where(LDA_dprime >= np.mean(LDA_sim_dprime, axis=0), top_pval, bottom_pval)
-            this_site_LDA_sim_pvalues.append(LDA_sim_pvalues)
-        elif two_tail_p is False:
-            LDA_sim_pvalues = np.sum((LDA_sim_dprime >= LDA_dprime), axis=0) / meta['montecarlo']
-            this_site_LDA_sim_pvalues.append(LDA_sim_pvalues)
-
-
-    this_site_SC_reals = np.stack(this_site_SC_reals, axis=0)
-    this_site_SC_shuffled = np.stack(this_site_SC_shuffled, axis=0)
-    this_site_SC_pvalues = np.stack(this_site_SC_pvalues, axis=0)
-
-    this_site_dPCA_reals = np.stack(this_site_dPCA_reals, axis=0)
-    this_site_dPCA_shuffled = np.stack(this_site_dPCA_shuffled, axis=0)
-    this_site_dPCA_simulated = np.stack(this_site_dPCA_simulated, axis=0)
-    this_site_dPCA_pvalues = np.stack(this_site_dPCA_pvalues, axis=0)
-    this_site_dPCA_sim_pvalues = np.stack(this_site_dPCA_sim_pvalues, axis=0)
-
-    this_site_LDA_reals = np.stack(this_site_LDA_reals, axis=0)
-    this_site_LDA_shuffled = np.stack(this_site_LDA_shuffled, axis=0)
-    this_site_LDA_simulated = np.stack(this_site_LDA_simulated, axis=0)
-    this_site_LDA_pvalues = np.stack(this_site_LDA_pvalues, axis=0)
-    this_site_LDA_sim_pvalues = np.stack(this_site_LDA_sim_pvalues, axis=0)
-
-    # reorders date in dictionary of cells
-    for cc, cell in enumerate(SC_cell_names):
-        SC_reals_dict[cell] = this_site_SC_reals[:, :, cc, :]
-        SC_shuffled_dict[cell] = this_site_SC_shuffled[:, :, :, cc, :].swapaxes(0, 1)
-        SC_pvalues_dict[cell] = this_site_SC_pvalues[:, :, cc, :]
-
-    dPCA_reals_dict[site] = this_site_dPCA_reals
-    dPCA_shuffled_dict[site] = this_site_dPCA_shuffled.swapaxes(0, 1)
-    dPCA_simulated_dict[site] = this_site_dPCA_simulated.swapaxes(0, 1)
-    dPCA_pvalues_dict[site] = this_site_dPCA_pvalues
-    dPCA_sim_pvalues_dict[site] = this_site_dPCA_sim_pvalues
-
-    LDA_reals_dict[site] = this_site_LDA_reals
-    LDA_shuffled_dict[site] = this_site_LDA_shuffled.swapaxes(0, 1)
-    LDA_simulated_dict[site] = this_site_LDA_simulated.swapaxes(0, 1)
-    LDA_pvalues_dict[site] = this_site_LDA_pvalues
-    LDA_sim_pvalues_dict[site] = this_site_LDA_sim_pvalues
-
 ########################################################################################################################
 # defines arrays that identify cells, sites and regions
 SC_cells_array = np.array(list(SC_pvalues_dict.keys()))
