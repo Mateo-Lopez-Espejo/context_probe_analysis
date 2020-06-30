@@ -23,20 +23,22 @@ def exp_decay(times, values, skip_error=False):
     times = times[not_nan]
 
     if skip_error is False:
-        popt, pvar = curve_fit(_exp, times, values, p0=[1, 0], bounds=([0, -np.inf], [np.inf, 0]))
+        popt, pcov = curve_fit(_exp, times, values, p0=[1, 0], bounds=([0, -np.inf], [np.inf, 0]))
     elif skip_error is True:
         try:
-            popt, pvar = curve_fit(_exp, times, values, p0=[1, 0], bounds=([0, -np.inf], [np.inf, 0]))
+            popt, pcov = curve_fit(_exp, times, values, p0=[1, 0], bounds=([0, -np.inf], [np.inf, 0]))
+
+            # calculates the goodness of fit as R2
+            fx = _exp(times, *popt)
+            R2 = 1 - (np.sum((values - fx) ** 2) / np.sum((values - np.mean(values)) ** 2))
+
         except:
             print('Optimal parameters not found, returnin Nan')
             popt = np.empty((2)); popt[:] = np.nan
-            pvar = np.empty((2,2)); pvar[:] = np.nan
+            pcov = np.empty((2,2)); pcov[:] = np.nan
+            R2 = np.nan
 
     else:
         raise ValueError('skip_error must be boolean')
 
-    # calculates the goodness of fit as R2
-    fx = _exp(times, *popt)
-    R2 = 1 - (np.sum((values - fx) ** 2) / np.sum((values - np.mean(values)) ** 2))
-
-    return popt, R2
+    return popt, pcov, R2

@@ -38,7 +38,7 @@ region_map = dict(
     zip(['AMT028b', 'AMT029a', 'AMT030a', 'AMT031a', 'AMT032a', 'DRX008b', 'DRX021a', 'ley070a', 'ley072b'],
         ['PEG', 'PEG', 'PEG', 'PEG', 'PEG', 'A1', 'A1', 'A1', 'A1']))
 
-recache = False
+recache = True
 
 # loads the raw calculated dprimes and montecarlos
 batch_dprime_file = pl.Path(config['paths']['analysis_cache']) / 'batch_dprimes' / set_name(meta)
@@ -116,21 +116,24 @@ if summary_DF_file.exists() is False or recache is True:
                 # calculates different metrics/parameters for each different mean
                 for mean_dict in mean_dicts:
 
+                    mean = mean_dict.pop('mean') # pops to not include array in dataframe later on
+
                     # parameters  is a list of dictionaries containing the parameter name, the value and goodness of fit
                     parameters = list()
 
                     # exponential decay fit
-                    popt, r2 = fts.exp_decay(t, mean_dict['mean'], skip_error=True)
-                    parameters.append({'parameter': 'r0', 'value': popt[0], 'goodness': r2})
-                    parameters.append({'parameter': 'tau', 'value': -1 / popt[1], 'goodness': r2})
+                    popt, pcov, r2 = fts.exp_decay(t, mean, skip_error=True)
+                    perr = np.sqrt(np.diag(pcov)) # parameter standard deviation
+                    parameters.append({'parameter': 'r0', 'std': perr[0], 'goodness': r2, 'value': popt[0]})
+                    parameters.append({'parameter': 'tau', 'std': 1/perr[1], 'goodness': r2, 'value': -1/popt[1]})
 
                     # max value
-                    parameters.append({'parameter': 'max', 'value': np.max(mean_dict['mean']), 'goodness': np.nan})
+                    parameters.append({'parameter': 'max', 'value': np.max(mean)})
 
                     # full dprime integral
                     if source == 'dprime':
                         parameters.append(
-                            {'parameter': 'integral', 'value': trapz(mean_dict['mean'], t), 'goodness': np.nan})
+                            {'parameter': 'integral', 'value': trapz(mean, t)})
 
                     # significant dprime integral
                     if source == 'dprime':
@@ -150,18 +153,15 @@ if summary_DF_file.exists() is False or recache is True:
 
                         signif_mask = signinf_mean > 0
                         parameters.append({'parameter': 'significant_integral',
-                                           'value': trapz(mean[signif_mask], t[signif_mask]), 'goodness': np.nan})
+                                           'value': trapz(mean[signif_mask], t[signif_mask])})
 
                     for parameter in parameters:
                         d = {'siteid': site,
                              'cellid': cell,
                              'analysis': analysis,  # singel_cell, dPCA
-                             'probe': mean_dict['probe'],  # probe_n, mean
-                             'transition_pair': mean_dict['transition_pair'],  # t0_t1, mean
-                             'parameter': parameter['parameter'],
-                             'goodness': parameter['goodness'],
-                             'source': source,
-                             'value': parameter['value']}
+                             'source': source, # dprime, significance
+                             **mean_dict,
+                             **parameter}
                         df.append(d)
 
     DF = pd.DataFrame(df)

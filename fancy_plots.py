@@ -891,7 +891,7 @@ def exp_decay(times, values, ax=None, label=True, **pltkwargs):
         fig = ax.get_figure()
 
     try:
-        popt, r2 = fts.exp_decay(times, values)
+        popt, pcov, r2 = fts.exp_decay(times, values)
     except:
         print('failed to fit exp decay')
         return fig, ax, None, None
@@ -914,7 +914,7 @@ def exp_decay(times, values, ax=None, label=True, **pltkwargs):
 
     ax.plot(times, fts._exp(times, *popt), label=label, **pltkwargs)
 
-    return fig, ax, popt, r2, fts._exp(times, *popt)
+    return fig, ax, popt, pcov, r2, fts._exp(times, *popt)
 
 
 def lin_reg(x, y, ax=None, label=True, **pltkwargs):

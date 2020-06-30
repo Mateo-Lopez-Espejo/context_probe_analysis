@@ -165,7 +165,7 @@ for cell in common_cells:
 ########################################################################################################################
 # considering the d' itself, and tau fitted to it
 def fit_line(time, value):
-    popt, _ = fts.exp_decay(time[:len(value)], value)
+    popt, _, _ = fts.exp_decay(time[:len(value)], value)
     line = fts._exp(time[:len(value)], *popt)
     return line
 

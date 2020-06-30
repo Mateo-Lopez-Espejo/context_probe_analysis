@@ -239,7 +239,7 @@ collapsed = signif_array.mean(axis=(1, 2))
 # organizes in a dataframe with columns r0: y intercept, decay: eponential valaue and tau: Time to a 36% amplitude
 df = list()
 for cellid, data in zip(all_cells, collapsed):
-    popt, _ = fit.exp_decay(times, data)
+    popt, _, _ = fit.exp_decay(times, data)
     df.append({'cellid': cellid,
                'r0_au': popt[0],
                'decay_ms': popt[1]})
