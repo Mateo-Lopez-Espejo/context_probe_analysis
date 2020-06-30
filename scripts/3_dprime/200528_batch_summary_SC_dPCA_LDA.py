@@ -1,12 +1,15 @@
-import numpy as np
-import scipy.stats as sst
-import pandas as pd
-import joblib as jl
 import pathlib as pl
-import matplotlib.pyplot as plt
-import fancy_plots as fplt
-import seaborn as sns
 from configparser import ConfigParser
+
+import joblib as jl
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+import scipy.stats as sst
+import seaborn as sns
+from statannot import add_stat_annotation
+
+import fancy_plots as fplt
 from cpp_cache import set_name
 
 config = ConfigParser()
@@ -23,7 +26,7 @@ meta = {'reliability': 0.1,  # r value
         'transitions': ['silence', 'continuous', 'similar', 'sharp'],
         'montecarlo': 1000,
         'zscore': True,
-        'dprime_absolute':None}
+        'dprime_absolute': None}
 
 # transferable plotting parameters
 plt.rcParams['svg.fonttype'] = 'none'
@@ -37,150 +40,14 @@ sns.set_style("ticks")
 ########################################################################################################################
 ########################################################################################################################
 # data frame containing all the important summary data, i.e. exponential decay fits for dprime and significance, for
-# all combinantions of transition parirs, and probes,  for the means across probes, transistion pairs or for both, and
+# all combinations of transition pairs, and probes,  for the means across probes, transitions pairs or for both, and
 # for the single cell analysis or the dPCA projections
-
-summary_DF_file = pl.Path(config['paths']['analysis_cache']) / 'DF_summary' /set_name(meta)
-print('loading cached summary DataFrame')
-DF = jl.load(summary_DF_file)
-
-########################################################################################################################
-# SC mean vs dPCA taus, tau outliers filtered
-
-ff_anal = DF.analysis == 'single_cell'
-ff_probe = DF.probe == 'mean'
-ff_trans = DF.transition_pair == 'mean'
-ff_param = DF.parameter == 'tau'
-ff_source = DF.source == 'significance'
-ff_outliers = DF.value < 2000
-sing = DF.loc[ff_anal & ff_probe & ff_trans & ff_param & ff_source & ff_outliers,
-              ['region', 'siteid', 'cellid', 'parameter', 'value']]
-
-sing_pivot = sing.pivot(index='siteid', columns='cellid', values='value')
-
-sing_pivot['max'] = sing_pivot.mean(axis=1)
-
-
-ff_anal = DF.analysis == 'dPCA'
-pops = DF.loc[ff_anal & ff_probe & ff_trans & ff_param & ff_source & ff_outliers,
-              ['region', 'siteid', 'cellid', 'parameter', 'value']]
-
-pops = pops.set_index('siteid')
-
-toplot = pd.concat((pops.loc[:, ['region', 'value']], sing_pivot.loc[:, 'max']), axis=1)
-
-fig, ax = plt.subplots()
-ax = sns.regplot(x ='value', y= 'max', data=toplot, color='black', ax=ax)
-sns.despine(ax=ax)
-_,_,r2,_,_ = sst.linregress(toplot['value'], toplot['max'])
-_ = fplt.unit_line(ax, square_shape=False)
-
-ax.set_xlabel(f'dPCA tau (ms)', fontsize=ax_lab_size)
-ax.set_ylabel(f'single cell mean tau (ms)', fontsize=ax_lab_size)
-ax.tick_params(labelsize=ax_val_size)
-ax.tick_params(labelsize=ax_val_size)
-
-fig = ax.figure
-fig.set_size_inches((6,6))
-title = 'SC mean dPCA tau comparison r={:.2f}'.format(r2)
-fig.suptitle(title, fontsize=sub_title_size)
-fig.tight_layout(rect=(0, 0, 1, 0.95))
-fplt.savefig(fig, 'DAC3_figures', title)
-
-########################################################################################################################
-# creates data frame with rows == cellid and columns == single cell dprime-r0, significance-tau, and their population
-# equivalents
-ff_probe = DF.probe == 'mean'
-ff_trans = DF.transition_pair == 'mean'
-
-# single cell array
-ff_anal = DF.analysis == 'single_cell'
-# tau
-ff_param = DF.parameter == 'tau'
-ff_source = DF.source == 'significance'
-SC_tau = DF.loc[ff_anal & ff_probe & ff_trans & ff_param & ff_source,
-                  ['region', 'siteid', 'cellid', 'value']]
-SC_tau = SC_tau.set_index('cellid').rename(columns={'value': 'SC_tau'})
-# r0
-ff_param = DF.parameter == 'r0'
-ff_source = DF.source == 'dprime'
-SC_r0 = DF.loc[ff_anal & ff_probe & ff_trans & ff_param & ff_source,
-                ['region', 'siteid', 'cellid', 'value']]
-SC_r0 = SC_r0.set_index('cellid').rename(columns={'value': 'SC_r0'})
-
-# merge
-SC_DF = pd.concat([SC_tau, SC_r0['SC_r0']], axis=1).copy()
-SC_DF['dPCA_tau'] = np.nan
-SC_DF['dPCA_r0'] = np.nan
-
-# populatio values
-ff_anal = DF.analysis == 'dPCA'
-# tau
-ff_param = DF.parameter == 'tau'
-ff_source = DF.source == 'significance'
-dPCA_tau = DF.loc[ff_anal & ff_probe & ff_trans & ff_param & ff_source,
-                ['region', 'siteid', 'value']]
-dPCA_tau = dPCA_tau.set_index('siteid').rename(columns={'value': 'dPCA_tau'})
-
-# r0
-ff_param = DF.parameter == 'r0'
-ff_source = DF.source == 'dprime'
-dPCA_r0 = DF.loc[ff_anal & ff_probe & ff_trans & ff_param & ff_source,
-               ['region', 'siteid', 'value']]
-dPCA_r0 = dPCA_r0.set_index('siteid').rename(columns={'value': 'dPCA_r0'})
-
-# merge
-dPCA_DF = pd.concat([dPCA_tau, dPCA_r0['dPCA_r0']], axis=1)
-
-# apply population values to single SC_DF
-for cellid, row in SC_DF.iterrows():
-    site = row['siteid']
-    SC_DF.loc[cellid, 'dPCA_tau'] = dPCA_DF.loc[site, 'dPCA_tau']
-    SC_DF.loc[cellid, 'dPCA_r0'] = dPCA_DF.loc[site, 'dPCA_r0']
-
-
-
-# filter out awnomalous data
-ff_r0 = SC_DF['SC_r0'] >= 0.2
-ff_tau = SC_DF['SC_tau'] <= 2000
-
-toplot = SC_DF.loc[ff_tau & ff_r0, :]
-
-x = 'dPCA_r0'
-y = 'SC_r0'
-
-fig, ax = plt.subplots()
-ax = sns.regplot(x=x, y=y, data=toplot, color='black', ax=ax)
-sns.despine(ax=ax)
-left, right = ax.get_xlim()
-ax.set_xlim(left, right + (right - left)/12)
-_,_,r2,_,_ = sst.linregress(toplot[x], toplot[y])
-_ = fplt.unit_line(ax, square_shape=False)
-
-ax.set_xlabel(x, fontsize=ax_lab_size)
-ax.set_ylabel(y, fontsize=ax_lab_size)
-ax.tick_params(labelsize=ax_val_size)
-ax.tick_params(labelsize=ax_val_size)
-
-fig = ax.figure
-fig.set_size_inches((6,6))
-title = '{} vs {}, r={:.2f}'.format(x, y, r2)
-fig.suptitle(title, fontsize=sub_title_size)
-fig.tight_layout(rect=(0, 0, 1, 0.95))
-fplt.savefig(fig, 'DAC3_figures', title)
-
-
-
-########################################################################################################################
-########################################################################################################################
-# data frame containing all the important summary data, i.e. exponential decay fits for dprime and significance, for
-# all combinantions of transition parirs, and probes,  for the means across probes, transistion pairs or for both, and
-# for the single cell analysis or the dPCA projections
-
 summary_DF_file = pl.Path(config['paths']['analysis_cache']) / 'DF_summary' / set_name(meta)
 print('loading cached summary DataFrame')
 DF = jl.load(summary_DF_file)
 
+########################################################################################################################
+# SC
 ########################################################################################################################
 # compare tau between different probe means
 ff_anal = DF.analysis == 'single_cell'
@@ -216,7 +83,7 @@ fig.set_size_inches((6, 6))
 title = f'summary significance-tau comparison between probes'
 fig.suptitle(title)
 fig.tight_layout(rect=(0, 0, 1, 0.95))
-savefig(fig, 'wip3_figures', title)
+fplt.savefig(fig, 'wip3_figures', title)
 ########################################################################################################################
 # compare tau between different transition pair means
 ff_anal = DF.analysis == 'single_cell'
@@ -254,7 +121,7 @@ fig.set_size_inches((6, 6))
 title = f'summary significance-tau comparison between transitions'
 fig.suptitle(title)
 fig.tight_layout(rect=(0, 0, 1, 0.95))
-savefig(fig, 'wip3_figures', title)
+fplt.savefig(fig, 'wip3_figures', title)
 
 ########################################################################################################################
 # compare r0 between different probe means
@@ -289,7 +156,7 @@ fig.set_size_inches((6, 6))
 title = f'summary dprime-r0 comparison between probes'
 fig.suptitle(title)
 fig.tight_layout(rect=(0, 0, 1, 0.95))
-savefig(fig, 'wip3_figures', title)
+fplt.savefig(fig, 'wip3_figures', title)
 
 ########################################################################################################################
 # compare r0 between different transition pair means
@@ -329,7 +196,7 @@ fig.set_size_inches((6, 6))
 title = f'summary dprime-r0 comparison between transitions'
 fig.suptitle(title)
 fig.tight_layout(rect=(0, 0, 1, 0.95))
-savefig(fig, 'wip3_figures', title)
+fplt.savefig(fig, 'wip3_figures', title)
 
 ########################################################################################################################
 # Distribution of cells in r0 tau space
@@ -367,7 +234,7 @@ fig.set_size_inches((6, 6))
 title = f'all cell summary parameter space r={r2}'
 fig.suptitle(title)
 fig.tight_layout(rect=(0, 0, 1, 0.95))
-savefig(fig, 'wip3_figures', title)
+fplt.savefig(fig, 'wip3_figures', title)
 
 #########################################################
 # cells in parameter space colored by site
@@ -386,7 +253,7 @@ fig.set_size_inches((6, 6))
 title = f'cells in parameter space by site'
 fig.suptitle(title, fontsize=sub_title_size)
 fig.tight_layout(rect=(0, 0, 1, 0.95))
-savefig(fig, 'wip3_figures', title)
+fplt.savefig(fig, 'wip3_figures', title)
 
 #########################################################
 # cells in parameter space colored by region
@@ -405,7 +272,7 @@ fig.set_size_inches((6, 6))
 title = f'cells in parameter space by region'
 fig.suptitle(title, fontsize=sub_title_size)
 fig.tight_layout(rect=(0, 0, 1, 0.95))
-savefig(fig, 'wip3_figures', title)
+fplt.savefig(fig, 'wip3_figures', title)
 
 ########################################################################################################################
 # single cell comparison between regions and parameters
@@ -453,9 +320,8 @@ fig.set_size_inches((6, 6))
 title = f'SC parameter comparison between regions'
 fig.suptitle(title, fontsize=sub_title_size)
 fig.tight_layout(rect=(0, 0, 1, 0.95))
-savefig(fig, 'wip3_figures', title)
+fplt.savefig(fig, 'wip3_figures', title)
 
-# best_cells = pivoted.loc[(pivoted.r0>0.5) & (pivoted.tau>250) & (pivoted.tau<1000),:],
 ########################################################################################################################
 # Compares tau between dprime and significance
 ff_anal = DF.analysis == 'single_cell'
@@ -482,7 +348,7 @@ fig.set_size_inches((16, 8))
 title = f'significance vs dprime fitted params comparison'
 fig.suptitle(title, fontsize=20)
 fig.tight_layout(rect=(0, 0, 1, 0.95))
-savefig(fig, 'wip3_figures', title)
+fplt.savefig(fig, 'wip3_figures', title)
 
 ########################################################################################################################
 # dCPA dPCA
@@ -520,7 +386,7 @@ fig.set_size_inches((6, 6))
 title = f'dPCA summary significance-tau comparison between probes'
 fig.suptitle(title)
 fig.tight_layout(rect=(0, 0, 1, 0.95))
-savefig(fig, 'wip3_figures', title)
+fplt.savefig(fig, 'wip3_figures', title)
 ########################################################################################################################
 # dPCA compare tau between different transition pair means
 ff_anal = DF.analysis == 'dPCA'
@@ -556,7 +422,7 @@ fig.set_size_inches((6, 6))
 title = f'dPCA summary significance-tau comparison between transitions'
 fig.suptitle(title)
 fig.tight_layout(rect=(0, 0, 1, 0.95))
-savefig(fig, 'wip3_figures', title)
+fplt.savefig(fig, 'wip3_figures', title)
 
 ########################################################################################################################
 # dPCA compare r0 between different probe means
@@ -591,7 +457,7 @@ fig.set_size_inches((6, 6))
 title = f'dPCA summary dprime-r0 comparison between probes'
 fig.suptitle(title)
 fig.tight_layout(rect=(0, 0, 1, 0.95))
-savefig(fig, 'wip3_figures', title)
+fplt.savefig(fig, 'wip3_figures', title)
 
 ########################################################################################################################
 # dPCA compare r0 between different transition pair means
@@ -627,7 +493,7 @@ fig.set_size_inches((6, 6))
 title = f'dPCA summary dprime-r0 comparison between transitions'
 fig.suptitle(title)
 fig.tight_layout(rect=(0, 0, 1, 0.95))
-savefig(fig, 'wip3_figures', title)
+fplt.savefig(fig, 'wip3_figures', title)
 ########################################################################################################################
 # dPCA comparison between regions and parameters
 ff_anal = DF.analysis == 'dPCA'
@@ -675,7 +541,7 @@ fig.set_size_inches((6, 6))
 title = f'dPCA parameter comparison between regions'
 fig.suptitle(title, fontsize=sub_title_size)
 fig.tight_layout(rect=(0, 0, 1, 0.95))
-savefig(fig, 'wip3_figures', title)
+fplt.savefig(fig, 'wip3_figures', title)
 
 ########################################################################################################################
 # SC vs dPCA taus, filtering SC with r0 of dPCA
@@ -716,7 +582,7 @@ fig.set_size_inches((6, 6))
 title = 'SC dPCA tau comparison r={:.2f}'.format(r2)
 fig.suptitle(title, fontsize=sub_title_size)
 fig.tight_layout(rect=(0, 0, 1, 0.95))
-savefig(fig, 'wip3_figures', title)
+fplt.savefig(fig, 'wip3_figures', title)
 
 ########################################################################################################################
 # SC vs dPCA r0, filtering SC with r0 of dPCA
@@ -757,56 +623,127 @@ fig.set_size_inches((6, 6))
 title = f'SC dPCA r0 comparison r={r2}'
 fig.suptitle(title, fontsize=sub_title_size)
 fig.tight_layout(rect=(0, 0, 1, 0.95))
-savefig(fig, 'wip3_figures', title)
+fplt.savefig(fig, 'wip3_figures', title)
 
 ########################################################################################################################
-# SC vs dPCA taus, filtering SC with r0 of dPCA
-# filters out anomalous taus over 2 seconds
-tau_threshold = 2000
+# SC mean vs dPCA taus, tau outliers filtered
 
-# defienes population dataframe
-ff_anal = DF.analysis == 'dPCA'
-ff_probe = DF.probe == 'mean'
-ff_trans = DF.transition_pair == 'mean'
-ff_param = DF.parameter == 'tau'
-ff_source = DF.source == 'significance'
-ff_outliers = DF.value < tau_threshold
-dPCA_tau = DF.loc[ff_anal & ff_probe & ff_trans & ff_param & ff_source & ff_outliers,
-                  ['region', 'siteid', 'cellid', 'parameter', 'value']]
-ff_param = DF.parameter == 'r0'
-ff_source = DF.source == 'dprime'
-dPCA_r0 = DF.loc[ff_anal & ff_probe & ff_trans & ff_param & ff_source & ff_outliers,
-                 ['region', 'siteid', 'cellid', 'parameter', 'value']]
-dPCA_filtered = pd.concat((dPCA_tau, dPCA_r0))
-dPCA_pivoted = dPCA_filtered.pivot(index='siteid', columns='parameter', values='value')
-
-# defienes single cell dataframe
 ff_anal = DF.analysis == 'single_cell'
 ff_probe = DF.probe == 'mean'
 ff_trans = DF.transition_pair == 'mean'
 ff_param = DF.parameter == 'tau'
 ff_source = DF.source == 'significance'
-ff_outliers = DF.value < tau_threshold
-SC_tau = DF.loc[ff_anal & ff_probe & ff_trans & ff_param & ff_source & ff_outliers,
-                ['region', 'siteid', 'cellid', 'parameter', 'value']]
-ff_param = DF.parameter == 'r0'
-ff_source = DF.source == 'dprime'
-SC_r0 = DF.loc[ff_anal & ff_probe & ff_trans & ff_param & ff_source & ff_outliers,
-               ['region', 'siteid', 'cellid', 'parameter', 'value']]
-SC_filtered = pd.concat((SC_tau, SC_r0))
-SC_pivoted = SC_filtered.pivot_table(index=['siteid', 'cellid'], columns='parameter', values='value').reset_index()
+ff_outliers = DF.value < 2000
+sing = DF.loc[ff_anal & ff_probe & ff_trans & ff_param & ff_source & ff_outliers,
+              ['region', 'siteid', 'cellid', 'parameter', 'value']]
 
-x = list()
-y = list()
-for index, row in dPCA_pivoted.iterrows():
-    f_site = SC_pivoted.siteid == index
-    f_r0 = SC_pivoted.r0 > row.r0
-    sub_filt = SC_pivoted.loc[f_site & f_r0, ['cellid', 'tau']]
-    f_tau = SC_pivoted['tau'] == sub_filt['tau'].max()
-    best_cell = SC_pivoted.loc[f_site & f_r0 & f_tau, ['cellid', 'tau']].squeeze()
-    x.append(row['tau'])
-    y.append(best_cell['tau'])
+sing_pivot = sing.pivot(index='siteid', columns='cellid', values='value')
+
+sing_pivot['max'] = sing_pivot.mean(axis=1)
+
+ff_anal = DF.analysis == 'dPCA'
+pops = DF.loc[ff_anal & ff_probe & ff_trans & ff_param & ff_source & ff_outliers,
+              ['region', 'siteid', 'cellid', 'parameter', 'value']]
+
+pops = pops.set_index('siteid')
+
+toplot = pd.concat((pops.loc[:, ['region', 'value']], sing_pivot.loc[:, 'max']), axis=1)
 
 fig, ax = plt.subplots()
-ax.scatter(x, y)
+ax = sns.regplot(x='value', y='max', data=toplot, color='black', ax=ax)
+sns.despine(ax=ax)
+_, _, r2, _, _ = sst.linregress(toplot['value'], toplot['max'])
+_ = fplt.unit_line(ax, square_shape=False)
 
+ax.set_xlabel(f'dPCA tau (ms)', fontsize=ax_lab_size)
+ax.set_ylabel(f'single cell mean tau (ms)', fontsize=ax_lab_size)
+ax.tick_params(labelsize=ax_val_size)
+ax.tick_params(labelsize=ax_val_size)
+
+fig = ax.figure
+fig.set_size_inches((6, 6))
+title = 'SC mean dPCA tau comparison r={:.2f}'.format(r2)
+fig.suptitle(title, fontsize=sub_title_size)
+fig.tight_layout(rect=(0, 0, 1, 0.95))
+fplt.savefig(fig, 'DAC3_figures', title)
+
+########################################################################################################################
+# creates data frame with rows == cellid and columns == single cell dprime-r0, significance-tau, and their population
+# equivalents.
+# Plots all single cell values vs population value, eg. r0
+ff_probe = DF.probe == 'mean'
+ff_trans = DF.transition_pair == 'mean'
+
+# single cell array
+ff_anal = DF.analysis == 'single_cell'
+# tau
+ff_param = DF.parameter == 'tau'
+ff_source = DF.source == 'significance'
+SC_tau = DF.loc[ff_anal & ff_probe & ff_trans & ff_param & ff_source,
+                ['region', 'siteid', 'cellid', 'value']]
+SC_tau = SC_tau.set_index('cellid').rename(columns={'value': 'SC_tau'})
+# r0
+ff_param = DF.parameter == 'r0'
+ff_source = DF.source == 'dprime'
+SC_r0 = DF.loc[ff_anal & ff_probe & ff_trans & ff_param & ff_source,
+               ['region', 'siteid', 'cellid', 'value']]
+SC_r0 = SC_r0.set_index('cellid').rename(columns={'value': 'SC_r0'})
+
+# merge
+SC_DF = pd.concat([SC_tau, SC_r0['SC_r0']], axis=1).copy()
+SC_DF['dPCA_tau'] = np.nan
+SC_DF['dPCA_r0'] = np.nan
+
+# populatio values
+ff_anal = DF.analysis == 'dPCA'
+# tau
+ff_param = DF.parameter == 'tau'
+ff_source = DF.source == 'significance'
+dPCA_tau = DF.loc[ff_anal & ff_probe & ff_trans & ff_param & ff_source,
+                  ['region', 'siteid', 'value']]
+dPCA_tau = dPCA_tau.set_index('siteid').rename(columns={'value': 'dPCA_tau'})
+
+# r0
+ff_param = DF.parameter == 'r0'
+ff_source = DF.source == 'dprime'
+dPCA_r0 = DF.loc[ff_anal & ff_probe & ff_trans & ff_param & ff_source,
+                 ['region', 'siteid', 'value']]
+dPCA_r0 = dPCA_r0.set_index('siteid').rename(columns={'value': 'dPCA_r0'})
+
+# merge
+dPCA_DF = pd.concat([dPCA_tau, dPCA_r0['dPCA_r0']], axis=1)
+
+# apply population values to single SC_DF
+for cellid, row in SC_DF.iterrows():
+    site = row['siteid']
+    SC_DF.loc[cellid, 'dPCA_tau'] = dPCA_DF.loc[site, 'dPCA_tau']
+    SC_DF.loc[cellid, 'dPCA_r0'] = dPCA_DF.loc[site, 'dPCA_r0']
+
+# filter out awnomalous data
+ff_r0 = SC_DF['SC_r0'] >= 0.2
+ff_tau = SC_DF['SC_tau'] <= 2000
+
+toplot = SC_DF.loc[ff_tau & ff_r0, :]
+
+x = 'dPCA_r0'
+y = 'SC_r0'
+
+fig, ax = plt.subplots()
+ax = sns.regplot(x=x, y=y, data=toplot, color='black', ax=ax)
+sns.despine(ax=ax)
+left, right = ax.get_xlim()
+ax.set_xlim(left, right + (right - left) / 12)
+_, _, r2, _, _ = sst.linregress(toplot[x], toplot[y])
+_ = fplt.unit_line(ax, square_shape=False)
+
+ax.set_xlabel(x, fontsize=ax_lab_size)
+ax.set_ylabel(y, fontsize=ax_lab_size)
+ax.tick_params(labelsize=ax_val_size)
+ax.tick_params(labelsize=ax_val_size)
+
+fig = ax.figure
+fig.set_size_inches((6, 6))
+title = '{} vs {}, r={:.2f}'.format(x, y, r2)
+fig.suptitle(title, fontsize=sub_title_size)
+fig.tight_layout(rect=(0, 0, 1, 0.95))
+fplt.savefig(fig, 'DAC3_figures', title)

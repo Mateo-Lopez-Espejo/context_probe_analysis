@@ -34,4 +34,9 @@ def exp_decay(times, values, skip_error=False):
 
     else:
         raise ValueError('skip_error must be boolean')
-    return popt, pvar
+
+    # calculates the goodness of fit as R2
+    fx = _exp(times, *popt)
+    R2 = 1 - (np.sum((values - fx) ** 2) / np.sum((values - np.mean(values)) ** 2))
+
+    return popt, R2

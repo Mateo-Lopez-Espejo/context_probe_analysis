@@ -75,11 +75,10 @@ def pairwise_dprimes(array, observation_axis, condition_axis, flip=None):
 
 def flip_dprimes(dprime_array, montecarlo=None, flip='first'):
     """
-    flips the sign of the dprime over time following the rule specifiede by the keyword argument flip. If a montecarlo
+    flips the sign of the dprime over time following the rule specified by the keyword argument flip. If a montecarlo
     arrays is provided, its assumed that is related to the dprime_array, and the montecarlo repetitions are flipped in a
-    form consistant with the original data from dprime_array i.e. if a dprime time series signs are flipped, the all the
-    correspondent
-    montecarlo repetitions are flipped too, regardless of their actual values.
+    form consistent with the original data from dprime_array i.e. if a dprime time series signs are flipped, the all the
+    correspondent montecarlo repetitions are flipped too, regardless of their actual values.
     :param dprime_array: nd arrays of dprime values over time, where the last dimension is time
     :param montecarlo: nd arrays. same shape as dprime_array but with an extra first dimension of montecarlo repetitions
     :param flip: str. 'first' flips dprimes in time so the first time point is positive

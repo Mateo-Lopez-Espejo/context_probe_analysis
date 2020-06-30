@@ -336,7 +336,7 @@ for site, (func_key, func) in itt.product(sites, analysis_functions.items()):
             for (cc, cell) in enumerate(cell_names):
                 batch_dprimes[func_key][source][cell] = batch_dprimes[func_key][source][site][..., cc, :]
 
-        del batch_dprimes[func_key][source][site]
+            del batch_dprimes[func_key][source][site]
 
 # set defaultdict factory functions as None to allowe pickling
 

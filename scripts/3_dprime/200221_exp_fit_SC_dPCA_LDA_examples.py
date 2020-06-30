@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
 
+import cpn_LDA as cLDA
 import cpn_dPCA as cdPCA
 import cpn_dprime as cDP
 import fancy_plots as fplt
@@ -73,13 +74,13 @@ sites = set(batch_dprimes['dPCA']['dprime'].keys())
 all_cells = set(batch_dprimes['SC']['dprime'].keys())
 
 ########################################################################################################################
-# defines a significatn threshold and transfroms the pvalues into bool (significant vs nonsignificant)
+# defines a significant threshold and transform the pvalues into boolean (significant vs nonsignificant)
 threshold = 0.01
 for analysis_name, mid_dict in batch_dprimes.items():
-    mid_dict['simulated_significance'] = {key: (val <= threshold) for key, val in mid_dict['simulated_pvalue'].items()}
+    mid_dict['shuffled_significance'] = {key: (val <= threshold) for key, val in mid_dict['shuffled_pvalue'].items()}
     if analysis_name != 'SC':
-        mid_dict['shuffled_significance'] = {key: (val <= threshold) for key, val in
-                                             mid_dict['shuffled_pvalue'].items()}
+        mid_dict['simulated_significance'] = {key: (val <= threshold) for key, val in
+                                             mid_dict['simulated_pvalue'].items()}
 
 ########################################################################################################################
 # set up the time bin labels in milliseconds, this is critical for plotting and calculating the tau
@@ -110,18 +111,22 @@ def analysis_steps_plot(id, probe, source):
     # trialR shape: Trial x Cell x Context x Probe x Time; R shape: Cell x Context x Probe x Time
     trialR, R, _ = cdPCA.format_raster(raster)
     trialR, R = trialR.squeeze(axis=3), R.squeeze(axis=2)  # squeezes out probe
+
     if source == 'dPCA':
-        dPCs, _ = cdPCA.fit_transform(R, trialR)
+        projection, _ = cdPCA.fit_transform(R, trialR)
+    elif source == 'LDA':
+        projection, _ = cLDA.fit_transform_over_time(trialR)
+        projection = projection.squeeze(axis=1)
 
     if meta['zscore'] is False:
         trialR = trialR * meta['raster_fs']
         if source == 'dPCA':
-            dPCs = dPCs * meta['raster_fs']
+            projection = projection * meta['raster_fs']
 
     # flips signs of dprimes and montecarlos as needed
     dprimes, shuffleds = cDP.flip_dprimes(batch_dprimes[source]['dprime'][id],
                                           batch_dprimes[source]['shuffled_dprime'][id], flip='max')
-    if source == 'dPCA':
+    if source in ['dPCA', 'LDA']:
         _, simulations = cDP.flip_dprimes(batch_dprimes[source]['dprime'][id],
                                           batch_dprimes[source]['simulated_dprime'][id], flip='max')
 
@@ -141,8 +146,8 @@ def analysis_steps_plot(id, probe, source):
             axes[0, tt].plot(t, trialR[:, cell_idx, t1_idx, :].mean(axis=0), color=trans_color_map[trans[1]],
                              linewidth=3)
         else:
-            axes[0, tt].plot(t, dPCs[:, t0_idx, :].mean(axis=0), color=trans_color_map[trans[0]], linewidth=3)
-            axes[0, tt].plot(t, dPCs[:, t1_idx, :].mean(axis=0), color=trans_color_map[trans[1]], linewidth=3)
+            axes[0, tt].plot(t, projection[:, t0_idx, :].mean(axis=0), color=trans_color_map[trans[0]], linewidth=3)
+            axes[0, tt].plot(t, projection[:, t1_idx, :].mean(axis=0), color=trans_color_map[trans[1]], linewidth=3)
 
     # Raster, dprime, CI
     bottom, top = axes[0, 0].get_ylim()
@@ -167,7 +172,7 @@ def analysis_steps_plot(id, probe, source):
         _ = fplt._cint(t, shuffleds[:, prb_idx, pair_idx, :], confidence=0.95, ax=axes[1, tt],
                        fillkwargs={'color': 'black', 'alpha': 0.5})
 
-        if source == 'dPCA':
+        if source in ['dPCA', 'LDA']:
             # plots the real dprime and simulated dprime ci
             axes[2, tt].plot(t, dprimes[prb_idx, pair_idx, :], color='black')
             _ = fplt._cint(t, simulations[:, prb_idx, pair_idx, :], confidence=0.95, ax=axes[2, tt],
@@ -183,7 +188,7 @@ def analysis_steps_plot(id, probe, source):
         # histogram of context discrimination
         axes[1, tt].bar(t, batch_dprimes['dPCA']['shuffled_significance'][site][prb_idx, pair_idx, :],
                         width=bar_width, align='center', edgecolor='white', bottom=ax1_bottom)
-        if source == 'dPCA':
+        if source in ['dPCA', 'LDA']:
             # histogram of population effects
             axes[2, tt].bar(t, batch_dprimes['dPCA']['simulated_significance'][site][prb_idx, pair_idx, :],
                             width=bar_width, align='center', edgecolor='white', bottom=ax2_bottom)
@@ -194,7 +199,7 @@ def analysis_steps_plot(id, probe, source):
             axes[0, tt].tick_params(labelsize=ax_val_size)
             axes[1, tt].set_ylabel(f'dprime', fontsize=ax_lab_size)
             axes[1, tt].tick_params(labelsize=ax_val_size)
-            if source == 'dPCA':
+            if source in ['dPCA', 'LDA']:
                 axes[2, tt].set_ylabel(f'dprime', fontsize=ax_lab_size)
                 axes[2, tt].tick_params(labelsize=ax_val_size)
 
@@ -214,20 +219,30 @@ for cell in ['AMT028b-20-1', 'DRX008b-04-1']:
     fig, axes = analysis_steps_plot(cell, probe, 'SC')
     half_screen = (full_screen[0], full_screen[1] / 2)
     fig.set_size_inches(half_screen)
-    title = f'{cell} probe {probe} calc steps'
+    title = f'SC, {cell} probe {probe} calc steps'
     fig.suptitle(title)
     fig.tight_layout(rect=(0, 0, 1, 0.95))
-    savefig(fig, 'wip3_figures', title)
+    savefig(fig, 'DAC3_figures', title)
 
 for site in ['AMT028b', 'DRX008b']:
     probe = 2
     fig, axes = analysis_steps_plot(site, probe, 'dPCA')
     half_screen = (full_screen[0], full_screen[1] / 2)
     fig.set_size_inches(half_screen)
-    title = f'{site} probe {probe}, calc steps'
+    title = f'dPCA, {site} probe {probe}, calc steps'
     fig.suptitle(title)
     fig.tight_layout(rect=(0, 0, 1, 0.95))
-    savefig(fig, 'wip3_figures', title)
+    savefig(fig, 'DAC3_figures', title)
+
+for site in ['AMT028b', 'DRX008b']:
+    probe = 2
+    fig, axes = analysis_steps_plot(site, probe, 'LDA')
+    half_screen = (full_screen[0], full_screen[1] / 2)
+    fig.set_size_inches(half_screen)
+    title = f'LDA, {site} probe {probe}, calc steps'
+    fig.suptitle(title)
+    fig.tight_layout(rect=(0, 0, 1, 0.95))
+    fplt.savefig(fig, 'DAC3_figures', title)
 
 
 ########################################################################################################################
@@ -265,14 +280,11 @@ def category_summary_plot(id, source):
         prb_idx = all_probes.index(probe)
         axes[pp, -1].plot(t, np.mean(dprimes[prb_idx, :, :], axis=0), color='black')
         axes[pp, -1].axhline(0, color='gray', linestyle='--')
-        # _ = fplt._cint(t, np.mean(shuffleds[:, prb_idx, :, :], axis=1), confidence=0.95, ax=axes[pp, -1],
-        #                fillkwargs={'color': 'black', 'alpha': 0.5})
+
     # dprime and ci for the mean across probes
     for tt, trans in enumerate(itt.combinations(meta['transitions'], 2)):
         axes[-1, tt].plot(t, np.mean(dprimes[:, tt, :], axis=0), color='black')
         axes[-1, tt].axhline(0, color='gray', linestyle='--')
-        # _ = fplt._cint(t, np.mean(shuffleds[:, :, pair_idx, :], axis=1), confidence=0.95, ax=axes[-1, tt],
-        #                fillkwargs={'color': 'black', 'alpha': 0.5})
 
     # significance bars for each probe-transition combinations
     bar_bottom = axes[0, 0].get_ylim()[0]
@@ -282,8 +294,7 @@ def category_summary_plot(id, source):
         axes[pp, tt].bar(t, signif_bars[prb_idx, tt, :], width=bar_width, align='center',
                          edgecolor='white', bottom=bar_bottom)
         # _ = fplt.exp_decay(t, SC_significance_dict[cell][prb_idx, pair_idx, :], ax=axes[2, tt])
-        # if axes[2, tt].get_ylim()[1] < 1:
-        #     axes[2, tt].set_ylim(0, 1)
+
     # significance bars for the mean across context pairs
     for pp, probe in enumerate(all_probes):
         prb_idx = all_probes.index(probe)
@@ -297,8 +308,6 @@ def category_summary_plot(id, source):
     # cell summary mean: dprime, confidence interval
     axes[-1, -1].plot(t, np.mean(dprimes[:, :, :], axis=(0, 1)), color='black')
     axes[-1, -1].axhline(0, color='gray', linestyle='--')
-    # _ = fplt._cint(t, np.mean(shuffleds[:, :, :, :], axis=(1,2)), confidence=0.95, ax=axes[-1, -1],
-    #                fillkwargs={'color': 'black', 'alpha': 0.5})
     axes[-1, -1].bar(t, np.mean(signif_bars[:, :, :], axis=(0, 1)), width=bar_width, align='center',
                      edgecolor='white', bottom=bar_bottom)
 
@@ -328,19 +337,27 @@ def category_summary_plot(id, source):
 for cell in ['AMT028b-20-1', 'DRX008b-04-1']:
     fig, axes = category_summary_plot(cell, 'SC')
     fig.set_size_inches(full_screen)
-    title = f'{cell} probe pair summary'
+    title = f'SC, {cell} probe pair summary'
     fig.suptitle(title)
     fig.tight_layout(rect=(0, 0, 1, 0.95))
-    savefig(fig, 'wip3_figures', title)
+    savefig(fig, 'DAC3_figures', title)
 
 # dpca site example
 for site in ['AMT028b', 'DRX008b']:
     fig, axes = category_summary_plot(site, 'dPCA')
     fig.set_size_inches(full_screen)
-    title = f'{site} probe pair summary'
+    title = f'dPCA, {site} probe pair summary'
     fig.suptitle(title)
     fig.tight_layout(rect=(0, 0, 1, 0.95))
-    savefig(fig, 'wip3_figures', title)
+    savefig(fig, 'DAC3_figures', title)
+
+for site in ['AMT028b', 'DRX008b']:
+    fig, axes = category_summary_plot(site, 'lDA')
+    fig.set_size_inches(full_screen)
+    title = f'LDA, {site} probe pair summary'
+    fig.suptitle(title)
+    fig.tight_layout(rect=(0, 0, 1, 0.95))
+    fplt.savefig(fig, 'DAC3_figures', title)
 
 
 ########################################################################################################################
@@ -399,19 +416,19 @@ def fit_example_plot(id, source):
 for cell in ['AMT028b-20-1', 'DRX008b-04-1']:
     fig, axes = fit_example_plot(cell, 'SC')
     fig.set_size_inches((8, 8))
-    title = f'{cell} fit summary'
+    title = f'SC, {cell} fit summary'
     fig.suptitle(title)
     fig.tight_layout(rect=(0, 0, 1, 0.95))
-    savefig(fig, 'wip3_figures', title)
+    savefig(fig, 'DAC3_figures', title)
 
 # dPCA site examples
 for site in ['AMT028b', 'DRX008b']:
     fig, axes = fit_example_plot(site, 'dPCA')
     fig.set_size_inches((8, 8))
-    title = f'{site} fit summary'
+    title = f'dPCA, {site} fit summary'
     fig.suptitle(title)
     fig.tight_layout(rect=(0, 0, 1, 0.95))
-    savefig(fig, 'wip3_figures', title)
+    savefig(fig, 'DAC3_figures', title)
 
 
 ########################################################################################################################
