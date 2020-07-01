@@ -822,6 +822,8 @@ def hybrid(signal, epoch_names='single', channels='all', start=None, end=None,
 
     return fig, axes
 
+##### Specializede plots
+
 
 def plot_dist_with_CI(real, bootstrapped, labels, colors, smp_start, smp_end, smp_line, fs, ax=None, show_labels=False):
 
@@ -957,6 +959,67 @@ def unit_line(ax, square_shape=False, **pltkwargs):
 
     return ax
 
+def model_progression(x, y, data, mean, ax, order, palette, collapse_by=None, swarm=True, **pltKwargs):
+
+    # ToDo rewite for publications??
+    '''
+    for every cell in the DF plots a point in each column corresponding to a model, and draws a line conecting the points
+    this shows the progression of the value across models in a cell dependent manner
+    :param x: str, column name corresponding to the categorical variable
+    :param y: str, column name corresponding to the values to plot
+    :param data: DF in tidy format, with a column corresponding to a categorical variable, and another to numerical values
+    :param mean: bool, whether to plot the mean of the population progression
+    :param ax: a matplotlib ax object
+    :param order: list, tuple. the order in which the values of the categorical variables are plotted in the x axis
+    :param palette: list, the colors in which the values at each model column are ploted
+    :pltKwargs: aditional arguments to be passed to plt.plot()
+    :return: the ax object containing the plot.
+    '''
+    # hold names of the to be columns
+    col_names = set(data[x].unique())
+    if col_names != set(order):
+        raise ValueError('parameter Order specified category levels not in x')
+
+    # starts by pivoting the dataframe into wideformat
+    # wide = make_tidy(data, pivot_by=x, more_parms=None, values=y)
+    wide = None
+    # hold only the important colums in the right order
+    wide = wide.loc[:, order]
+
+    # gets the data as an array to be ploted by plt.plot
+    toplot_arr = wide.values.T
+
+    if collapse_by is None:
+        pass
+
+    elif 0<= collapse_by < len(order)-1 and isinstance(collapse_by, int):
+        # chooses a level of the categorical variable, substracts the values of such level from all other levels
+        #  to only show relative change, offsets to the mean of the values of the selected level
+        normalizer = toplot_arr[collapse_by,:]
+        toplot_arr = toplot_arr - normalizer[:] + np.mean(normalizer)
+
+    else: raise ValueError('order should be a integer corresponding to the column number to collapse by')
+
+    # plots individual lines
+    ax.plot(toplot_arr,color='gray', alpha=0.4)
+    if mean == True:
+        ax.plot(np.mean(toplot_arr, axis=1), color='black')
+
+
+    # plot individual scatters for each column
+    for cc in range(len(order)):
+        yy = toplot_arr[cc, :]
+        xx = np.zeros(shape=yy.shape) + cc
+        ax.scatter(xx, yy, color=palette[cc], edgecolor='black', linewidth='1',)
+
+    # formats the x axis to be like a categorical variable
+    ax.set_xticks(range(len(order)))
+    ax.set_xticklabels(list(order))
+
+    return ax
+
+
+##### Other functions
 
 def savefig(fig, root, name, type='png'):
     root = pl.Path(config['paths']['figures']) / f'{root}'
