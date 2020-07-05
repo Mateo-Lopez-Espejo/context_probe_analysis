@@ -24,6 +24,10 @@ def exp_decay(times, values, skip_error=False):
 
     if skip_error is False:
         popt, pcov = curve_fit(_exp, times, values, p0=[1, 0], bounds=([0, -np.inf], [np.inf, 0]))
+        # calculates the goodness of fit as R2
+        fx = _exp(times, *popt)
+        R2 = 1 - (np.sum((values - fx) ** 2) / np.sum((values - np.mean(values)) ** 2))
+
     elif skip_error is True:
         try:
             popt, pcov = curve_fit(_exp, times, values, p0=[1, 0], bounds=([0, -np.inf], [np.inf, 0]))

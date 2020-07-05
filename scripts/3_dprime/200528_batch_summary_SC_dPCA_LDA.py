@@ -1,6 +1,6 @@
 import pathlib as pl
 from configparser import ConfigParser
-
+import itertools as itt
 import joblib as jl
 import matplotlib.pyplot as plt
 import numpy as np
@@ -71,10 +71,11 @@ ff_probe = DF.probe != 'mean'
 ff_trans = DF.transition_pair == 'mean'
 ff_param = DF.parameter == 'tau'
 ff_source = DF.source == 'significance'
-ff_outliers = DF.value < 1000
+# ff_outliers = DF.value < 1000
+ff_good = DF.goodness > 0.01
 
-filtered = DF.loc[ff_anal & ff_probe & ff_trans & ff_param & ff_source & ff_outliers,
-                  ['cellid', 'probe', 'value']]
+filtered = DF.loc[ff_anal & ff_probe & ff_trans & ff_param & ff_source & ff_good,
+                  ['cellid', 'probe', 'goodness', 'value']]
 pivoted = filtered.pivot(index='cellid', columns='probe', values='value').dropna().reset_index()
 molten = pivoted.melt(id_vars='cellid', var_name='probe')
 
@@ -84,10 +85,10 @@ ax = sns.swarmplot(x='probe', y='value', data=molten, ax=ax, color='gray')
 sns.despine(ax=ax)
 
 # no significant comparisons
-# box_pairs = list(itt.combinations(filtered.probe.unique(), 2))
+box_pairs = list(itt.combinations(filtered.probe.unique(), 2))
 # box_pairs = [('probe_2', 'probe_3'), ('probe_3', 'probe_5')]
-# stat_resutls = add_stat_annotation(ax, data=molten, x='probe', y='value', test='Wilcoxon',
-#                                    box_pairs=box_pairs, comparisons_correction=None)
+stat_resutls = add_stat_annotation(ax, data=molten, x='probe', y='value', test='Wilcoxon',
+                                   box_pairs=box_pairs, comparisons_correction=None)
 
 ax.set_ylabel(f'tau (ms)', fontsize=ax_lab_size)
 ax.tick_params(labelsize=ax_val_size)
@@ -107,10 +108,11 @@ ff_probe = DF.probe == 'mean'
 ff_trans = DF.transition_pair != 'mean'
 ff_param = DF.parameter == 'tau'
 ff_source = DF.source == 'significance'
-ff_outliers = DF.value < 1000
+# ff_outliers = DF.value < 1000
+ff_good = DF.goodness > 0.01
 
-filtered = DF.loc[ff_anal & ff_probe & ff_trans & ff_param & ff_source & ff_outliers,
-                  ['cellid', 'transition_pair', 'value']]
+filtered = DF.loc[ff_anal & ff_probe & ff_trans & ff_param & ff_source & ff_good,
+                  ['cellid', 'transition_pair', 'goodness', 'value']]
 pivoted = filtered.pivot(index='cellid', columns='transition_pair', values='value').dropna().reset_index()
 molten = pivoted.melt(id_vars='cellid', var_name='transition_pair')
 
@@ -146,8 +148,9 @@ ff_probe = DF.probe != 'mean'
 ff_trans = DF.transition_pair == 'mean'
 ff_param = DF.parameter == 'r0'
 ff_source = DF.source == 'dprime'
+ff_good = DF.goodness > 0.1
 
-filtered = DF.loc[ff_anal & ff_probe & ff_trans & ff_param & ff_source,
+filtered = DF.loc[ff_anal & ff_probe & ff_trans & ff_param & ff_source & ff_good,
                   ['cellid', 'probe', 'value']]
 pivoted = filtered.pivot(index='cellid', columns='probe', values='value').dropna().reset_index()
 molten = pivoted.melt(id_vars='cellid', var_name='probe')
@@ -157,8 +160,8 @@ fig, ax = plt.subplots()
 ax = sns.swarmplot(x='probe', y='value', data=molten, ax=ax, color='gray')
 sns.despine(ax=ax)
 
-# box_pairs = list(itt.combinations(filtered.probe.unique(), 2))
-box_pairs = [('probe_2', 'probe_3')]
+box_pairs = list(itt.combinations(filtered.probe.unique(), 2))
+# box_pairs = [('probe_2', 'probe_3')]
 stat_resutls = add_stat_annotation(ax, data=molten, x='probe', y='value', test='Wilcoxon',
                                    box_pairs=box_pairs, comparisons_correction=None)
 
@@ -176,13 +179,16 @@ fplt.savefig(fig, 'wip3_figures', title)
 
 ########################################################################################################################
 # compare r0 between different transition pair means
+# 2020-07-04 filtering by goodness decreases the total number of available cells but does not change greatly
+# the relationships between columns i.e. significant difference
 ff_anal = DF.analysis == 'SC'
 ff_probe = DF.probe == 'mean'
 ff_trans = DF.transition_pair != 'mean'
 ff_param = DF.parameter == 'r0'
 ff_source = DF.source == 'dprime'
+ff_good = DF.goodness > 0.1
 
-filtered = DF.loc[ff_anal & ff_probe & ff_trans & ff_param & ff_source,
+filtered = DF.loc[ff_anal & ff_probe & ff_trans & ff_param & ff_source & ff_good,
                   ['cellid', 'transition_pair', 'value']]
 pivoted = filtered.pivot(index='cellid', columns='transition_pair', values='value').dropna().reset_index()
 molten = pivoted.melt(id_vars='cellid', var_name='transition_pair')
@@ -192,12 +198,12 @@ fig, ax = plt.subplots()
 ax = sns.swarmplot(x='transition_pair', y='value', data=molten, ax=ax, color='gray')
 sns.despine(ax=ax)
 
-# box_pairs = list(itt.combinations(filtered.transition_pair.unique(), 2))
-box_pairs = [('continuous_sharp', 'continuous_similar'), ('continuous_sharp', 'silence_continuous'),
-             ('continuous_sharp', 'silence_sharp'), ('continuous_sharp', 'silence_similar'),
-             ('continuous_similar', 'silence_continuous'), ('continuous_similar', 'silence_sharp'),
-             ('continuous_similar', 'silence_similar'), ('continuous_similar', 'similar_sharp'),
-             ('silence_similar', 'similar_sharp')]
+box_pairs = list(itt.combinations(filtered.transition_pair.unique(), 2))
+# box_pairs = [('continuous_sharp', 'continuous_similar'), ('continuous_sharp', 'silence_continuous'),
+#              ('continuous_sharp', 'silence_sharp'), ('continuous_sharp', 'silence_similar'),
+#              ('continuous_similar', 'silence_continuous'), ('continuous_similar', 'silence_sharp'),
+#              ('continuous_similar', 'silence_similar'), ('continuous_similar', 'similar_sharp'),
+#              ('silence_similar', 'similar_sharp')]
 stat_resutls = add_stat_annotation(ax, data=molten, x='transition_pair', y='value', test='Wilcoxon',
                                    box_pairs=box_pairs, comparisons_correction=None)
 
@@ -892,7 +898,7 @@ fig.tight_layout(rect=(0, 0, 1, 0.95))
 # fplt.savefig(fig, 'SFC20_figures', title)
 
 ########################################################################################################################
-# Distribution of cells in r0 tau space
+# Distribution of cells in r0 tau space, filtered by goodness of fit.
 ff_anal = DF.analysis == 'SC'
 ff_probe = DF.probe == 'mean'
 ff_trans = DF.transition_pair == 'mean'

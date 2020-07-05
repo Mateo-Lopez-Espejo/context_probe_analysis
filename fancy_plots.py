@@ -873,7 +873,7 @@ def plot_dist_with_CI(real, bootstrapped, labels, colors, smp_start, smp_end, sm
     return fig, ax
 
 
-def exp_decay(times, values, ax=None, label=True, **pltkwargs):
+def exp_decay(times, values, ax=None, label=True, yoffset=0, **pltkwargs):
     '''
     plots an exponential decaye curve fited on times and values
     :param times:
@@ -900,7 +900,7 @@ def exp_decay(times, values, ax=None, label=True, **pltkwargs):
 
     if label == True:
         # scientific notation if number is too big
-        to_display = [popt[0], -1 / popt[1]]
+        to_display = [popt[0], -1 / popt[1], r2]
         formated = list()
         for vv, value in enumerate(to_display):
             if value >= 1000:
@@ -908,13 +908,13 @@ def exp_decay(times, values, ax=None, label=True, **pltkwargs):
             else:
                 formated.append('{:.2f}'.format(value))
 
-        label = 'r0={}\nt={}'.format(formated[0], formated[1])
+        label = 'r0={}\nt={}\nr2={}'.format(formated[0], formated[1], formated[2])
     elif label == False:
         label = None
     else:
         pass
 
-    ax.plot(times, fts._exp(times, *popt), label=label, **pltkwargs)
+    ax.plot(times, fts._exp(times, *popt) + yoffset, label=label, **pltkwargs)
 
     return fig, ax, popt, pcov, r2, fts._exp(times, *popt)
 

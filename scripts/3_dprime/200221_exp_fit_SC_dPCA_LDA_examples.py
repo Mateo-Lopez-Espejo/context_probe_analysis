@@ -67,7 +67,7 @@ all_probes = [2, 3, 5, 6]
 
 # load the calculated dprimes and montecarlo shuffling/simulations
 # the loadede dictionary has 3 layers, analysis, value type and cell/site
-batch_dprimes_file = pl.Path(config['path']['analysis_cache']) / 'batch_dprimes' / set_name(meta)
+batch_dprimes_file = pl.Path(config['paths']['analysis_cache']) / 'batch_dprimes' / set_name(meta)
 batch_dprimes = jl.load(batch_dprimes_file)
 
 sites = set(batch_dprimes['dPCA']['dprime'].keys())
@@ -140,7 +140,7 @@ def analysis_steps_plot(id, probe, source):
         t1_idx = meta['transitions'].index(trans[1])
 
         if source == 'SC':
-            cell_idx = goodcells.index(cell)
+            cell_idx = goodcells.index(id)
             axes[0, tt].plot(t, trialR[:, cell_idx, t0_idx, :].mean(axis=0), color=trans_color_map[trans[0]],
                              linewidth=3)
             axes[0, tt].plot(t, trialR[:, cell_idx, t1_idx, :].mean(axis=0), color=trans_color_map[trans[1]],
@@ -158,7 +158,7 @@ def analysis_steps_plot(id, probe, source):
 
         if source == 'SC':
             # raster
-            cell_idx = goodcells.index(cell)
+            cell_idx = goodcells.index(id)
             t0_idx = meta['transitions'].index(trans[0])
             t1_idx = meta['transitions'].index(trans[1])
 
@@ -186,11 +186,11 @@ def analysis_steps_plot(id, probe, source):
         prb_idx = all_probes.index(probe)
         pair_idx = tt
         # histogram of context discrimination
-        axes[1, tt].bar(t, batch_dprimes['dPCA']['shuffled_significance'][site][prb_idx, pair_idx, :],
+        axes[1, tt].bar(t, batch_dprimes[source]['shuffled_significance'][id][prb_idx, pair_idx, :],
                         width=bar_width, align='center', edgecolor='white', bottom=ax1_bottom)
         if source in ['dPCA', 'LDA']:
             # histogram of population effects
-            axes[2, tt].bar(t, batch_dprimes['dPCA']['simulated_significance'][site][prb_idx, pair_idx, :],
+            axes[2, tt].bar(t, batch_dprimes[source]['simulated_significance'][id][prb_idx, pair_idx, :],
                             width=bar_width, align='center', edgecolor='white', bottom=ax2_bottom)
 
         # formats legend
@@ -293,23 +293,33 @@ def category_summary_plot(id, source):
         prb_idx = all_probes.index(probe)
         axes[pp, tt].bar(t, signif_bars[prb_idx, tt, :], width=bar_width, align='center',
                          edgecolor='white', bottom=bar_bottom)
-        # _ = fplt.exp_decay(t, SC_significance_dict[cell][prb_idx, pair_idx, :], ax=axes[2, tt])
+        # _ = fplt.exp_decay(t, signif_bars[prb_idx, tt, :], ax=axes[2, tt])
 
     # significance bars for the mean across context pairs
     for pp, probe in enumerate(all_probes):
         prb_idx = all_probes.index(probe)
         axes[pp, -1].bar(t, np.mean(signif_bars[prb_idx, :, :], axis=0), width=bar_width, align='center',
                          edgecolor='white', bottom=bar_bottom)
+        _ = fplt.exp_decay(t, np.mean(signif_bars[prb_idx, :, :], axis=0), ax=axes[pp, -1], yoffset=bar_bottom,
+                           linestyle='.', color='gray')
+        axes[pp, -1].legend(loc='upper right', fontsize='small', markerscale=3, frameon=False)
+
     # significance bars for the mean across probes
     for tt, trans in enumerate(itt.combinations(meta['transitions'], 2)):
         axes[-1, tt].bar(t, np.mean(signif_bars[:, tt, :], axis=0), width=bar_width, align='center',
                          edgecolor='white', bottom=bar_bottom)
+        _ = fplt.exp_decay(t, np.mean(signif_bars[:, tt, :], axis=0), axes[-1, tt], yoffset=bar_bottom,
+                           linestyle='.', color='gray')
+        axes[-1, tt].legend(loc='upper right', fontsize='small', markerscale=3, frameon=False)
 
     # cell summary mean: dprime, confidence interval
     axes[-1, -1].plot(t, np.mean(dprimes[:, :, :], axis=(0, 1)), color='black')
     axes[-1, -1].axhline(0, color='gray', linestyle='--')
     axes[-1, -1].bar(t, np.mean(signif_bars[:, :, :], axis=(0, 1)), width=bar_width, align='center',
                      edgecolor='white', bottom=bar_bottom)
+    _ = fplt.exp_decay(t, np.mean(signif_bars[:, :, :], axis=(0, 1)), ax=axes[-1, -1], yoffset=bar_bottom,
+                       linestyle='.', color='gray')
+    axes[-1, -1].legend(loc='upper right', fontsize='small', markerscale=3, frameon=False)
 
     # formats axis, legend and so on.
     for pp, probe in enumerate(all_probes):
@@ -446,7 +456,8 @@ def site_cell_summary(id):
 
     fig, axes = fplt.subplots_sqr(len(site_cells), sharex=True, sharey=True)
     for ax, cell in zip(axes, site_cells):
-        line = np.mean(cDP.flip_dprimes(batch_dprimes['SC']['dprime'][cell], flip='max'), axis=(0, 1))
+        grand_mean, _ = cDP.flip_dprimes(batch_dprimes['SC']['dprime'][cell], flip='max')
+        line = np.mean(grand_mean, axis=(0, 1))
         hist = np.mean(batch_dprimes['SC']['shuffled_significance'][cell], axis=(0, 1))
         ax.plot(times[:len(line)], line, color='black')
         ax.bar(times[:len(hist)], hist, width=bar_width, align='center', color='C0', edgecolor='white')
