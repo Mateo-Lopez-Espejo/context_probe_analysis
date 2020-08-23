@@ -130,16 +130,20 @@ if summary_DF_file.exists() is False or recache is True:
                     # max value
                     parameters.append({'parameter': 'max', 'value': np.max(mean)})
 
-                    # full dprime integral
                     if source == 'dprime':
+                        # full dprime integral
                         parameters.append(
                             {'parameter': 'integral', 'value': trapz(mean, t)})
+                        # full dprime sum
+                        parameters.append(
+                            {'parameter': 'sum', 'value': np.sum(mean) * np.mean(np.diff(t))})
+                        # full dprime absolute sum
+                        parameters.append(
+                            {'parameter': 'abs_sum', 'value': np.sum(np.abs(mean)) * np.mean(np.diff(t))})
 
-                    # significant dprime integral
-                    if source == 'dprime':
+
+                        # gets the significant bins from the full data array and take the mean across categories as needed
                         signif_array = batch_dprimes[analysis]['shuffled_significance'][id]
-
-                        # collapses significance across the same categories used to get the dprime mean
                         if mean_dict['probe'] == 'mean' and mean_dict['transition_pair'] != 'mean':
                             signinf_mean = np.mean(signif_array, axis=0)[all_trans.index(mean_dict['transition_pair']),
                                            :]
@@ -150,10 +154,18 @@ if summary_DF_file.exists() is False or recache is True:
                             signinf_mean = np.mean(signif_array, axis=(0, 1))
                         else:
                             raise ValueError('unrecongnized mean pattern')
-
                         signif_mask = signinf_mean > 0
+
+                        # significant dprime integral
                         parameters.append({'parameter': 'significant_integral',
                                            'value': trapz(mean[signif_mask], t[signif_mask])})
+                        # significant dprime sum
+                        parameters.append({'parameter': 'significant_sum',
+                                           'value': np.sum(mean[signif_mask]) * np.mean(np.diff(t))})
+                        # significant dprime absolute sum
+                        parameters.append({'parameter': 'significant_abs_sum',
+                                           'value': np.sum(np.abs(mean[signif_mask])) * np.mean(np.diff(t))})
+
 
                     for parameter in parameters:
                         d = {'siteid': site,

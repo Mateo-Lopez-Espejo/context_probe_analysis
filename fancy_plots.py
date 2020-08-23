@@ -8,10 +8,15 @@ from matplotlib import pyplot as plt
 from mpl_toolkits.mplot3d.axes3d import get_test_data
 # This import registers the 3D projection, but is otherwise unused.
 from mpl_toolkits.mplot3d import Axes3D
+
+import seaborn as sns
+from seaborn.utils import remove_na
+from statannot import add_stat_annotation as original_stat_annotation
+
+
 import numpy as np
 import scipy.ndimage.filters as sf
 import scipy.signal as ssig
-import scipy.stats as sst
 from scipy.stats import linregress
 
 from cpp_parameter_handlers import _epoch_name_handler, _channel_handler, _fs_handler
@@ -959,64 +964,133 @@ def unit_line(ax, square_shape=False, **pltkwargs):
 
     return ax
 
-def model_progression(x, y, data, mean, ax, order, palette, collapse_by=None, swarm=True, **pltKwargs):
+def paired_comparisons (ax, data=None, x=None, y=None, hue=None, units=None, order=None,
+                        hue_order=None, **linekwargs):
+    """
+    plots paired lines on top of seaborn categoricale plots. rippoff of functions from statannot.
+    The same exact arguments `data`, `x`, `y`, `hue`, `order`, `width`,
+    `hue_order` (and `units`) as in the seaborn boxplot/barplot function must be passed to this function.
+    """
 
-    # ToDo rewite for publications??
-    '''
-    for every cell in the DF plots a point in each column corresponding to a model, and draws a line conecting the points
-    this shows the progression of the value across models in a cell dependent manner
-    :param x: str, column name corresponding to the categorical variable
-    :param y: str, column name corresponding to the values to plot
-    :param data: DF in tidy format, with a column corresponding to a categorical variable, and another to numerical values
-    :param mean: bool, whether to plot the mean of the population progression
-    :param ax: a matplotlib ax object
-    :param order: list, tuple. the order in which the values of the categorical variables are plotted in the x axis
-    :param palette: list, the colors in which the values at each model column are ploted
-    :pltKwargs: aditional arguments to be passed to plt.plot()
-    :return: the ax object containing the plot.
-    '''
-    # hold names of the to be columns
-    col_names = set(data[x].unique())
-    if col_names != set(order):
-        raise ValueError('parameter Order specified category levels not in x')
+    def find_x_position_box(box_plotter, boxName):
+        """
+        boxName can be either a name "cat" or a tuple ("cat", "hue")
+        """
+        if box_plotter.plot_hues is None:
+            cat = boxName
+            hue_offset = 0
+        else:
+            cat = boxName[0]
+            hue = boxName[1]
+            hue_offset = box_plotter.hue_offsets[
+                box_plotter.hue_names.index(hue)]
 
-    # starts by pivoting the dataframe into wideformat
-    # wide = make_tidy(data, pivot_by=x, more_parms=None, values=y)
-    wide = None
-    # hold only the important colums in the right order
-    wide = wide.loc[:, order]
+        group_pos = box_plotter.group_names.index(cat)
+        box_pos = group_pos + hue_offset
+        return box_pos
 
-    # gets the data as an array to be ploted by plt.plot
-    toplot_arr = wide.values.T
+    def get_box_data(box_plotter, boxName):
+        """
+        boxName can be either a name "cat" or a tuple ("cat", "hue")
 
-    if collapse_by is None:
-        pass
+        Here we really have to duplicate seaborn code, because there is not
+        direct access to the box_data in the BoxPlotter class.
+        """
+        cat = box_plotter.plot_hues is None and boxName or boxName[0]
 
-    elif 0<= collapse_by < len(order)-1 and isinstance(collapse_by, int):
-        # chooses a level of the categorical variable, substracts the values of such level from all other levels
-        #  to only show relative change, offsets to the mean of the values of the selected level
-        normalizer = toplot_arr[collapse_by,:]
-        toplot_arr = toplot_arr - normalizer[:] + np.mean(normalizer)
+        index = box_plotter.group_names.index(cat)
+        group_data = box_plotter.plot_data[index]
 
-    else: raise ValueError('order should be a integer corresponding to the column number to collapse by')
+        if box_plotter.plot_hues is None:
+            # Draw a single box or a set of boxes
+            # with a single level of grouping
+            box_data = remove_na(group_data)
+        else:
+            hue_level = boxName[1]
+            hue_mask = box_plotter.plot_hues[index] == hue_level
+            box_data = remove_na(group_data[hue_mask])
 
-    # plots individual lines
-    ax.plot(toplot_arr,color='gray', alpha=0.4)
-    if mean == True:
-        ax.plot(np.mean(toplot_arr, axis=1), color='black')
+        return box_data
+
+    # Create the same plotter object as seaborn's boxplot or swarmplot
+    plotter = sns.categorical._BoxPlotter(
+        x, y, hue, data, order, hue_order, orient=None, width=0.8, color=None,
+        palette=None, saturation=.75, dodge=True, fliersize=5, linewidth=None)
+
+    # Build the list of box data structures with the x position
+    group_names = plotter.group_names
+    hue_names = plotter.hue_names
+    if plotter.plot_hues is None:
+        box_names = group_names
+        labels = box_names
+    else:
+        # todo consider and implement paired plot with hues
+        box_names = [(group_name, hue_name) for group_name in group_names for hue_name in hue_names]
+        labels = ['{}_{}'.format(group_name, hue_name) for (group_name, hue_name) in box_names]
+
+    box_structs = [{'box':box_names[i],
+                    'label':labels[i],
+                    'x':find_x_position_box(plotter, box_names[i]),
+                    'box_data':get_box_data(plotter, box_names[i])}
+                   for i in range(len(box_names))]
+    # Sort the box data structures by position along the x axis
+    box_structs = sorted(box_structs, key=lambda x: x['x'])
+    # Add the index position in the list of boxes along the x axis
+    box_structs = [dict(box_struct, xi=i) for i, box_struct in enumerate(box_structs)]
+
+    # all data organized in a single concatenated array in the specified order
+    box_data_array = np.stack([box_struct['box_data'] for box_struct in box_structs])
+    box_x_position = np.stack([box_struct['x'] for box_struct in box_structs])
 
 
-    # plot individual scatters for each column
-    for cc in range(len(order)):
-        yy = toplot_arr[cc, :]
-        xx = np.zeros(shape=yy.shape) + cc
-        ax.scatter(xx, yy, color=palette[cc], edgecolor='black', linewidth='1',)
-
-    # formats the x axis to be like a categorical variable
-    ax.set_xticks(range(len(order)))
-    ax.set_xticklabels(list(order))
+    line_defaults = {'alpha':0.3, 'color':'black'}
+    for key, arg in line_defaults.items(): linekwargs.setdefault(key, arg)
+    ax.plot(box_x_position, box_data_array, **linekwargs)
 
     return ax
+
+
+def add_stat_annotation(ax, plot='boxplot',
+                        data=None, x=None, y=None, hue=None, units=None, order=None,
+                        hue_order=None, box_pairs=None, width=0.8,
+                        perform_stat_test=True,
+                        pvalues=None, test_short_name=None,
+                        test=None, text_format='star',
+                        text_annot_custom=None,
+                        loc='inside', show_test_name=True,
+                        stats_params=dict(),
+                        comparisons_correction='bonferroni',
+                        use_fixed_offset=False, line_offset_to_box=None,
+                        line_offset=None, line_height=0.02, text_offset=1,
+                        color='0.2', linewidth=1.5,
+                        fontsize='medium', verbose=0):
+
+    """
+    a hack to make add_stat_anotation only draw significant bars
+    Calls twice the original statsanot, the first time to get all the significant pairs, wihtoput drawing
+    and the second time to draw only the statistic comparison between the predefined significantly different pairs
+    """
+    arguments = locals()
+
+    # first runns all comparinsons
+    tempfig, tempax = plt.subplots()
+    arg_copy = arguments.copy()
+    arg_copy['ax'] = tempax
+    _, stat_resutls = original_stat_annotation(**arg_copy)
+    plt.close(tempfig)
+
+    # from the results select the box pairs with significant differences
+    significant_pairs = list()
+    for result in stat_resutls:
+        if result.pval < 0.05:
+            significant_pairs.append((result.box1, result.box2))
+
+    if significant_pairs:
+        arguments['box_pairs'] = significant_pairs
+        arguments['verbose'] = 1
+        ax, stat_resutls = original_stat_annotation(**arguments)
+
+    return ax, stat_resutls
 
 
 ##### Other functions
