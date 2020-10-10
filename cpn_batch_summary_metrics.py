@@ -141,6 +141,10 @@ if summary_DF_file.exists() is False or recache is True:
                         parameters.append(
                             {'parameter': 'abs_sum', 'value': np.sum(np.abs(mean)) * np.mean(np.diff(t))})
 
+                        #full dprime center of mass
+                        parameters.append(
+                            {'parameter': 'mass_center', 'value': np.sum(mean * t) / np.sum(mean)})
+
 
                         # gets the significant bins from the full data array and take the mean across categories as needed
                         signif_array = batch_dprimes[analysis]['shuffled_significance'][id]
@@ -166,7 +170,9 @@ if summary_DF_file.exists() is False or recache is True:
                         parameters.append({'parameter': 'significant_abs_sum',
                                            'value': np.sum(np.abs(mean[signif_mask])) * np.mean(np.diff(t))})
 
-
+                        # significant dprime center of mass
+                        parameters.append({'parameter': 'significant_mass_center',
+                                           'values': np.sum(mean[signif_mask] * t[signif_mask]) / np.sum(mean[signif_mask])})
                     for parameter in parameters:
                         d = {'siteid': site,
                              'cellid': cell,
