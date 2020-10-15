@@ -15,7 +15,7 @@ from cpp_cache import set_name
 
 """
 2020-05-??
-Used an exponential decay to model the volution of contextual effectsos over time. Here thee fitted parameters (tau and 
+Used an exponential decay to model the evolution of contextual effects over time. Here thee fitted parameters (tau and 
 y intercept r0) are compared across different treatments (probes, transitions_pairs), between single cell and population
 analysis (dPCA, LDA) and finally between fitting the dprime or its profile of significance. 
 

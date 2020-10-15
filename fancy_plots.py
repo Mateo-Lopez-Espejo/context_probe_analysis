@@ -1102,7 +1102,7 @@ def savefig(fig, root, name, type='png'):
 
     if type == 'png':
         png = root.joinpath(name).with_suffix('.png')
-        fig.savefig(png, transparent=False, dpi=100)
+        fig.savefig(png, transparent=True, dpi=300)
     elif type == 'svg':
         svg = root.joinpath(name).with_suffix('.svg')
         fig.savefig(svg, transparent=True)
