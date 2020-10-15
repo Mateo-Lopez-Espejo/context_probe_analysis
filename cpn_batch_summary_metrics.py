@@ -99,24 +99,30 @@ if summary_DF_file.exists() is False or recache is True:
 
                 # preorganizes means across probes or context pairs prior to further different metric calculations
                 mean_dicts = list()
+                # individual values i.e. no mean
+                for (pp, probe), (tt, trans) in itt.product(enumerate(all_probes),
+                                                            enumerate(itt.combinations(meta['transitions'], 2))):
+                    mean = array[pp, tt, :]
+                    mean_dicts.append({'probe': f'probe_{probe}', 'transition_pair': f'{trans[0]}_{trans[1]}', 'value': mean})
+
                 # mean of transition pairs for each probe
                 for pp, probe in enumerate(all_probes):
                     mean = np.mean(array[pp, :, :], axis=0)
-                    mean_dicts.append({'probe': f'probe_{probe}', 'transition_pair': 'mean', 'mean': mean})
+                    mean_dicts.append({'probe': f'probe_{probe}', 'transition_pair': 'mean', 'value': mean})
 
                 # mean of probes for each transition pair
                 for tt, trans in enumerate(itt.combinations(meta['transitions'], 2)):
                     mean = np.mean(array[:, tt, :], axis=0)
-                    mean_dicts.append({'probe': 'mean', 'transition_pair': f'{trans[0]}_{trans[1]}', 'mean': mean})
+                    mean_dicts.append({'probe': 'mean', 'transition_pair': f'{trans[0]}_{trans[1]}', 'value': mean})
 
                 # full mean across probes and transition pairs
                 mean = np.mean(array[:, :, :], axis=(0, 1))
-                mean_dicts.append({'probe': 'mean', 'transition_pair': 'mean', 'mean': mean})
+                mean_dicts.append({'probe': 'mean', 'transition_pair': 'mean', 'value': mean})
 
                 # calculates different metrics/parameters for each different mean
                 for mean_dict in mean_dicts:
 
-                    mean = mean_dict.pop('mean') # pops to not include array in dataframe later on
+                    mean = mean_dict.pop('value') # pops to not include array in dataframe later on
 
                     # parameters  is a list of dictionaries containing the parameter name, the value and goodness of fit
                     parameters = list()
@@ -128,7 +134,7 @@ if summary_DF_file.exists() is False or recache is True:
                     parameters.append({'parameter': 'tau', 'std': 1/perr[1], 'goodness': r2, 'value': -1/popt[1]})
 
                     # max value
-                    parameters.append({'parameter': 'max', 'value': np.max(mean)})
+                    parameters.append({'parameter': 'max', 'value': np.max(mean).astype(float)})
 
                     if source == 'dprime':
                         # full dprime integral
@@ -153,15 +159,17 @@ if summary_DF_file.exists() is False or recache is True:
                         # gets the significant bins from the full data array and take the mean across categories as needed
                         signif_array = batch_dprimes[analysis]['shuffled_significance'][id]
                         if mean_dict['probe'] == 'mean' and mean_dict['transition_pair'] != 'mean':
-                            signinf_mean = np.mean(signif_array, axis=0)[all_trans.index(mean_dict['transition_pair']),
-                                           :]
+                            signinf_mean = np.mean(signif_array, axis=0)[all_trans.index(mean_dict['transition_pair']),:]
                         elif mean_dict['probe'] != 'mean' and mean_dict['transition_pair'] == 'mean':
-                            signinf_mean = np.mean(signif_array, axis=0)[all_probes.index(int(mean_dict['probe'][-1])),
-                                           :]
+                            signinf_mean = np.mean(signif_array, axis=1)[all_probes.index(int(mean_dict['probe'][-1])),:]
                         elif mean_dict['probe'] == 'mean' and mean_dict['transition_pair'] == 'mean':
                             signinf_mean = np.mean(signif_array, axis=(0, 1))
+                        elif mean_dict['probe'] != 'mean' and mean_dict['transition_pair'] != 'mean':
+                            signinf_mean = signif_array[all_probes.index(int(mean_dict['probe'][-1])),
+                                           all_trans.index(mean_dict['transition_pair']), :]
                         else:
-                            raise ValueError('unrecongnized mean pattern')
+                            raise ValueError(f"unknown {mean_dict['probe']} and or {mean_dict['transition_pair']}")
+
                         signif_mask = signinf_mean > 0
 
                         # significant dprime integral
