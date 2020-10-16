@@ -272,8 +272,13 @@ two_tail_p = True
 
 all_probes = [2, 3, 5, 6]
 # sites = set(get_site_ids(316).keys())
-# 'AMT031a' bad
+badsites = {'AMT031a'} # empirically deciced
+# original
 sites = {'AMT028b', 'AMT029a', 'AMT030a', 'AMT032a', 'DRX008b', 'DRX021a', 'ley070a', 'ley072b'}
+# extended
+sites = {'AMT028b', 'AMT029a', 'AMT030a', 'AMT031a', 'AMT032a', 'CRD002a', 'CRD003b', 'CRD004a',
+         'DRX008b', 'DRX021a', 'DRX023a', 'ley070a', 'ley072b'}
+sites = sites.difference(badsites)
 
 analysis_functions = {'SC': cell_dprime, 'dPCA': dPCA_fourway_analysis, 'LDA': LDA_fourway_analysis}
 # initilizede nested dictionary with three layer: 1. Analysis type 2. calculated values 3. cell or site
