@@ -14,10 +14,13 @@ from nems import db as nd
 config = ConfigParser()
 if pl.Path('../context_probe_analysis/config/settings.ini').exists():
     config.read(pl.Path('../context_probe_analysis/config/settings.ini'))
+elif pl.Path('../../context_probe_analysis/config/settings.ini').exists():
+    config.read(pl.Path('../../context_probe_analysis/config/settings.ini'))
 elif pl.Path('../../../context_probe_analysis/config/settings.ini').exists():
     config.read(pl.Path('../../../context_probe_analysis/config/settings.ini'))
 else:
     raise FileNotFoundError('config file coluld not be foud')
+
 
 def load(site, boxload=True, **kwargs):
 
