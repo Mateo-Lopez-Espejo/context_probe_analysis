@@ -27,6 +27,8 @@ from nems.signal import PointProcess
 config = ConfigParser()
 if pl.Path('../context_probe_analysis/config/settings.ini').exists():
     config.read(pl.Path('../context_probe_analysis/config/settings.ini'))
+elif pl.Path('../../context_probe_analysis/config/settings.ini').exists():
+    config.read(pl.Path('../../context_probe_analysis/config/settings.ini'))
 elif pl.Path('../../../context_probe_analysis/config/settings.ini').exists():
     config.read(pl.Path('../../../context_probe_analysis/config/settings.ini'))
 elif pl.Path('/home/mateo/code/context_probe_analysis/config/settings.ini').exists():

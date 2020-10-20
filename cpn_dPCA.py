@@ -238,7 +238,7 @@ def fit_transform(R, trialR, dPCA_params={}):
 
 #### plot functions #####
 
-def variance_explained(dpca, ax=None, names=None, colors=None):
+def variance_explained(dpca, ax=None, names=None, colors=None, inset=True):
 
     if ax is None:
         fig, ax = plt.subplots()
@@ -268,15 +268,19 @@ def variance_explained(dpca, ax=None, names=None, colors=None):
         ax.set_xlabel('dPC')
         bar_bottom += y
 
-    # adds a noise value as whatever var not explained by marginalizations
-    noise_frac = np.asarray(100 - np.sum(summed))[None]
-    summed = np.concatenate([summed, noise_frac])
-    inset = inset_axes(ax, width="65%", height="65%", loc=1)
-    explode = np.zeros(len(summed))
-    explode[-2] = 0.1 # explodes the second to last fractions, asumes it is the marignaliztion of interest.
-    if names is not None: names.append('noise')
-    if colors is not None: colors.append('lightgray')
-    inset = inset.pie(summed, explode, names, colors, autopct='%1.1f%%')
+    if inset:
+        # adds a noise value as whatever var not explained by marginalizations
+        noise_frac = np.asarray(100 - np.sum(summed))[None]
+        summed = np.concatenate([summed, noise_frac])
+        inset = inset_axes(ax, width="65%", height="65%", loc=1)
+        explode = np.zeros(len(summed))
+        explode[-2] = 0.1 # explodes the second to last fractions, asumes it is the marignaliztion of interest.
+        if names is not None: names.append('noise')
+        if colors is not None: colors.append('lightgray')
+        inset = inset.pie(summed, explode, names, colors, autopct='%1.1f%%')
+
+    else:
+        inset = None
 
     return fig, ax, inset
 
