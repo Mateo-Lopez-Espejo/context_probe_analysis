@@ -2,11 +2,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-import cpp_epochs as cpe
+from src.data import epochs as cpe, triplets as tp
 import nems.recording as recording
 import nems_lbhb.baphy as nb
-
-import cpn_triplets as tp
 
 '''
 rough selection of good cells based on arbitrary threshold on their response amplitude (mean)

@@ -2,15 +2,11 @@ import os
 
 import matplotlib.pyplot as plt
 import numpy as np
-from dPCA import dPCA
 
-import fancy_plots as cplot
-
-import cpn_triplets as tp
-from cpn_load import load
-from reliability import signal_reliability
-from cpp_parameter_handlers import _channel_handler
-import cpn_dPCA as cdPCA
+import src.visualization.fancy_plots
+from src.data.load import load
+from src.metrics.reliability import signal_reliability
+from src.data import dPCA as cdPCA, triplets as tp
 
 CB_color_cycle = ['#377eb8', '#ff7f00', '#4daf4a',
                   '#f781bf', '#a65628', '#984ea3',
@@ -114,11 +110,11 @@ for site in all_sites:
 
         # marginalization weights
         weight_ax = axes[pp,2]
-        cdPCA.weight_pdf(dpca, marginalization='ct', axes=weight_ax, cellnames=goodcells)
+        src.visualization.fancy_plots.weight_pdf(dpca, marginalization='ct', axes=weight_ax, cellnames=goodcells)
 
         # plots explained varianceP
         var_ax = axes[pp,3]
-        cdPCA.variance_explained(dpca, var_ax)
+        src.visualization.fancy_plots.variance_explained(dpca, var_ax)
 
         fig.suptitle(f'{site}')
 

@@ -1,12 +1,9 @@
 import collections as col
 import itertools as itt
 
-import cpn_load
-import cpp_cache as ccache
-import cpp_dispersion as cdisp
-import cpp_epochs as cep
-import cpp_reconstitute_rec as crec
-import fancy_plots as cplot
+from src.metrics import cpp_dispersion as cdisp
+from src.data import epochs as cep, cache as ccache, load, reconstitute_rec as crec
+from src.visualization import fancy_plots as cplot
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -34,7 +31,7 @@ color_dict = {'resp': 'C0',
 voc_color = {'voc_{}'.format(cc): 'C{}'.format(cc) for cc in range(5)}
 voc_cmpat = {'voc_0': 'Blues', 'voc_1': 'Oranges', 'voc_2': 'Greens', 'voc_3': 'Reds', 'voc_4': 'Purples'}
 
-sites = cpn_load.get_site_ids(310)
+sites = load.get_site_ids(310)
 
 
 

@@ -5,17 +5,15 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from scipy.io import loadmat
-from scipy.optimize import curve_fit
 
-import cpn_LDA as cLDA
-import cpn_dPCA as cdPCA
-import cpn_dprime as cDP
-from cpn_load import load, get_site_ids
-from cpp_cache import make_cache, get_cache
-from reliability import signal_reliability
-from tools import shuffle_along_axis as shuffle
-import fits as fit
-import fancy_plots as fplt
+from src.data import dPCA as cdPCA
+from src.metrics import dprime as cDP
+from src.data.load import load, get_site_ids
+from src.data.cache import make_cache, get_cache
+from src.metrics.reliability import signal_reliability
+from src.utils.tools import shuffle_along_axis as shuffle
+from src.utils import fits as fit
+from src.visualization import fancy_plots as fplt
 
 '''
 since applying the dprime CPN analysis toe the NTI data was unsuccessfull, the next alternative to compare Sam and my

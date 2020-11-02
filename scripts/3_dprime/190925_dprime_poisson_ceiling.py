@@ -1,12 +1,11 @@
 import matplotlib.pyplot as plt
 import numpy as np
 
-import cpn_LDA as cLDA
-import cpn_dPCA as cdPCA
-import cpn_dprime as cpd
-from cpn_load import load
-from reliability import signal_reliability
-from tools import zscore2, zscore
+from src.data import LDA as cLDA, dPCA as cdPCA
+from src.metrics import dprime as cpd
+from src.data.load import load
+from src.metrics.reliability import signal_reliability
+from src.utils.tools import zscore2
 
 '''
 a second attempt on the d prime approach to compare the population discriminability versus the single cell discrimination

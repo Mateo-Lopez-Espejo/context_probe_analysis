@@ -1,21 +1,9 @@
-import collections as coll
 import itertools as itt
 
-import cpn_load
-import cpp_cache as ccache
-import cpp_dispersion as cdisp
-import cpp_epochs as cep
-import cpp_reconstitute_rec as crec
-import cpp_PCA as cpca
-import fancy_plots as cplt
+from src.data import epochs as cep, cache as ccache, load, reconstitute_rec as crec
 import matplotlib.pyplot as plt
-import matplotlib as mpl
-from mpl_toolkits.mplot3d import Axes3D
 import numpy as np
 import scipy.signal as ssig
-import scipy.ndimage.filters as sf
-
-import nems.epoch as nep
 
 batch = 310
 
@@ -36,7 +24,7 @@ color_dict = {'resp': 'C0',
 
 voc_color = {'voc_{}'.format(cc): 'C{}'.format(cc) for cc in range(5)}
 voc_cmpat = {'voc_0': 'Blues', 'voc_1': 'Oranges', 'voc_2': 'Greens', 'voc_3': 'Reds', 'voc_4': 'Purples'}
-sites = cpn_load.get_site_ids(310)
+sites = load.get_site_ids(310)
 
 
 # selects the best site and a the best model to ease procesing

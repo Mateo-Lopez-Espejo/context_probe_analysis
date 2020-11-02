@@ -10,8 +10,8 @@ import scipy.stats as sst
 import seaborn as sns
 from statannot import add_stat_annotation
 
-import fancy_plots as fplt
-from cpp_cache import set_name
+from src.visualization import fancy_plots as fplt
+from src.data.cache import set_name
 
 """
 2020-05-??

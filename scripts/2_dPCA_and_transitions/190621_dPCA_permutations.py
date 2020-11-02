@@ -5,11 +5,10 @@ import pathlib as pl
 
 from dPCA import dPCA
 
-import cpn_triplets as tp
-from cpn_load import load
-from reliability import signal_reliability
-import cpn_dPCA as cdPCA
-
+import src.visualization.fancy_plots
+from src.data.load import load
+from src.metrics.reliability import signal_reliability
+from src.data import dPCA as cdPCA, triplets as tp
 
 all_sites = ['ley070a', # good site. A1
              'ley072b', # Primary looking responses with strong contextual effects
@@ -97,7 +96,7 @@ for site in all_sites:
 
     # plots explained varianceP
     var_ax = plt.subplot2grid((5,5), (0, 4), rowspan=5, colspan=1, fig=fig)
-    cdPCA.variance_explained(dpca, var_ax)
+    src.visualization.fancy_plots.variance_explained(dpca, var_ax)
 
     # marginalization weights
     # 1. creates a list of axes
@@ -105,7 +104,7 @@ for site in all_sites:
                    for cc in range(len(dpca.marginalizations.keys()))]
 
     # passes to a convenient function
-    cdPCA.weight_pdf(dpca, axes=weight_axes, cellnames=goodcells)
+    src.visualization.fancy_plots.weight_pdf(dpca, axes=weight_axes, cellnames=goodcells)
 
     fig.suptitle(f'{site},all cp permutations')
 

@@ -3,12 +3,12 @@ import numpy as np
 import itertools as itt
 import pathlib as pl
 
-from cpn_load import load
-from reliability import signal_reliability
-import cpn_dPCA as cdPCA
-import cpn_dispersion as ndisp
-from cpp_cache import make_cache, get_cache
-import fancy_plots as plot
+from src.data.load import load
+from src.metrics.reliability import signal_reliability
+from src.data import dPCA as cdPCA
+from src.metrics import cpn_dispersion as ndisp
+from src.data.cache import make_cache, get_cache
+from src.visualization import fancy_plots as plot
 
 '''
 performs dPCA for context transitions and calculates single trial corrected euclidean distance between pairs of transitions

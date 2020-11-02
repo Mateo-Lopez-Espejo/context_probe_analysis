@@ -3,16 +3,14 @@ import pathlib as pl
 import joblib as jl
 import itertools as itt
 
-import numpy as np
 import pandas as pd
 import scipy.stats as sst
 
 import matplotlib.pyplot as plt
 import seaborn as sns
-from statannot import add_stat_annotation
 
-import fancy_plots as fplt
-from cpp_cache import set_name
+from src.visualization import fancy_plots as fplt
+from src.data.cache import set_name
 
 """
 2020-06-30

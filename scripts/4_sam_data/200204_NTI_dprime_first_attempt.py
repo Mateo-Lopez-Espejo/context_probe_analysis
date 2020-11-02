@@ -4,18 +4,17 @@ import matplotlib.pyplot as plt
 import numpy as np
 from progressbar import ProgressBar
 
-import cpn_LDA as cLDA
-import cpn_dPCA as cdPCA
-import cpn_dprime as cDP
+from src.data import LDA as cLDA, dPCA as cdPCA
+from src.metrics import dprime as cDP
 import nems.recording as recording
 import nems_lbhb.baphy as nb
-from reliability import signal_reliability
-from tools import shuffle_along_axis as shuffle
-from cpp_cache import make_cache, get_cache
-from fancy_plots import _cint
+from src.metrics.reliability import signal_reliability
+from src.utils.tools import shuffle_along_axis as shuffle
+from src.data.cache import make_cache, get_cache
+from src.visualization.fancy_plots import _cint
 from nems import db as nd
-from nti_arrays import raster_from_sig
-from nti_epochs import set_recording_subepochs, NTI_epoch_name
+from src.data.nti_arrays import raster_from_sig
+from src.data.nti_epochs import set_recording_subepochs, NTI_epoch_name
 
 '''
 first attemtp at using the dprime contextual effect analysis with Sams NTI data. after some preprosecing to get the 

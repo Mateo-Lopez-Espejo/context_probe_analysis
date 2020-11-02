@@ -1,6 +1,5 @@
-import cpp_epochs as cpe
+from src.data import epochs as cpe, PCA as cpca
 import joblib as jl
-import cpp_PCA as cpca
 import matplotlib.pyplot as plt
 import numpy as np
 

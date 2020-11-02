@@ -7,14 +7,14 @@ import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
 
-import cpn_LDA as cLDA
-import cpn_dPCA as cdPCA
-import cpn_dprime as cDP
-import fancy_plots as fplt
-from cpn_load import load
-from cpp_cache import set_name
-from fancy_plots import savefig
-from reliability import signal_reliability
+import src.visualization.fancy_plots
+from src.data import LDA as cLDA, dPCA as cdPCA
+from src.metrics import dprime as cDP
+from src.visualization import fancy_plots as fplt
+from src.data.load import load
+from src.data.cache import set_name
+from src.visualization.fancy_plots import savefig
+from src.metrics.reliability import signal_reliability
 
 """
 Summary of the d' context discrimination significance, and propulation effect significance across all combinations of 
@@ -545,7 +545,7 @@ def dPCA_site_summary(site, probe):
 def var_explained(dpca):
     # plots variance explained
     fig, var_ax = plt.subplots()
-    fig, var_ax, inset = cdPCA.variance_explained(dpca, ax=var_ax, names=['probe', 'context'], colors=['gray', 'green'])
+    fig, var_ax, inset = src.visualization.fancy_plots.variance_explained(dpca, ax=var_ax, names=['probe', 'context'], colors=['gray', 'green'])
     _, labels, autotexts = inset
     plt.setp(autotexts, size=15, weight='normal')
     plt.setp(labels, size=15, weight='normal')

@@ -2,15 +2,15 @@ import numpy as np
 import matplotlib.pyplot as plt
 import skimage.io as skio
 from scipy.io import loadmat
-import fits as fts
-import fancy_plots as fplt
+from src.utils import fits as fts
+from src.visualization import fancy_plots as fplt
 from configparser import ConfigParser
 import pathlib as pl
 import joblib as jl
-from cpp_cache import set_name
+from src.data.cache import set_name
 import pandas as pd
 import itertools as itt
-from fancy_plots import savefig
+from src.visualization.fancy_plots import savefig
 
 
 config = ConfigParser()

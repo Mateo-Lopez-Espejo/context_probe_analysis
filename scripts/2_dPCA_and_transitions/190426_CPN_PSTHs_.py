@@ -3,12 +3,9 @@ import nems_lbhb.baphy as nb
 import nems.preprocessing as preproc
 import nems.epoch as nep
 
-import cpp_epochs as cpe
-import cpn_triplets as tp
-import cpp_dispersion as cdisp
-import cpp_cache as cch
-import fancy_plots as cplot
-import cpp_PCA as cpca
+from src.data import epochs as cpe, cache as cch, PCA as cpca, triplets as tp
+from src.metrics import cpp_dispersion as cdisp
+from src.visualization import fancy_plots as cplot
 
 import  numpy as np
 import scipy.stats as sst

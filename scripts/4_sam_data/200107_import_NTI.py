@@ -1,7 +1,7 @@
 import nems.recording as recording
 import nems_lbhb.baphy as nb
 from nems import db as nd
-from nti_epochs import set_recording_subepochs
+from src.data.nti_epochs import set_recording_subepochs
 
 '''
 tying to import data from Sam Norman-Heineger. This data comes from experiments with the format NTI, which are a kilt of 

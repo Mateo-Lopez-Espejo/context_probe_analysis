@@ -1,16 +1,10 @@
-import collections as col
-
 import joblib as jl
 import nems.db as nd
 import numpy as np
 import pandas as pd
 
-import cpp_dispersion as cdisp
-import cpp_epochs as cep
-import nems.modelspec as ms
 import nems.xforms as xforms
 import matplotlib.pyplot as plt
-import fancy_plots as cplt
 import itertools as itt
 
 batch = 310

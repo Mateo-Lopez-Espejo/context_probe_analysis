@@ -1,14 +1,8 @@
 import collections as col
 import itertools as itt
 
-import cpn_load
-import cpp_cache as ccache
-import cpp_epochs as cep
-import cpp_reconstitute_rec as crec
-import cpp_PCA as cpca
+from src.data import epochs as cep, cache as ccache, load, PCA as cpca, reconstitute_rec as crec
 import matplotlib.pyplot as plt
-import matplotlib as mpl
-from mpl_toolkits.mplot3d import Axes3D
 import numpy as np
 import scipy.signal as ssig
 import scipy.ndimage.filters as sf
@@ -37,7 +31,7 @@ voc_color = {'voc_{}'.format(cc): 'C{}'.format(cc) for cc in range(5)}
 voc_cmpat = {'voc_0': 'Blues', 'voc_1': 'Oranges', 'voc_2': 'Greens', 'voc_3': 'Reds', 'voc_4': 'Purples'}
 
 
-sites = cpn_load.get_site_ids(310)
+sites = load.get_site_ids(310)
 
 pop_recs = col.defaultdict(dict)
 for (site_name, cells), modelname in itt.product(sites.items(), all_models):
