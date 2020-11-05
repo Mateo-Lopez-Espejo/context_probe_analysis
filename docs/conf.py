@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# test_cookie_cutter documentation build configuration file, created by
+# context_probe_analysis documentation build configuration file, created by
 # sphinx-quickstart.
 #
 # This file is execfile()d with the current directory set to its containing dir.
@@ -41,7 +41,7 @@ source_suffix = '.rst'
 master_doc = 'index'
 
 # General information about the project.
-project = u'test_cookie_cutter'
+project = u'context_probe_analysis'
 
 # The version info for the project you're documenting, acts as replacement for
 # |version| and |release|, also used in various other places throughout the
@@ -164,7 +164,7 @@ html_static_path = ['_static']
 # html_file_suffix = None
 
 # Output file base name for HTML help builder.
-htmlhelp_basename = 'test_cookie_cutterdoc'
+htmlhelp_basename = 'context_probe_analysisdoc'
 
 
 # -- Options for LaTeX output --------------------------------------------------
@@ -184,9 +184,9 @@ latex_elements = {
 # (source start file, target name, title, author, documentclass [howto/manual]).
 latex_documents = [
     ('index',
-     'test_cookie_cutter.tex',
-     u'test_cookie_cutter Documentation',
-     u"Mateo", 'manual'),
+     'context_probe_analysis.tex',
+     u'context_probe_analysis Documentation',
+     u"Mateo Lopez-Espejo", 'manual'),
 ]
 
 # The name of an image file (relative to this directory) to place at the top of
@@ -215,8 +215,8 @@ latex_documents = [
 # One entry per manual page. List of tuples
 # (source start file, name, description, authors, manual section).
 man_pages = [
-    ('index', 'test_cookie_cutter', u'test_cookie_cutter Documentation',
-     [u"Mateo"], 1)
+    ('index', 'context_probe_analysis', u'context_probe_analysis Documentation',
+     [u"Mateo Lopez-Espejo"], 1)
 ]
 
 # If true, show URL addresses after external links.
@@ -229,10 +229,10 @@ man_pages = [
 # (source start file, target name, title, author,
 #  dir menu entry, description, category)
 texinfo_documents = [
-    ('index', 'test_cookie_cutter', u'test_cookie_cutter Documentation',
-     u"Mateo", 'test_cookie_cutter',
-     'just a test of the cookiecutter data science module', 'Miscellaneous'),
-]
+    ('index', 'context_probe_analysis', u'context_probe_analysis Documentation',
+     u"Mateo Lopez-Espejo", 'context_probe_analysis',
+     'set of tools to calculate and model the effects of past auditory contexts on the response to current auditory stimulus'
+     , 'Miscellaneous'),]
 
 # Documents to append as an appendix to all manuals.
 # texinfo_appendices = []

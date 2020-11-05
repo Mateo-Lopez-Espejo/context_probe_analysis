@@ -12,15 +12,8 @@ import pandas as pd
 import itertools as itt
 from src.visualization.fancy_plots import savefig
 
-
 config = ConfigParser()
-if pl.Path('../context_probe_analysis/config/settings.ini').exists():
-    config.read(pl.Path('../context_probe_analysis/config/settings.ini'))
-elif pl.Path('../../../context_probe_analysis/config/settings.ini').exists():
-    config.read(pl.Path('../../../context_probe_analysis/config/settings.ini'))
-else:
-    raise FileNotFoundError('config file could not be find')
-
+config.read_file(open(pl.Path(__file__).parents[2] / 'config' / 'settings.ini'))
 def bar_line(time, bar, line, ax=None, barkwargs={}, linekwargs={}):
     if ax is None:
         _, barax = plt.subplots()

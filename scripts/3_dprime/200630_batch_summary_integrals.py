@@ -22,12 +22,7 @@ a fitless alternative, like the integral of the contextual effect. Here I explor
 """
 
 config = ConfigParser()
-if pl.Path('../context_probe_analysis/config/settings.ini').exists():
-    config.read(pl.Path('../context_probe_analysis/config/settings.ini'))
-elif pl.Path('../../../context_probe_analysis/config/settings.ini').exists():
-    config.read(pl.Path('../../../context_probe_analysis/config/settings.ini'))
-else:
-    raise FileNotFoundError('config file coluld not be foud')
+config.read_file(open(pl.Path(__file__).parents[2] / 'config' / 'settings.ini'))
 
 meta = {'reliability': 0.1,  # r value
         'smoothing_window': 0,  # ms

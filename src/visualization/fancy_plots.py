@@ -15,24 +15,14 @@ from statannot import add_stat_annotation as original_stat_annotation
 import numpy as np
 import scipy.ndimage.filters as sf
 import scipy.signal as ssig
-from scipy.stats import linregress, gaussian_kde as gkde
+import scipy.stats as sst
 
 from src.utils.cpp_parameter_handlers import _epoch_name_handler, _channel_handler, _fs_handler
 from src.utils import fits as fts
 from nems.signal import PointProcess
 
-
 config = ConfigParser()
-if pl.Path('../../config/settings.ini').exists():
-    config.read(pl.Path('../../config/settings.ini'))
-elif pl.Path('../../context_probe_analysis/config/settings.ini').exists():
-    config.read(pl.Path('../../context_probe_analysis/config/settings.ini'))
-elif pl.Path('../../../context_probe_analysis/config/settings.ini').exists():
-    config.read(pl.Path('../../../context_probe_analysis/config/settings.ini'))
-else:
-    raise FileNotFoundError('config file coluld not be foud')
-
-
+config.read_file(open(pl.Path(__file__).parents[2] / 'config' / 'settings.ini'))
 
 # todo redo the distribution of axes in figures for psth, there is not purpose in plotig multiple signals as different
 # rows, rather the subplotse should correspond to individual cells, and elements within each axis should correspond to
@@ -302,6 +292,17 @@ def _cint(times, values, confidence, ax=None, fillkwargs={}):
     ax.fill_between(times, lower, upper, **fillkwargs)
 
     return ax
+
+
+def _sem(x, y, ax=None, **kwargs):
+    if ax is None:
+        fig, ax = plt.subplots()
+
+    mean = np.mean(y, axis=1)
+    sem = sst.sem(y, axis=1)
+
+    ax.fill_between(x, mean - sem, mean + sem, **kwargs)
+    return fig, ax
 
 
 def _neural_trajectory(matrix, dims=2, downsample=None, smoothing=0, rep_scat=True, rep_line=False,
@@ -929,7 +930,7 @@ def lin_reg(x, y, ax=None, label=True, **pltkwargs):
     for key, arg in defaults.items(): pltkwargs.setdefault(key, arg)
 
 
-    reg = linregress(x, y)
+    reg = sst.linregress(x, y)
     m, b, r, _, _ = reg
 
     if ax == None:
@@ -1180,7 +1181,7 @@ def weight_pdf(dpca, marginalization=None, axes=None, cellnames=None, only_first
 
         if only_first:
             dd = dpca.P[marg][:,0]  # Neurons x Components
-            pdf = gkde(dd)
+            pdf = sst.gaussian_kde(dd)
             x = np.linspace(-1, 1, 100, endpoint=False)
             axes[0].plot(x, pdf(x), color=color[mm], linewidth=2)
             axes[0].set_title(marg)
@@ -1192,7 +1193,7 @@ def weight_pdf(dpca, marginalization=None, axes=None, cellnames=None, only_first
             P = dpca.P[marg] # Neurons x Components
             for ii in range(P.shape[-1]):
                 dd = P[:, ii]
-                pdf = gkde(dd)
+                pdf = sst.gaussian_kde(dd)
                 color = 'green' if ii == 0 else 'gray'
                 x = np.linspace(-1, 1, 100, endpoint=False)
 

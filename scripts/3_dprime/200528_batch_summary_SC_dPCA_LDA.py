@@ -23,12 +23,7 @@ tau is selected from the fitted significance profile, and r0 form the fitted dpr
 """
 
 config = ConfigParser()
-if pl.Path('../context_probe_analysis/config/settings.ini').exists():
-    config.read(pl.Path('../context_probe_analysis/config/settings.ini'))
-elif pl.Path('../../../context_probe_analysis/config/settings.ini').exists():
-    config.read(pl.Path('../../../context_probe_analysis/config/settings.ini'))
-else:
-    raise FileNotFoundError('config file coluld not be foud')
+config.read_file(open(pl.Path(__file__).parents[2] / 'config' / 'settings.ini'))
 
 # analysis should be createde and cached with cpn_batch_dprime.py beforehand, using the same meta parameters
 meta = {'reliability': 0.1,  # r value

@@ -19,12 +19,7 @@ This is done for single cells, dPCA and LDA.
 """
 
 config = ConfigParser()
-if pl.Path('../../config/settings.ini').exists():
-    config.read(pl.Path('../../config/settings.ini'))
-elif pl.Path('../../../context_probe_analysis/config/settings.ini').exists():
-    config.read(pl.Path('../../../context_probe_analysis/config/settings.ini'))
-else:
-    raise FileNotFoundError('config file could not be find')
+config.read_file(open(pl.Path(__file__).parents[2] / 'config' / 'settings.ini'))
 
 meta = {'reliability': 0.1,  # r value
         'smoothing_window': 0,  # ms

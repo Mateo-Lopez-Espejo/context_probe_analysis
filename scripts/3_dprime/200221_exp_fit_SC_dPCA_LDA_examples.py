@@ -25,12 +25,7 @@ Multiple steps of the calculation process are displayed in figures for examples 
 """
 
 config = ConfigParser()
-if pl.Path('../context_probe_analysis/config/settings.ini').exists():
-    config.read(pl.Path('../context_probe_analysis/config/settings.ini'))
-elif pl.Path('../../../context_probe_analysis/config/settings.ini').exists():
-    config.read(pl.Path('../../../context_probe_analysis/config/settings.ini'))
-else:
-    raise FileNotFoundError('config file could not be find')
+config.read_file(open(pl.Path(__file__).parents[2] / 'config' / 'settings.ini'))
 
 trans_color_map = {'silence': '#377eb8',  # blue
                    'continuous': '#ff7f00',  # orange
