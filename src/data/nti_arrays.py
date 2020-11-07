@@ -57,7 +57,7 @@ def raster_from_sig(signal, regex, channels, smooth_window=None, raster_fs=None,
 
     # zscores
     if zscore is True:
-        raster_array = tools.zscore(raster_array, indie_axis=3)
+        raster_array = tools.zscore(raster_array, axis=(0,1,2,4))
 
 
     return raster_array, transitions, contexts

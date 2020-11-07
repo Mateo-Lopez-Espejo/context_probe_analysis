@@ -5,7 +5,7 @@ from src.data import LDA as cLDA, dPCA as cdPCA
 from src.metrics import dprime as cpd
 from src.data.load import load
 from src.metrics.reliability import signal_reliability
-from src.utils.tools import zscore2
+from src.utils.tools import zscore
 
 '''
 a second attempt on the d prime approach to compare the population discriminability versus the single cell discrimination
@@ -140,7 +140,7 @@ if meta['use_zscore']:
     # zcoreR = {key: np.nan_to_num((val - means)/ stds) for key, val in all_arrays.items()}
 
     # use each cases mean and std
-    zcoreR = {key: zscore2(val) for key, val in all_arrays.items()}
+    zcoreR = {key: zscore(val, (0,2,3)) for key, val in all_arrays.items()}
     final_array = zcoreR
 
 # checks the zscore

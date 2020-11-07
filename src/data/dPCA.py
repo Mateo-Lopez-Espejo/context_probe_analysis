@@ -4,6 +4,8 @@ from dPCA import dPCA
 
 from src.utils.cpp_parameter_handlers import _channel_handler
 
+import src.utils.tools as tools
+
 from src.data import triplets as tp
 
 
@@ -47,9 +49,7 @@ def raster_from_sig(signal, probe, channels, transitions, smooth_window, raster_
 
     # Zscores de data in a cell by cell manner
     if zscore is True:
-        mean = np.mean(raster, axis=(0,1,2,4))[None, None, None, :, None]
-        std = np.std(raster, axis=(0,1,2,4))[None, None, None, :, None]
-        raster = np.nan_to_num((raster - mean) / std)
+        raster = tools.zscore(raster, axis=(0,1,2,4))
     elif zscore is False:
         pass
     else:
