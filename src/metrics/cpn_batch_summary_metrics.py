@@ -29,9 +29,33 @@ meta = {'reliability': 0.1,  # r value
         'zscore': True,
         'dprime_absolute': None}
 
-region_map = dict(
-    zip(['AMT028b', 'AMT029a', 'AMT030a', 'AMT031a', 'AMT032a', 'DRX008b', 'DRX021a', 'ley070a', 'ley072b'],
-        ['PEG', 'PEG', 'PEG', 'PEG', 'PEG', 'A1', 'A1', 'A1', 'A1']))
+sites2map = ['AMT028b',
+             'AMT029a',
+             'AMT030a',
+             'AMT031a',
+             'AMT032a',
+             'CRD002a',
+             'CRD003b',
+             'CRD004a',
+             'DRX008b',
+             'DRX021a',
+             'DRX023a',
+             'ley070a',
+             'ley072b']
+regions2map = ['PEG',
+               'PEG',
+               'PEG',
+               'PEG',
+               'PEG',
+               'A1',
+               'A1',
+               'A1',
+               'A1',
+               'A1',
+               'A1',
+               'A1',
+               'A1']
+region_map = dict(zip(sites2map, regions2map))
 
 recache = True
 
