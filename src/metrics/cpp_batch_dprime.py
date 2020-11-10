@@ -2,8 +2,7 @@ import collections as col
 import itertools as itt
 import pathlib as pl
 from configparser import ConfigParser
-import joblib as jl
-
+from joblib import Memory, dump, load
 import numpy as np
 
 from src.data import LDA as cLDA, dPCA as cdPCA
@@ -16,14 +15,18 @@ from src.utils.tools import shuffle_along_axis as shuffle
 config = ConfigParser()
 config.read_file(open(pl.Path(__file__).parents[2] / 'config' / 'settings.ini'))
 
+# memory = Memory(pl.Path(config['paths']['analysis_cache']))
+memory = Memory(pl.Path(__file__).parents[2] / 'data' / 'cpp_dprimes_cache')
 
+
+@memory.cache
 def cell_dprime(site, probe, meta):
     # recs = load(site, remote=True, rasterfs=meta['raster_fs'], recache=False)
     recs = load(site, rasterfs=meta['raster_fs'], recache=rec_recache)
     if len(recs) > 2:
         print(f'\n\n{recs.keys()}\n\n')
 
-    rec = recs['trip0']
+    rec = recs['perm0']
     sig = rec['resp']
 
     # calculates response realiability and select only good cells to improve analysis
@@ -69,14 +72,14 @@ def cell_dprime(site, probe, meta):
 
     return dprime, shuffled, None, goodcells
 
-
+@memory.cache
 def dPCA_fourway_analysis(site, probe, meta):
     recs = load(site, rasterfs=meta['raster_fs'], recache=rec_recache)
 
     if len(recs) > 2:
         print(f'\n\n{recs.keys()}\n\n')
 
-    rec = recs['trip0']
+    rec = recs['perm0']
     sig = rec['resp']
 
     # calculates response realiability and select only good cells to improve analysis
@@ -156,14 +159,14 @@ def dPCA_fourway_analysis(site, probe, meta):
 
     return dprime, shuf_dprime, sim_dprime, goodcells
 
-
+@memory.cache
 def LDA_fourway_analysis(site, probe, meta):
     recs = load(site, rasterfs=meta['raster_fs'], recache=rec_recache)
 
     if len(recs) > 2:
         print(f'\n\n{recs.keys()}\n\n')
 
-    rec = recs['trip0']
+    rec = recs['perm0']
     sig = rec['resp']
 
     # calculates response realiability and select only good cells to improve analysis
@@ -283,18 +286,20 @@ for site, (func_key, func) in itt.product(sites, analysis_functions.items()):
     for pp, probe in enumerate(all_probes):
 
         # cache location and function name
-        object_name = f'{site}_P{probe}_single_cell_dprime'
-        analysis_parameters = '_'.join(['{}-{}'.format(key, str(val)) for key, val in meta.items()])
-        analysis_name = f'CPN_{func_key}_dprime'
-        cache_folder = pl.Path(config['paths']['analysis_cache']) / f'{analysis_name}/{analysis_parameters}'
+        # object_name = f'{site}_P{probe}_{func_key}_dprime'
+        # analysis_parameters = '_'.join(['{}-{}'.format(key, str(val)) for key, val in meta.items()])
+        # analysis_name = f'CPP_{func_key}_dprime'
+        # cache_folder = pl.Path(config['paths']['analysis_cache']) / f'{analysis_name}/{analysis_parameters}'
+        #
+        # SC_cache = make_cache(function=func,
+        #                       func_args={'site': site, 'probe': probe, 'meta': meta},
+        #                       classobj_name=object_name,
+        #                       cache_folder=cache_folder,
+        #                       recache=dprime_recache)
+        #
+        # dprime, shuf_dprime, sim_dprime, cell_names = get_cache(SC_cache)
 
-        SC_cache = make_cache(function=func,
-                              func_args={'site': site, 'probe': probe, 'meta': meta},
-                              classobj_name=object_name,
-                              cache_folder=cache_folder,
-                              recache=dprime_recache)
-
-        dprime, shuf_dprime, sim_dprime, cell_names = get_cache(SC_cache)
+        dprime, shuf_dprime, sim_dprime, cell_names = cell_dprime(site, probe, meta)
 
         real_dprimes.append(dprime)
         shuffled_dprimes.append(shuf_dprime)
@@ -340,9 +345,9 @@ batch_dprimes.default_factory = None
 
 
 # caches the bulk dprimes
-batch_dprime_file = pl.Path(config['paths']['analysis_cache']) / 'batch_dprimes' / set_name(meta)
+batch_dprime_file = pl.Path(config['paths']['analysis_cache']) / 'batch_cpp_dprimes' / set_name(meta)
 if batch_dprime_file.parent.exists() is False:
     batch_dprime_file.parent.mkdir()
 
-_ = jl.dump(batch_dprimes, batch_dprime_file)
+_ = dump(batch_dprimes, batch_dprime_file)
 print(f'cacheing batch dprimes to {batch_dprime_file}')
