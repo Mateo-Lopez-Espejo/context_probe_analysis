@@ -2,3 +2,5 @@ config/settings.ini
 cache/
 results
 figures
+.env
+src.egg-info
