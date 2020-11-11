@@ -4,7 +4,7 @@ import nems_lbhb.baphy as nb
 from src.data import epochs as cpe, cache as cch
 # import cpp_dispersion as cdisp
 
-from src.metrics import cpn_dispersion as cdisp
+from src.metrics import trp_dispersion as cdisp
 from src.visualization.fancy_plots import plot_dist_with_CI
 
 # harcoded selected cells as taken from 190529_select_single_cells_with_high_variation.py

@@ -4,7 +4,7 @@ import itertools as itt
 import matplotlib.pyplot as plt
 import numpy as np
 
-from src.metrics import cpp_dispersion as cdisp
+from src.metrics import prm_dispersion as cdisp
 from src.data import epochs as cep, cache as ccache, cache as cch, load, reconstitute_rec as crec
 
 batch = 310

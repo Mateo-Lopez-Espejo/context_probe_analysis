@@ -6,7 +6,7 @@ import pathlib as pl
 from src.data.load import load
 from src.metrics.reliability import signal_reliability
 from src.data import dPCA as cdPCA
-from src.metrics import cpn_dispersion as ndisp
+from src.metrics import trp_dispersion as ndisp
 from src.data.cache import make_cache, get_cache
 from src.visualization import fancy_plots as plot
 

@@ -4,7 +4,7 @@ import joblib as jl
 import nems.db as nd
 import numpy as np
 
-from src.metrics import cpp_dispersion as cdisp
+from src.metrics import prm_dispersion as cdisp
 from src.data import epochs as cep
 import nems.modelspec as ms
 import nems.xforms as xforms

@@ -2,9 +2,10 @@ import nems.recording as recording
 import nems_lbhb.baphy as nb
 import nems.preprocessing as preproc
 import nems.epoch as nep
+import src.metrics.distance
 
-from src.data import epochs as cpe, cache as cch, PCA as cpca, triplets as tp
-from src.metrics import cpp_dispersion as cdisp
+from src.data import epochs as cpe, cache as cch, PCA as cpca, rasters as tp
+from src.metrics import prm_dispersion as cdisp
 from src.visualization import fancy_plots as cplot
 
 import  numpy as np
@@ -132,7 +133,7 @@ full_array, bad_cpp, good_cpp, context_names, probe_names = tp.make_full_array(s
 # now calculate pairwise difference between context types
 valid_probes = [6, 7, 9, 10]
 context_transitions = ['silence', 'continuous', 'similar', 'sharp']
-diff_arr = tp.calculate_pairwise_distance(valid_probes, context_transitions, full_array, context_names, probe_names,)
+diff_arr = src.metrics.distance.pairwise_PSHT_distance(valid_probes, context_transitions, full_array, context_names, probe_names, )
 
 ########################################################################################################################
 # plot the PSTHs of a probe given two contexts transitions, compares,
@@ -142,8 +143,8 @@ ct1 = 'continuous'
 ct2 = 'sharp'
 cell = cellorder.index(best_cell)
 
-arr1 = tp.extract_sub_arr(p, ct1, full_array, context_names, probe_names) # shape Rep x Unit x Time
-arr2 = tp.extract_sub_arr(p, ct2, full_array, context_names, probe_names)
+arr1 = tp._extract_triplets_sub_arr(p, ct1, full_array, context_names, probe_names) # shape Rep x Unit x Time
+arr2 = tp._extract_triplets_sub_arr(p, ct2, full_array, context_names, probe_names)
 
 psth1 = np.mean(arr1, axis=0) # shape Unit x Time
 psth2 = np.mean(arr2, axis=0)
@@ -268,7 +269,7 @@ full_array, bad_cpp, good_cpp, context_names, probe_names = tp.make_full_array(s
 # now calculate pairwise difference between context types
 valid_probes = [6, 7, 9, 10]
 context_transitions = ['silence', 'continuous', 'similar', 'sharp']
-diff_arr = tp.calculate_pairwise_distance(valid_probes, context_transitions, full_array, context_names, probe_names,)
+diff_arr = src.metrics.distance.pairwise_PSHT_distance(valid_probes, context_transitions, full_array, context_names, probe_names, )
 
 
 ###########################

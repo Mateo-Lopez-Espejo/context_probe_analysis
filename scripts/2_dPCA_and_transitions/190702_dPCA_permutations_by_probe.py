@@ -7,7 +7,7 @@ from dPCA import dPCA
 import src.visualization.fancy_plots
 from src.data.load import load
 from src.metrics.reliability import signal_reliability
-from src.data import dPCA as cdPCA, triplets as tp
+from src.data import dPCA as cdPCA, rasters as tp
 
 all_sites = ['ley070a', # good site. A1
              'ley072b', # Primary looking responses with strong contextual effects

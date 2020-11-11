@@ -3,10 +3,10 @@ import itertools as itt
 
 from src.data.load import load
 from src.metrics.reliability import signal_reliability
-from src.metrics import cpn_dispersion as ndisp
+from src.metrics import trp_dispersion as ndisp
 from src.data.cache import make_cache, get_cache
 from src.visualization import fancy_plots as plot
-from src.data import triplets as tp
+from src.data import rasters as tp
 
 CB_color_cycle = ['#377eb8', '#ff7f00', '#4daf4a', '#a65628',
                   '#984ea3', '#999999', '#e41a1c', '#dede00']
@@ -50,8 +50,8 @@ for site, probe in zip(['AMT029a', 'ley070a'],[5,2]):
 
     fig = plt.figure()
 
-    trans_arr = tp.extract_sub_arr(probes=probe, context_types=meta['transitions'], full_array=full_array,
-                                   context_names=all_contexts, probe_names=all_probes, squeeze=False)
+    trans_arr = tp._extract_triplets_sub_arr(probes=probe, context_types=meta['transitions'], full_array=full_array,
+                                             context_names=all_contexts, probe_names=all_probes, squeeze=False)
 
 
 

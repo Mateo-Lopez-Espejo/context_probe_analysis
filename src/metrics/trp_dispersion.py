@@ -2,8 +2,8 @@ import numpy as np
 import itertools as itt
 
 from src.utils.tools import shuffle_along_axis
-from src.metrics.cpp_dispersion import _pairwise_single_trial_ndim_euclidean
-from src.data.triplets import make_full_array
+from src.metrics.prm_dispersion import _pairwise_single_trial_ndim_euclidean
+from src.data.rasters import make_full_array
 
 transitions_map = {'P2': {'silence': 'C0',
                           'continuous': 'C1',

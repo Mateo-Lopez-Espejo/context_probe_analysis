@@ -6,7 +6,7 @@ import numpy as np
 import src.visualization.fancy_plots
 from src.data.load import load
 from src.metrics.reliability import signal_reliability
-from src.data import dPCA as cdPCA, triplets as tp
+from src.data import dPCA as cdPCA, rasters as tp
 
 CB_color_cycle = ['#377eb8', '#ff7f00', '#4daf4a',
                   '#f781bf', '#a65628', '#984ea3',

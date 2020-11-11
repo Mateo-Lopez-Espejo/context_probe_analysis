@@ -25,7 +25,7 @@ tau is selected from the fitted significance profile, and r0 form the fitted dpr
 config = ConfigParser()
 config.read_file(open(pl.Path(__file__).parents[2] / 'config' / 'settings.ini'))
 
-# analysis should be createde and cached with cpn_batch_dprime.py beforehand, using the same meta parameters
+# analysis should be createde and cached with trp_batch_dprime.py beforehand, using the same meta parameters
 meta = {'reliability': 0.1,  # r value
         'smoothing_window': 0,  # ms
         'raster_fs': 30,

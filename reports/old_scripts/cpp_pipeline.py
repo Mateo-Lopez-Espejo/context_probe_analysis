@@ -2,7 +2,7 @@ import joblib as jl
 import matplotlib.pyplot as plt
 import numpy as np
 
-from src.metrics import cpp_dispersion as cdisp
+from src.metrics import prm_dispersion as cdisp
 from src.data import epochs as cpe, PCA as cpca
 from src.visualization import fancy_plots as cplt
 import nems.recording as recording

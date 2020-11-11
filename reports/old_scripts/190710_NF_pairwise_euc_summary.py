@@ -4,9 +4,9 @@ import itertools as itt
 
 from src.data.load import load
 from src.metrics.reliability import signal_reliability
-from src.metrics import cpn_dispersion as ndisp
+from src.metrics import trp_dispersion as ndisp
 from src.data.cache import make_cache, get_cache
-from src.data import triplets as tp
+from src.data import rasters as tp
 
 import pandas as pd
 
@@ -69,8 +69,8 @@ for site in all_sites:
 
     for probe in meta['probes_to_plot']:
 
-        trans_arr = tp.extract_sub_arr(probes=probe, context_types=meta['transitions'], full_array=full_array,
-                                       context_names=all_contexts, probe_names=all_probes, squeeze=False)
+        trans_arr = tp._extract_triplets_sub_arr(probes=probe, context_types=meta['transitions'], full_array=full_array,
+                                                 context_names=all_contexts, probe_names=all_probes, squeeze=False)
 
 
 

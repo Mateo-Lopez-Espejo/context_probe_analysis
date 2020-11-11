@@ -6,7 +6,7 @@ from src.data.cache import set_name
 import nems.recording as recording
 import nems_lbhb.baphy as nb
 from src.data import epochs as cpe
-from src.data.triplets import split_recording
+from src.data.stim_paradigm import split_recording
 from nems import db as nd
 
 "I am lazy, this is a one liner to load a formated cpp/cpn signal"

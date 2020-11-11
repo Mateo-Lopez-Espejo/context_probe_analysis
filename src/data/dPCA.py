@@ -6,7 +6,7 @@ from src.utils.cpp_parameter_handlers import _channel_handler
 
 import src.utils.tools as tools
 
-from src.data import triplets as tp
+from src.data import rasters as rt
 
 
 def format_raster(raster):
@@ -30,10 +30,10 @@ def raster_from_sig(signal, probe, channels, transitions, smooth_window, raster_
 
 
     full_array, invalid_cp, valid_cp, all_contexts, all_probes = \
-        tp.make_full_array(signal, channels=channels, smooth_window=smooth_window, raster_fs=raster_fs)
+        rt.make_full_array(signal, channels=channels, smooth_window=smooth_window, raster_fs=raster_fs)
 
-    raster = tp.extract_sub_arr(probes=probe, context_types=transitions, full_array=full_array,
-                                context_names=all_contexts, probe_names=all_probes, squeeze=False)
+    raster = rt._extract_triplets_sub_arr(probes=probe, context_types=transitions, full_array=full_array,
+                                          context_names=all_contexts, probe_names=all_probes, squeeze=False)
 
     # selects raster for context, probe or both (all)
     if part == 'probe':
@@ -134,10 +134,10 @@ def signal_transform_triplets_(signal, probe, channels, smooth_window=None, dpca
     signal = signal.rasterize()
     # extract and organizese relevant data from signal
     full_array, invalid_cp, valid_cp, context_names, probe_names = \
-        tp.make_full_array(signal, channels=channels, smooth_window=smooth_window)
+        rt.make_full_array(signal, channels=channels, smooth_window=smooth_window)
 
-    raster = tp.extract_sub_arr(probe=probe, context_types='all', full_array=full_array,
-                       context_names=context_names, probe_names=probe_names, squeeze=False)
+    raster = rt._extract_triplets_sub_arr(probe=probe, context_types='all', full_array=full_array,
+                                          context_names=context_names, probe_names=probe_names, squeeze=False)
 
     # get only the probe response
     eps = signal.epochs

@@ -272,6 +272,8 @@ sites = {'AMT028b', 'AMT029a', 'AMT030a', 'AMT031a', 'AMT032a', 'CRD002a', 'CRD0
          'DRX008b', 'DRX021a', 'DRX023a', 'ley070a', 'ley072b'}
 sites = sites.difference(badsites)
 
+sites = {'AMT029a'}
+
 analysis_functions = {'SC': cell_dprime, 'dPCA': dPCA_fourway_analysis, 'LDA': LDA_fourway_analysis}
 # initilizede nested dictionary with three layer: 1. Analysis type 2. calculated values 3. cell or site
 batch_dprimes = col.defaultdict(lambda: col.defaultdict(dict))

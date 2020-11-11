@@ -2,7 +2,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-from src.data import epochs as cpe, triplets as tp
+from src.data import epochs as cpe, rasters as tp
 import nems.recording as recording
 import nems_lbhb.baphy as nb
 

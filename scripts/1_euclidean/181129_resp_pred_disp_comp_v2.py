@@ -1,7 +1,7 @@
 import collections as col
 import itertools as itt
 
-from src.metrics import cpp_dispersion as cdisp
+from src.metrics import prm_dispersion as cdisp
 from src.data import epochs as cep, cache as ccache, load, reconstitute_rec as crec
 from src.visualization import fancy_plots as cplot
 

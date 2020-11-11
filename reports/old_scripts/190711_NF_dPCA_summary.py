@@ -5,7 +5,7 @@ import pathlib as pl
 from src.data.load import load
 from src.metrics.reliability import signal_reliability
 
-from src.data import dPCA as cdPCA, triplets as tp
+from src.data import dPCA as cdPCA, rasters as tp
 
 import pandas as pd
 import seaborn as sn
