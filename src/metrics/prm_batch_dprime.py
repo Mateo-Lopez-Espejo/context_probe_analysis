@@ -2,13 +2,15 @@ import collections as col
 import itertools as itt
 import pathlib as pl
 from configparser import ConfigParser
-from joblib import Memory, dump, load
-import numpy as np
 
+import numpy as np
+from joblib import Memory, dump, load
+
+import src.data.rasters
 from src.data import LDA as cLDA, dPCA as cdPCA
-from src.metrics import dprime as cDP
+from src.data.cache import set_name
 from src.data.load import load
-from src.data.cache import make_cache, get_cache, set_name
+from src.metrics import dprime as cDP
 from src.metrics.reliability import signal_reliability
 from src.utils.tools import shuffle_along_axis as shuffle
 
@@ -34,9 +36,9 @@ def cell_dprime(site, probe, meta):
     goodcells = goodcells.tolist()
 
     # get the full data raster Context x Probe x Rep x Neuron x Time
-    raster = cdPCA.raster_from_sig(sig, probe, channels=goodcells, transitions=meta['transitions'],
-                                   smooth_window=meta['smoothing_window'], raster_fs=meta['raster_fs'],
-                                   zscore=meta['zscore'], part='probe')
+    raster = src.data.rasters.raster_from_sig(sig, probe, channels=goodcells, transitions=meta['transitions'],
+                                              smooth_window=meta['smoothing_window'], raster_fs=meta['raster_fs'],
+                                              zscore=meta['zscore'], part='probe')
 
     # trialR shape: Trial x Cell x Context x Probe x Time; R shape: Cell x Context x Probe x Time
     trialR, R, _ = cdPCA.format_raster(raster)
@@ -59,7 +61,7 @@ def cell_dprime(site, probe, meta):
         shuf_trialR = np.empty([meta['montecarlo'], rep, chn, 2, tme])
         shuf_trialR[:] = np.nan
 
-        tran_idx = np.array([meta['transitions'].index(t) for t in tp.split('_')])
+        tran_idx = np.array([meta['transitions'].index(int(t)) for t in tp.split('_')])
         ctx_shuffle = trialR[:, :, tran_idx, :].copy()
 
         for rr in range(meta['montecarlo']):
@@ -71,6 +73,7 @@ def cell_dprime(site, probe, meta):
     shuffled = np.stack(shuffled, axis=1).squeeze(axis=0).swapaxes(0, 1)  # shape Montecarlo x ContextPair x Cell x Time
 
     return dprime, shuffled, None, goodcells
+
 
 @memory.cache
 def dPCA_fourway_analysis(site, probe, meta):
@@ -87,9 +90,9 @@ def dPCA_fourway_analysis(site, probe, meta):
     goodcells = goodcells.tolist()
 
     # get the full data raster Context x Probe x Rep x Neuron x Time
-    raster = cdPCA.raster_from_sig(sig, probe, channels=goodcells, transitions=meta['transitions'],
-                                   smooth_window=meta['smoothing_window'], raster_fs=meta['raster_fs'],
-                                   zscore=meta['zscore'])
+    raster = src.data.rasters.raster_from_sig(sig, probe, channels=goodcells, transitions=meta['transitions'],
+                                              smooth_window=meta['smoothing_window'], raster_fs=meta['raster_fs'],
+                                              zscore=meta['zscore'])
 
     # trialR shape: Trial x Cell x Context x Probe x Time; R shape: Cell x Context x Probe x Time
     trialR, R, _ = cdPCA.format_raster(raster)
@@ -159,104 +162,11 @@ def dPCA_fourway_analysis(site, probe, meta):
 
     return dprime, shuf_dprime, sim_dprime, goodcells
 
-@memory.cache
-def LDA_fourway_analysis(site, probe, meta):
-    recs = load(site, rasterfs=meta['raster_fs'], recache=rec_recache)
-
-    if len(recs) > 2:
-        print(f'\n\n{recs.keys()}\n\n')
-
-    rec = recs['perm0']
-    sig = rec['resp']
-
-    # calculates response realiability and select only good cells to improve analysis
-    r_vals, goodcells = signal_reliability(sig, r'\ASTIM_*', threshold=meta['reliability'])
-    goodcells = goodcells.tolist()
-
-    # get the full data raster Context x Probe x Rep x Neuron x Time
-    raster = cdPCA.raster_from_sig(sig, probe, channels=goodcells, transitions=meta['transitions'],
-                                   smooth_window=meta['smoothing_window'], raster_fs=meta['raster_fs'],
-                                   zscore=meta['zscore'])
-
-    # trialR shape: Trial x Cell x Context x Probe x Time; R shape: Cell x Context x Probe x Time
-    trialR, _, _ = cdPCA.format_raster(raster)
-    trialR = trialR.squeeze(axis=3)  # squeezes out probe
-    Re, C, S, T = trialR.shape
-
-    # calculates full LDA. i.e. considering all 4 categories
-    LDA_projection, LDA_transformation = cLDA.fit_transform_over_time(trialR, 1)
-    LDA_projection = LDA_projection.squeeze(axis=1)
-    dprime = cDP.pairwise_dprimes(LDA_projection, observation_axis=0, condition_axis=1,
-                                  flip=meta['dprime_absolute'])
-
-    # calculates floor (ctx shuffle) and ceiling (simulated data)
-    # calculates floor (ctx shuffle) and ceiling (simulated data)
-    sim_dprime = np.empty([meta['montecarlo']] + list(dprime.shape))
-    shuf_dprime = np.empty([meta['montecarlo']] + list(dprime.shape))
-
-    ctx_shuffle = trialR.copy()
-    # shuf_projection = LDA_projection.copy()
-
-    for rr in range(meta['montecarlo']):
-        # ceiling: simulates data, calculates dprimes
-        sim_trial = np.random.normal(np.mean(trialR, axis=0), np.std(trialR, axis=0),
-                                     size=[Re, C, S, T])
-        # sim_projection = cLDA.transform_over_time(sim_trial, LDA_transformation).squeeze(axis=1)
-        sim_projection, _ = cLDA.fit_transform_over_time(sim_trial)
-        sim_projection = sim_projection.squeeze(axis=1)
-        sim_dprime[rr, ...] = cDP.pairwise_dprimes(sim_projection, observation_axis=0, condition_axis=1,
-                                                   flip=meta['dprime_absolute'])
-
-        ctx_shuffle = shuffle(ctx_shuffle, shuffle_axis=2, indie_axis=0)
-        shuf_projection, _ = cLDA.fit_transform_over_time(ctx_shuffle)
-        shuf_projection = shuf_projection.squeeze(axis=1)
-        # shuf_projection = shuffle(shuf_projection, shuffle_axis=1, indie_axis=0)
-        shuf_dprime[rr, ...] = cDP.pairwise_dprimes(shuf_projection, observation_axis=0, condition_axis=1,
-                                                    flip=meta['dprime_absolute'])
-
-    # # test plots
-    # fig, axes = plt.subplots(3,6)
-    # t = np.arange(30)
-    # for tt, trans in enumerate(itt.combinations(meta['transitions'], 2)):
-    #
-    #     t0_idx = meta['transitions'].index(trans[0])
-    #     t1_idx = meta['transitions'].index(trans[1])
-    #
-    #     axes[0,tt].plot(t, LDA_projection[:, t0_idx, :].mean(axis=0), color=trans_color_map[trans[0]], linewidth=3)
-    #     axes[0,tt].plot(t, LDA_projection[:, t1_idx, :].mean(axis=0), color=trans_color_map[trans[1]], linewidth=3)
-    #
-    # # Raster, dprime, CI
-    # bottom, top = axes[0, 0].get_ylim()
-    # half = ((top - bottom) / 2) + bottom
-    # for tt, trans in enumerate(itt.combinations(meta['transitions'], 2)):
-    #     # pair_idx = SC_trans_pairs.index(f'{trans[0]}_{trans[1]}')
-    #     pair_idx = tt
-    #
-    #     t0_idx = meta['transitions'].index(trans[0])
-    #     t1_idx = meta['transitions'].index(trans[1])
-    #
-    #     _ = fplt._raster(t, LDA_projection[:, t0_idx, :], y_offset=0, y_range=(bottom, half), ax=axes[0,tt],
-    #                      scatter_kws={'color': trans_color_map[trans[0]], 'alpha': 0.4, 's': 10})
-    #     _ = fplt._raster(t, LDA_projection[:, t1_idx, :], y_offset=0, y_range=(half, top), ax=axes[0,tt],
-    #                      scatter_kws={'color': trans_color_map[trans[1]], 'alpha': 0.4, 's': 10})
-    #
-    #     # plots the real dprime and the shuffled dprime
-    #     axes[1,tt].plot(t, dprime[pair_idx, :], color='black')
-    #     _ = fplt._cint(t, shuf_dprime[:, pair_idx, :], confidence=0.95, ax=axes[1,tt],
-    #                    fillkwargs={'color': 'black', 'alpha': 0.5})
-    #
-    #     # plots the real dprime and simulatede dprime
-    #     axes[2, tt].plot(t, dprime[pair_idx, :], color='black')
-    #     _ = fplt._cint(t, sim_dprime[:, pair_idx, :], confidence=0.95, ax=axes[2, tt],
-    #                    fillkwargs={'color': 'black', 'alpha': 0.5})
-
-    return dprime, shuf_dprime, sim_dprime, goodcells
-
 
 meta = {'reliability': 0.1,  # r value
         'smoothing_window': 0,  # ms
         'raster_fs': 30,
-        'transitions': ['silence', 'continuous', 'similar', 'sharp'],
+        'transitions': [0, 1, 2, 3, 4],
         'montecarlo': 1000,
         'zscore': True,
         'dprime_absolute': None}
@@ -265,16 +175,16 @@ dprime_recache = False
 rec_recache = False
 two_tail_p = True
 
-all_probes = [2, 3, 5, 6]
+all_probes = [1, 2, 3, 4]
 # sites = set(get_site_ids(316).keys())
-badsites = {'AMT031a'} # empirically deciced
+badsites = {'AMT031a'}  # empirically deciced
 sites = {'AMT028b', 'AMT029a', 'AMT030a', 'AMT031a', 'AMT032a', 'CRD002a', 'CRD003b', 'CRD004a',
          'DRX008b', 'DRX021a', 'DRX023a', 'ley070a', 'ley072b'}
 sites = sites.difference(badsites)
 
 sites = {'AMT029a'}
 
-analysis_functions = {'SC': cell_dprime, 'dPCA': dPCA_fourway_analysis, 'LDA': LDA_fourway_analysis}
+analysis_functions = {'SC': cell_dprime, 'dPCA': dPCA_fourway_analysis}
 # initilizede nested dictionary with three layer: 1. Analysis type 2. calculated values 3. cell or site
 batch_dprimes = col.defaultdict(lambda: col.defaultdict(dict))
 for site, (func_key, func) in itt.product(sites, analysis_functions.items()):
@@ -303,7 +213,7 @@ for site, (func_key, func) in itt.product(sites, analysis_functions.items()):
         #
         # dprime, shuf_dprime, sim_dprime, cell_names = get_cache(SC_cache)
 
-        dprime, shuf_dprime, sim_dprime, cell_names = cell_dprime(site, probe, meta)
+        dprime, shuf_dprime, sim_dprime, cell_names = func(site, probe, meta)
 
         real_dprimes.append(dprime)
         shuffled_dprimes.append(shuf_dprime)
@@ -347,9 +257,8 @@ for middle_dict in batch_dprimes.values():
     middle_dict.default_factory = None
 batch_dprimes.default_factory = None
 
-
 # caches the bulk dprimes
-batch_dprime_file = pl.Path(config['paths']['analysis_cache']) / 'batch_cpp_dprimes' / set_name(meta)
+batch_dprime_file = pl.Path(config['paths']['analysis_cache']) / 'batch_prm_dprimes' / set_name(meta)
 if batch_dprime_file.parent.exists() is False:
     batch_dprime_file.parent.mkdir()
 

@@ -7,6 +7,7 @@ from sklearn.decomposition import PCA
 
 from cycler import cycler
 
+import src.data.rasters
 from src.data.load import load
 from src.metrics.reliability import signal_reliability
 from src.metrics import dprime as cpd
@@ -261,8 +262,8 @@ c1 = 3
 
 ########
 # gets the real data raster (no dim reduction) to calculate single cell, population independent d'
-raster = cdPCA.raster_from_sig(sig, probe, channels=goodcells, transitions=meta['transitions'],
-                               smooth_window=meta['smoothing_window'], raster_fs=meta['raster_fs'])
+raster = src.data.rasters.raster_from_sig(sig, probe, channels=goodcells, transitions=meta['transitions'],
+                                          smooth_window=meta['smoothing_window'], raster_fs=meta['raster_fs'])
 
 # trialR shape: Trial x Cell x Context x Probe x Time; R shape: Cell x Context x Probe x Time
 trialR, _, _ = cdPCA.format_raster(raster)

@@ -55,10 +55,11 @@ def pairwise_dprimes(array, observation_axis, condition_axis, flip=None):
     """
     calculates the dprime in an array where different conditions and different observations correspond to two of the
     dimension of the array.
-    :array: ndarray with at least 2 dimensions
+    :array: ndarray with at least 2 dimensions e.g Montecarlos x Observations x Units x Conditions X Time
     :observation_axis: int. which axis correspond to repeated observations.
     :conditions_axis: int. which axis correspond to the conditions to be paired and compared.
-    :return: array of pairwise correlations todo what is the new shape of this array?
+    :return: array of pairwise correlations whit shape Pair x ...  keeping all the original array dimensions sans the
+    observations and conditions axis e.g. Condition_pairs x Montecarlos x Units x Time
     """
 
     dprimes = list()

@@ -6,6 +6,7 @@ import numpy as np
 import pandas as pd
 from scipy.io import loadmat
 
+import src.data.rasters
 from src.data import dPCA as cdPCA
 from src.metrics import dprime as cDP
 from src.data.load import load, get_site_ids
@@ -44,9 +45,9 @@ def cell_dprime(site, probe, meta):
     goodcells = goodcells.tolist()
 
     # get the full data raster Context x Probe x Rep x Neuron x Time
-    raster = cdPCA.raster_from_sig(sig, probe, channels=goodcells, transitions=meta['transitions'],
-                                   smooth_window=meta['smoothing_window'], raster_fs=meta['raster_fs'],
-                                   zscore=meta['zscore'], part='probe')
+    raster = src.data.rasters.raster_from_sig(sig, probe, channels=goodcells, transitions=meta['transitions'],
+                                              smooth_window=meta['smoothing_window'], raster_fs=meta['raster_fs'],
+                                              zscore=meta['zscore'], part='probe')
 
     # trialR shape: Trial x Cell x Context x Probe x Time; R shape: Cell x Context x Probe x Time
     trialR, R, _ = cdPCA.format_raster(raster)
@@ -96,9 +97,9 @@ def dPCA_fourway_analysis(site, probe, meta):
     goodcells = goodcells.tolist()
 
     # get the full data raster Context x Probe x Rep x Neuron x Time
-    raster = cdPCA.raster_from_sig(sig, probe, channels=goodcells, transitions=meta['transitions'],
-                                   smooth_window=meta['smoothing_window'], raster_fs=meta['raster_fs'],
-                                   zscore=meta['zscore'])
+    raster = src.data.rasters.raster_from_sig(sig, probe, channels=goodcells, transitions=meta['transitions'],
+                                              smooth_window=meta['smoothing_window'], raster_fs=meta['raster_fs'],
+                                              zscore=meta['zscore'])
 
     # trialR shape: Trial x Cell x Context x Probe x Time; R shape: Cell x Context x Probe x Time
     trialR, R, _ = cdPCA.format_raster(raster)

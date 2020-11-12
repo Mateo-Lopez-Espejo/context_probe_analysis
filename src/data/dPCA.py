@@ -2,9 +2,8 @@ import numpy as np
 
 from dPCA import dPCA
 
+from src.data.rasters import raster_from_sig
 from src.utils.cpp_parameter_handlers import _channel_handler
-
-import src.utils.tools as tools
 
 from src.data import rasters as rt
 
@@ -25,37 +24,6 @@ def format_raster(raster):
     R -= centers
 
     return trialR, R, centers
-
-def raster_from_sig(signal, probe, channels, transitions, smooth_window, raster_fs=None, part='probe', zscore=False):
-
-
-    full_array, invalid_cp, valid_cp, all_contexts, all_probes = \
-        rt.make_full_array(signal, channels=channels, smooth_window=smooth_window, raster_fs=raster_fs)
-
-    raster = rt._extract_triplets_sub_arr(probes=probe, context_types=transitions, full_array=full_array,
-                                          context_names=all_contexts, probe_names=all_probes, squeeze=False)
-
-    # selects raster for context, probe or both (all)
-    if part == 'probe':
-        trans_idx = int(np.floor(raster.shape[-1]/2))
-        raster = raster[..., trans_idx:]
-    elif part == 'context':
-        trans_idx = int(np.floor(raster.shape[-1]/2))
-        raster = raster[..., :trans_idx]
-    elif part == 'all':
-        pass
-    else:
-        raise ValueError("unknonw value for 'part' parameter")
-
-    # Zscores de data in a cell by cell manner
-    if zscore is True:
-        raster = tools.zscore(raster, axis=(0,1,2,4))
-    elif zscore is False:
-        pass
-    else:
-        raise ValueError('meta zscore must be boolean')
-
-    return raster
 
 
 def trials_dpca(R, trialR, dPCA_parms={}):
@@ -105,7 +73,7 @@ def trials_dpca(R, trialR, dPCA_parms={}):
 def tran_dpca(signal, probe, channels, transitions, smooth_window, dPCA_parms={}, raster_fs=None,
               part='probe', zscore=False):
     '''
-    signal wrapper for dPCA usigg CPN tripplets.
+    signal wrapper for dPCA using CPN triplets.
     :param signal: CPN triplets signal
     :param probe: int, over which probe to perform the cPCA
     :param channels: str or [str,], what channels to use
@@ -129,56 +97,6 @@ def tran_dpca(signal, probe, channels, transitions, smooth_window, dPCA_parms={}
 
     return Z, trialZ, dpca
 
-def signal_transform_triplets_(signal, probe, channels, smooth_window=None, dpca=None):
-
-    signal = signal.rasterize()
-    # extract and organizese relevant data from signal
-    full_array, invalid_cp, valid_cp, context_names, probe_names = \
-        rt.make_full_array(signal, channels=channels, smooth_window=smooth_window)
-
-    raster = rt._extract_triplets_sub_arr(probe=probe, context_types='all', full_array=full_array,
-                                          context_names=context_names, probe_names=probe_names, squeeze=False)
-
-    # get only the probe response
-    eps = signal.epochs
-    times = eps.loc[eps.name =='C0_P2', ['start', 'end']].values[0,:]
-    prb_start_smp =  np.round((times[1] - times[0]) * signal.fs / 2).astype('int16')
-    raster = raster[:,:,:,:,prb_start_smp:]
-
-    # get the arrays necesary for dPCA
-    trialR, R, centers = format_raster(raster)
-    trialR, R = trialR.squeeze(), R.squeeze()
-
-    Tr, N, C, T = trialR.shape
-    n_components = N if N < 10 else 10
-
-    # initializes dPCA with
-    if dpca is None:
-        dpca = dPCA.dPCA(labels='ct', regularizer='auto', n_components=n_components, join={'ct': ['c', 'ct']})
-        dpca.protect = ['t']
-    else:
-        pass
-
-    # Now fit the data (R) using the model we just instantiated. pases trialR for regularization (?)
-    dpca.fit(R, trialR)
-
-    # prepares signal raw data by centering equally than training data
-    ch_idx = _channel_handler(signal, channels)
-    X = signal._data[ch_idx, :] - centers.squeeze()[:,None]
-
-    # dpca canned transformation
-    Xt = dpca.transform(X)
-
-    # creates a signal with the transformed data, includes the variance explained by this marginalization
-    signals = dict()
-    for key, xt in Xt.items():
-        new_meta = signal.meta.copy()
-        new_meta['expl_var'] = dpca.explained_variance_ratio_[key]
-        new_meta['cellid'] = channels
-        new_chan_names = [f'{key}{cc+1}' for cc in range(n_components)]
-        signals[key] = signal._modified_copy(data=xt, chans=new_chan_names, meta=new_meta)
-
-    return signals
 
 def transform_trials(dpca, trial_array):
 

@@ -6,6 +6,7 @@ import numpy as np
 import itertools as itt
 import pathlib as pl
 
+import src.data.rasters
 from src.data.load import load
 from src.metrics.reliability import signal_reliability
 
@@ -54,9 +55,9 @@ def fit_transform(site, probe, meta, part):
     goodcells = goodcells.tolist()
 
     # get the full data raster Context x Probe x Rep x Neuron x Time
-    raster = cdPCA.raster_from_sig(sig, probe, channels=goodcells, transitions=meta['transitions'],
-                                   smooth_window=meta['smoothing_window'], raster_fs=meta['raster_fs'],
-                                   part=part, zscore=meta['zscore'])
+    raster = src.data.rasters.raster_from_sig(sig, probe, channels=goodcells, transitions=meta['transitions'],
+                                              smooth_window=meta['smoothing_window'], raster_fs=meta['raster_fs'],
+                                              part=part, zscore=meta['zscore'])
 
     # trialR shape: Trial x Cell x Context x Probe x Time; R shape: Cell x Context x Probe x Time
     trialR, _, _ = cdPCA.format_raster(raster)

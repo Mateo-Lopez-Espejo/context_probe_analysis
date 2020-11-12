@@ -6,6 +6,7 @@ import numpy as np
 import itertools as itt
 import pathlib as pl
 
+import src.data.rasters
 from src.data.load import load
 from src.metrics.reliability import signal_reliability
 from src.data import dPCA as cdPCA
@@ -54,9 +55,9 @@ def fit_transform(site, probe, meta, part):
     r_vals, goodcells = signal_reliability(sig, r'\ASTIM_*', threshold=meta['reliability'])
     goodcells = goodcells.tolist()
 
-    raster = cdPCA.raster_from_sig(sig, probe, channels=goodcells, transitions=meta['transitions'],
-                                   smooth_window=meta['smoothing_window'], raster_fs=meta['raster_fs'],
-                                   part=part, zscore=meta['zscore'])
+    raster = src.data.rasters.raster_from_sig(sig, probe, channels=goodcells, transitions=meta['transitions'],
+                                              smooth_window=meta['smoothing_window'], raster_fs=meta['raster_fs'],
+                                              part=part, zscore=meta['zscore'])
 
     # trialR shape: Trial x Cell x Context x Probe x Time; R shape: Cell x Context x Probe x Time
     trialR, R, _ = cdPCA.format_raster(raster)
@@ -84,9 +85,9 @@ def transform(site, probe, meta, part, dpca):
     r_vals, goodcells = signal_reliability(sig, r'\ASTIM_*', threshold=meta['reliability'])
     goodcells = goodcells.tolist()
 
-    raster = cdPCA.raster_from_sig(sig, probe, channels=goodcells, transitions=meta['transitions'],
-                                   smooth_window=meta['smoothing_window'], raster_fs=meta['raster_fs'],
-                                   part=part, zscore=meta['zscore'])
+    raster = src.data.rasters.raster_from_sig(sig, probe, channels=goodcells, transitions=meta['transitions'],
+                                              smooth_window=meta['smoothing_window'], raster_fs=meta['raster_fs'],
+                                              part=part, zscore=meta['zscore'])
 
     # trialR shape: Trial x Cell x Context x Probe x Time; R shape: Cell x Context x Probe x Time
     trialR, R, _ = cdPCA.format_raster(raster)

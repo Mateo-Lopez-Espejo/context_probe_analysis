@@ -1,6 +1,8 @@
 import matplotlib.pyplot as plt
 import numpy as np
 from progressbar import ProgressBar
+
+import src.data.rasters
 from src.data.load import load
 from src.metrics.reliability import signal_reliability
 from src.metrics import dprime as cpd
@@ -111,8 +113,8 @@ for site, probe in zip(['AMT029a', 'ley070a'],[5,2]):
 
 
     # gets the real data raster (no dim reduction) to calculate single cell, population independent d'
-    raster = cdPCA.raster_from_sig(sig,probe,channels=goodcells, transitions=meta['transitions'],
-                                       smooth_window=meta['smoothing_window'],raster_fs=meta['raster_fs'])
+    raster = src.data.rasters.raster_from_sig(sig, probe, channels=goodcells, transitions=meta['transitions'],
+                                              smooth_window=meta['smoothing_window'], raster_fs=meta['raster_fs'])
 
     # trialR shape: Trial x Cell x Context x Probe x Time; R shape: Cell x Context x Probe x Time
     trialR, R, centers = cdPCA.format_raster(raster)

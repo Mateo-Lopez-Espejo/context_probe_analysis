@@ -3,6 +3,7 @@ import itertools as itt
 import numpy as np
 
 from nems import epoch as nep
+from src.utils import tools as tools
 
 from src.utils.cpp_parameter_handlers import _channel_handler
 from src.utils.tools import raster_smooth
@@ -138,7 +139,7 @@ def _extract_triplets_sub_arr(probes, context_types, full_array, context_names, 
 
         sliced_array[:, pp, :, :, :] = full_array[context_indices, probe_index, :, :, :].copy()
 
-        if squeeze == True: sliced_array = np.squeeze(sliced_array)
+    if squeeze == True: sliced_array = np.squeeze(sliced_array)
 
     return sliced_array  # array with shape Context_transition x Probe x Repetitions x Unit x Time
 
@@ -154,17 +155,32 @@ def _extract_permutations_sub_arr(probes, contexts, full_array, context_names, p
     :return:  nd array with dimensions Context_type x Probe x Repetition x Unit x Time
     """
 
+    if isinstance(probes, int):
+        probes = [probes]
+
+    elif isinstance(probes, (list, tuple, set)):
+        if all(isinstance(x, int) for x in probes) and set(probes).issubset({1,2,3,4}):
+            probes = list(probes)
+        else:
+            raise ValueError('all values in probe must be int between 1 and 4')
+    else:
+        raise ValueError('probe must be an int or a list of ints')
+
+
     probe_index = np.asarray([probe_names.index(f'P{p}') for p in probes])
     context_indices = np.asarray([context_names.index(f'C{c}') for c in contexts])
 
     sliced_array = full_array[context_indices, probe_index, :, :, :].copy()
+    # recovers dimensions if lost
+    if len(probe_index) == 1:
+        sliced_array = sliced_array[:, None, :, :, :]
 
     if squeeze: sliced_array = np.squeeze(sliced_array)
 
     return sliced_array
 
 
-def extract_sub_array(probes, contexts, full_array, context_names, probe_names, squeeze=True):
+def extract_sub_arr(probes, contexts, full_array, context_names, probe_names, squeeze=True):
     """
     Calls the right function depending on the context_type
     """
@@ -182,3 +198,35 @@ def extract_sub_array(probes, contexts, full_array, context_names, probe_names, 
         raise ValueError ('unknonw values in contexts')
 
     return sliced_array
+
+
+def raster_from_sig(signal, probe, channels, transitions, smooth_window, raster_fs=None, part='probe', zscore=False):
+
+
+    full_array, invalid_cp, valid_cp, all_contexts, all_probes = \
+        make_full_array(signal, channels=channels, smooth_window=smooth_window, raster_fs=raster_fs)
+
+    raster = extract_sub_arr(probes=probe, contexts=transitions, full_array=full_array,
+                                          context_names=all_contexts, probe_names=all_probes, squeeze=False)
+
+    # selects raster for context, probe or both (all)
+    if part == 'probe':
+        trans_idx = int(np.floor(raster.shape[-1]/2))
+        raster = raster[..., trans_idx:]
+    elif part == 'context':
+        trans_idx = int(np.floor(raster.shape[-1]/2))
+        raster = raster[..., :trans_idx]
+    elif part == 'all':
+        pass
+    else:
+        raise ValueError("unknonw value for 'part' parameter")
+
+    # Zscores de data in a cell by cell manner
+    if zscore is True:
+        raster = tools.zscore(raster, axis=(0,1,2,4))
+    elif zscore is False:
+        pass
+    else:
+        raise ValueError('meta zscore must be boolean')
+
+    return raster

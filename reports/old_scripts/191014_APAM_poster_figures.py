@@ -8,6 +8,7 @@ from cycler import cycler
 
 from progressbar import ProgressBar
 
+import src.data.rasters
 from src.data.load import load
 from src.metrics.reliability import signal_reliability
 from src.metrics import dprime as cpd
@@ -275,8 +276,8 @@ all_dPCA_proj = [trialZ['ct'][:, 0, ctx, :] for ctx in range(trialZ['ct'].shape[
 ########################################################################################################################
 # figure 1: Shows the raw data, i.e.the projection
 # gets the real data raster (no dim reduction) to calculate single cell, population independent d'
-raster = cdPCA.raster_from_sig(sig, probe, channels=goodcells, transitions=transitions,
-                               smooth_window=meta['smoothing_window'], raster_fs=meta['raster_fs'])
+raster = src.data.rasters.raster_from_sig(sig, probe, channels=goodcells, transitions=transitions,
+                                          smooth_window=meta['smoothing_window'], raster_fs=meta['raster_fs'])
 
 # trialR shape: Trial x Cell x Context x Probe x Time; R shape: Cell x Context x Probe x Time
 trialR, R, _ = cdPCA.format_raster(raster)

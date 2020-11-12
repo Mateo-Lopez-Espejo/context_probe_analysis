@@ -1,6 +1,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
 
+import src.data.rasters
 from src.data import LDA as cLDA, dPCA as cdPCA
 from src.metrics import dprime as cpd
 from src.data.load import load
@@ -92,8 +93,8 @@ dPCA_dprime = cpd.dprime(X_dPCA_proj, Y_dPCA_proj, absolute=True)
 # real_dprime = cpd.dprime(real_proj_ctx0, real_proj_ctx1, absolute=True)
 
 # gets the real data raster (no dim reduction) to calculate single cell, population independent d'
-raster = cdPCA.raster_from_sig(sig, probe, channels=goodcells, transitions=meta['transitions'],
-                               smooth_window=meta['smoothing_window'], raster_fs=meta['raster_fs'])
+raster = src.data.rasters.raster_from_sig(sig, probe, channels=goodcells, transitions=meta['transitions'],
+                                          smooth_window=meta['smoothing_window'], raster_fs=meta['raster_fs'])
 
 # trialR shape: Trial x Cell x Context x Probe x Time; R shape: Cell x Context x Probe x Time
 trialR, _, _ = cdPCA.format_raster(raster)
