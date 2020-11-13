@@ -51,6 +51,8 @@ def shuffle_along_axis(array, shuffle_axis, indie_axis=None, rng=None):
     if isinstance(indie_axis, int):
         indie_axis = [indie_axis]
 
+    if rng is None:
+        rng = np.random.default_rng()
 
     # reorder axis, first: indie_axis second: shuffle_axis, third: all other axis i.e. protected axis.
     other_axis = [x for x in range(array.ndim) if x not in indie_axis and x not in shuffle_axis]
