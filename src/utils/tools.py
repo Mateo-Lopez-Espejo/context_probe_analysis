@@ -35,37 +35,21 @@ def zscore(array, axis):
 
 
 
-def shuffle_along_axis(array, shuffle_axis, indie_axis=None):
+def shuffle_along_axis(array, shuffle_axis, indie_axis=None, rng=None):
     '''
     shuffles in place an array along the selected axis or group of axis .
-    :param array: ndarray
-    :param shuffle_axis: int or int list. axis along wich to perform the shuffle
+    :param array: nd-array
+    :param shuffle_axis: int or int list. axis along which to perform the shuffle
     :param indie_axis: int or int list. shuffling will be done independently across positions in these axis.
+    :rng: instance of numpy.random.default_rng(), if none is passed, a random seed is used to create one.
     :return: shuffled array of the same shape as input array.
     '''
-    # sanitize the shuffle_axis value, it can either be an integer or a list of integers
+
+    # turn axis inputs into lists of ints.
     if isinstance(shuffle_axis, int):
         shuffle_axis = [shuffle_axis]
-    elif isinstance(shuffle_axis, (list, tuple, set)):
-        if all(isinstance(x, int) for x in shuffle_axis):
-            shuffle_axis = list(shuffle_axis)
-        else:
-            raise ValueError('all values in shuffle_axis must be int')
-    else:
-        raise ValueError('shuffle_axis must be an int or a list of ints')
-
-    # sanitize the indie_axis valu, it can be either an integer or a list of integers
     if isinstance(indie_axis, int):
         indie_axis = [indie_axis]
-    elif isinstance(indie_axis, (list, tuple, set)):
-        if all(isinstance(x, int) for x in indie_axis):
-            indie_axis = list(indie_axis)
-        else:
-            raise ValueError('all values in indie_axis must be int')
-    elif indie_axis is None:
-        indie_axis = []
-    else:
-        raise ValueError('indie_axis must be an int or a list of ints')
 
 
     # reorder axis, first: indie_axis second: shuffle_axis, third: all other axis i.e. protected axis.
@@ -86,12 +70,12 @@ def shuffle_along_axis(array, shuffle_axis, indie_axis=None):
     array = np.reshape(array, new_shape)
 
     if indie_axis is None:
-        np.random.shuffle(array)
+        rng.shuffle(array)
     else:
         # slices the array along the independent axis
         # shuffles independently for each slice
-        for ndx in np.ndindex(shape[:len(indie_axis)]):
-            np.random.shuffle(array[ndx])
+        for ndx in np.ndindex(shape[:len(indie_axis)]): # this is what takes for ever.
+            rng.shuffle(array[ndx])
 
     # reshapes into original dimensions
     array = np.reshape(array, shape)

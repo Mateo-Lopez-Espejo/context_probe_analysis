@@ -18,7 +18,7 @@ config = ConfigParser()
 config.read_file(open(pl.Path(__file__).parents[2] / 'config' / 'settings.ini'))
 
 # memory = Memory(pl.Path(config['paths']['analysis_cache']))
-memory = Memory(pl.Path(__file__).parents[2] / 'data' / 'cpp_dprimes_cache')
+memory = Memory(str(pl.Path(__file__).parents[2] / 'data' / 'cpp_dprimes_cache'))
 
 
 @memory.cache
@@ -57,6 +57,7 @@ def cell_dprime(site, probe, meta):
     shuffled = list()
     # pbar = ProgressBar()
     print(f"\nshuffling {meta['montecarlo']} times")
+    rng = np.random.default_rng(42)
     for tp in trans_pairs:
         shuf_trialR = np.empty([meta['montecarlo'], rep, chn, 2, tme])
         shuf_trialR[:] = np.nan
@@ -65,7 +66,7 @@ def cell_dprime(site, probe, meta):
         ctx_shuffle = trialR[:, :, tran_idx, :].copy()
 
         for rr in range(meta['montecarlo']):
-            shuf_trialR[rr, ...] = shuffle(ctx_shuffle, shuffle_axis=2, indie_axis=0)
+            shuf_trialR[rr, ...] = shuffle(ctx_shuffle, shuffle_axis=2, indie_axis=0, rng=rng)
 
         shuffled.append(cDP.pairwise_dprimes(shuf_trialR, observation_axis=1, condition_axis=3,
                                              flip=meta['dprime_absolute']))
@@ -110,7 +111,7 @@ def dPCA_fourway_analysis(site, probe, meta):
 
     # ctx_shuffle = trialR.copy()
     shuf_projection = dPCA_projection.copy()
-
+    rng = np.random.default_rng(42)
     for rr in range(meta['montecarlo']):
         # ceiling: simulates data, calculates dprimes
         sim_trial = np.random.normal(np.mean(trialR, axis=0), np.std(trialR, axis=0),
@@ -121,7 +122,7 @@ def dPCA_fourway_analysis(site, probe, meta):
 
         # ctx_shuffle = shuffle(ctx_shuffle, shuffle_axis=2, indie_axis=0)
         # shuf_projection = cdPCA.transform(ctx_shuffle, dPCA_transformation)
-        shuf_projection = shuffle(shuf_projection, shuffle_axis=1, indie_axis=0)
+        shuf_projection = shuffle(shuf_projection, shuffle_axis=1, indie_axis=0, rng=rng)
         shuf_dprime[rr, ...] = cDP.pairwise_dprimes(shuf_projection, observation_axis=0, condition_axis=1,
                                                     flip=meta['dprime_absolute'])
 
