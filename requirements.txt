@@ -1,0 +1,14 @@
+# local package
+-e .
+
+# external requirements
+Sphinx
+coverage
+numpy
+scipy
+matplotlib
+joblib
+seaborn
+statannot
+nems
+nems-db

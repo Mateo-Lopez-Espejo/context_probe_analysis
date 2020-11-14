@@ -1,12 +1,11 @@
 import nems.recording as recording
 import nems_lbhb.baphy as nb
 
-import cpp_epochs as cpe
+from src.data import epochs as cpe, cache as cch
 # import cpp_dispersion as cdisp
-import cpp_cache as cch
 
-import cpn_dispersion as cdisp
-from fancy_plots import plot_dist_with_CI
+from src.metrics import trp_dispersion as cdisp
+from src.visualization.fancy_plots import plot_dist_with_CI
 
 # harcoded selected cells as taken from 190529_select_single_cells_with_high_variation.py
 # using zscore threshold = 0.18, and zstd (zscore std across contexts) = 0

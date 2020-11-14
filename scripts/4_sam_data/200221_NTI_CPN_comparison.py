@@ -5,17 +5,16 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from scipy.io import loadmat
-from scipy.optimize import curve_fit
 
-import cpn_LDA as cLDA
-import cpn_dPCA as cdPCA
-import cpn_dprime as cDP
-from cpn_load import load, get_site_ids
-from cpp_cache import make_cache, get_cache
-from reliability import signal_reliability
-from tools import shuffle_along_axis as shuffle
-import fits as fit
-import fancy_plots as fplt
+import src.data.rasters
+from src.data import dPCA as cdPCA
+from src.metrics import dprime as cDP
+from src.data.load import load, get_site_ids
+from src.data.cache import make_cache, get_cache
+from src.metrics.reliability import signal_reliability
+from src.utils.tools import shuffle_along_axis as shuffle
+from src.utils import fits as fit
+from src.visualization import fancy_plots as fplt
 
 '''
 since applying the dprime CPN analysis toe the NTI data was unsuccessfull, the next alternative to compare Sam and my
@@ -46,9 +45,9 @@ def cell_dprime(site, probe, meta):
     goodcells = goodcells.tolist()
 
     # get the full data raster Context x Probe x Rep x Neuron x Time
-    raster = cdPCA.raster_from_sig(sig, probe, channels=goodcells, transitions=meta['transitions'],
-                                   smooth_window=meta['smoothing_window'], raster_fs=meta['raster_fs'],
-                                   zscore=meta['zscore'], part='probe')
+    raster = src.data.rasters.raster_from_sig(sig, probe, channels=goodcells, transitions=meta['transitions'],
+                                              smooth_window=meta['smoothing_window'], raster_fs=meta['raster_fs'],
+                                              zscore=meta['zscore'], part='probe')
 
     # trialR shape: Trial x Cell x Context x Probe x Time; R shape: Cell x Context x Probe x Time
     trialR, R, _ = cdPCA.format_raster(raster)
@@ -98,9 +97,9 @@ def dPCA_fourway_analysis(site, probe, meta):
     goodcells = goodcells.tolist()
 
     # get the full data raster Context x Probe x Rep x Neuron x Time
-    raster = cdPCA.raster_from_sig(sig, probe, channels=goodcells, transitions=meta['transitions'],
-                                   smooth_window=meta['smoothing_window'], raster_fs=meta['raster_fs'],
-                                   zscore=meta['zscore'])
+    raster = src.data.rasters.raster_from_sig(sig, probe, channels=goodcells, transitions=meta['transitions'],
+                                              smooth_window=meta['smoothing_window'], raster_fs=meta['raster_fs'],
+                                              zscore=meta['zscore'])
 
     # trialR shape: Trial x Cell x Context x Probe x Time; R shape: Cell x Context x Probe x Time
     trialR, R, _ = cdPCA.format_raster(raster)

@@ -7,12 +7,12 @@ from sklearn.decomposition import PCA
 
 from cycler import cycler
 
-from cpn_load import load
-from reliability import signal_reliability
-import cpn_dprime as cpd
-import cpn_dPCA as cdPCA
-import cpn_LDA as cLDA
-from tools import shuffle_along_axis as shuffle
+import src.data.rasters
+from src.data.load import load
+from src.metrics.reliability import signal_reliability
+from src.metrics import dprime as cpd
+from src.data import LDA as cLDA, dPCA as cdPCA
+from src.utils.tools import shuffle_along_axis as shuffle
 import scipy.stats as sst
 import scipy.cluster.hierarchy as sch
 
@@ -262,8 +262,8 @@ c1 = 3
 
 ########
 # gets the real data raster (no dim reduction) to calculate single cell, population independent d'
-raster = cdPCA.raster_from_sig(sig, probe, channels=goodcells, transitions=meta['transitions'],
-                               smooth_window=meta['smoothing_window'], raster_fs=meta['raster_fs'])
+raster = src.data.rasters.raster_from_sig(sig, probe, channels=goodcells, transitions=meta['transitions'],
+                                          smooth_window=meta['smoothing_window'], raster_fs=meta['raster_fs'])
 
 # trialR shape: Trial x Cell x Context x Probe x Time; R shape: Cell x Context x Probe x Time
 trialR, _, _ = cdPCA.format_raster(raster)

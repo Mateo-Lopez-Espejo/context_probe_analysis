@@ -3,16 +3,14 @@ import numpy as np
 import itertools as itt
 import pathlib as pl
 
-from cpn_load import load
-from reliability import signal_reliability
-import cpn_dPCA as cdPCA
-import cpn_dispersion as ndisp
-from cpp_cache import make_cache, get_cache
-import fancy_plots as plot
-import cpn_triplets as tp
-import joblib as jl
+from src.data.load import load
+from src.metrics.reliability import signal_reliability
+from src.metrics import trp_dispersion as ndisp
+from src.data.cache import make_cache, get_cache
+from src.visualization import fancy_plots as plot
+from src.data import rasters as tp
 
-from cpp_PCA import PSTH_PCA as pca
+from src.data.PCA import PSTH_PCA as pca
 
 '''
 Calculates single trial corrected euclidean distance between pairs of transitions using origninal neuron space i.e. no dPCA.
@@ -74,8 +72,8 @@ for site in all_sites:
     fig = plt.figure()
     for pp, probe in enumerate(meta['probes_to_plot']):
 
-        trans_arr = tp.extract_sub_arr(probes=probe, context_types=meta['transitions'], full_array=full_array,
-                                    context_names=all_contexts, probe_names=all_probes, squeeze=False)
+        trans_arr = tp._extract_triplets_sub_arr(probes=probe, context_types=meta['transitions'], full_array=full_array,
+                                                 context_names=all_contexts, probe_names=all_probes, squeeze=False)
 
         # first column, plots the PSTH by transition
         PCax = plt.subplot2grid((4, 7), (pp, 0), rowspan=1, colspan=1, fig=fig)

@@ -1,12 +1,12 @@
 import matplotlib.pyplot as plt
 import numpy as np
 
-import cpn_LDA as cLDA
-import cpn_dPCA as cdPCA
-import cpn_dprime as cpd
-from cpn_load import load
-from reliability import signal_reliability
-from tools import zscore2, zscore
+import src.data.rasters
+from src.data import LDA as cLDA, dPCA as cdPCA
+from src.metrics import dprime as cpd
+from src.data.load import load
+from src.metrics.reliability import signal_reliability
+from src.utils.tools import zscore
 
 '''
 a second attempt on the d prime approach to compare the population discriminability versus the single cell discrimination
@@ -93,8 +93,8 @@ dPCA_dprime = cpd.dprime(X_dPCA_proj, Y_dPCA_proj, absolute=True)
 # real_dprime = cpd.dprime(real_proj_ctx0, real_proj_ctx1, absolute=True)
 
 # gets the real data raster (no dim reduction) to calculate single cell, population independent d'
-raster = cdPCA.raster_from_sig(sig, probe, channels=goodcells, transitions=meta['transitions'],
-                               smooth_window=meta['smoothing_window'], raster_fs=meta['raster_fs'])
+raster = src.data.rasters.raster_from_sig(sig, probe, channels=goodcells, transitions=meta['transitions'],
+                                          smooth_window=meta['smoothing_window'], raster_fs=meta['raster_fs'])
 
 # trialR shape: Trial x Cell x Context x Probe x Time; R shape: Cell x Context x Probe x Time
 trialR, _, _ = cdPCA.format_raster(raster)
@@ -141,7 +141,7 @@ if meta['use_zscore']:
     # zcoreR = {key: np.nan_to_num((val - means)/ stds) for key, val in all_arrays.items()}
 
     # use each cases mean and std
-    zcoreR = {key: zscore2(val) for key, val in all_arrays.items()}
+    zcoreR = {key: zscore(val, (0,2,3)) for key, val in all_arrays.items()}
     final_array = zcoreR
 
 # checks the zscore

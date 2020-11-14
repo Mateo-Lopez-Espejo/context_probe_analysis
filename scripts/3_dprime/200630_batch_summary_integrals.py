@@ -3,16 +3,14 @@ import pathlib as pl
 import joblib as jl
 import itertools as itt
 
-import numpy as np
 import pandas as pd
 import scipy.stats as sst
 
 import matplotlib.pyplot as plt
 import seaborn as sns
-from statannot import add_stat_annotation
 
-import fancy_plots as fplt
-from cpp_cache import set_name
+from src.visualization import fancy_plots as fplt
+from src.data.cache import set_name
 
 """
 2020-06-30
@@ -24,12 +22,7 @@ a fitless alternative, like the integral of the contextual effect. Here I explor
 """
 
 config = ConfigParser()
-if pl.Path('../context_probe_analysis/config/settings.ini').exists():
-    config.read(pl.Path('../context_probe_analysis/config/settings.ini'))
-elif pl.Path('../../../context_probe_analysis/config/settings.ini').exists():
-    config.read(pl.Path('../../../context_probe_analysis/config/settings.ini'))
-else:
-    raise FileNotFoundError('config file coluld not be foud')
+config.read_file(open(pl.Path(__file__).parents[2] / 'config' / 'settings.ini'))
 
 meta = {'reliability': 0.1,  # r value
         'smoothing_window': 0,  # ms

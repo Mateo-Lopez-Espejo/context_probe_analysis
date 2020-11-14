@@ -7,14 +7,15 @@ import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
 
-import cpn_LDA as cLDA
-import cpn_dPCA as cdPCA
-import cpn_dprime as cDP
-import fancy_plots as fplt
-from cpn_load import load
-from cpp_cache import set_name
-from fancy_plots import savefig
-from reliability import signal_reliability
+import src.data.rasters
+import src.visualization.fancy_plots
+from src.data import LDA as cLDA, dPCA as cdPCA
+from src.metrics import dprime as cDP
+from src.visualization import fancy_plots as fplt
+from src.data.load import load
+from src.data.cache import set_name
+from src.visualization.fancy_plots import savefig
+from src.metrics.reliability import signal_reliability
 
 """
 Summary of the d' context discrimination significance, and propulation effect significance across all combinations of 
@@ -25,12 +26,7 @@ Multiple steps of the calculation process are displayed in figures for examples 
 """
 
 config = ConfigParser()
-if pl.Path('../context_probe_analysis/config/settings.ini').exists():
-    config.read(pl.Path('../context_probe_analysis/config/settings.ini'))
-elif pl.Path('../../../context_probe_analysis/config/settings.ini').exists():
-    config.read(pl.Path('../../../context_probe_analysis/config/settings.ini'))
-else:
-    raise FileNotFoundError('config file could not be find')
+config.read_file(open(pl.Path(__file__).parents[2] / 'config' / 'settings.ini'))
 
 trans_color_map = {'silence': '#377eb8',  # blue
                    'continuous': '#ff7f00',  # orange
@@ -105,9 +101,9 @@ def analysis_steps_plot(id, probe, source):
     r_vals, goodcells = signal_reliability(sig, r'\ASTIM_*', threshold=meta['reliability'])
     goodcells = goodcells.tolist()
     # get the full data raster Context x Probe x Rep x Neuron x Time
-    raster = cdPCA.raster_from_sig(sig, probe, channels=goodcells, transitions=meta['transitions'],
-                                   smooth_window=meta['smoothing_window'], raster_fs=meta['raster_fs'],
-                                   zscore=meta['zscore'], part='probe')
+    raster = src.data.rasters.raster_from_sig(sig, probe, channels=goodcells, transitions=meta['transitions'],
+                                              smooth_window=meta['smoothing_window'], raster_fs=meta['raster_fs'],
+                                              zscore=meta['zscore'], part='probe')
     # trialR shape: Trial x Cell x Context x Probe x Time; R shape: Cell x Context x Probe x Time
     trialR, R, _ = cdPCA.format_raster(raster)
     trialR, R = trialR.squeeze(axis=3), R.squeeze(axis=2)  # squeezes out probe
@@ -492,9 +488,9 @@ def dPCA_site_summary(site, probe):
     goodcells = goodcells.tolist()
 
     # get the full data raster Context x Probe x Rep x Neuron x Time
-    raster = cdPCA.raster_from_sig(sig, probe, channels=goodcells, transitions=meta['transitions'],
-                                   smooth_window=meta['smoothing_window'], raster_fs=meta['raster_fs'],
-                                   zscore=meta['zscore'], part='probe')
+    raster = src.data.rasters.raster_from_sig(sig, probe, channels=goodcells, transitions=meta['transitions'],
+                                              smooth_window=meta['smoothing_window'], raster_fs=meta['raster_fs'],
+                                              zscore=meta['zscore'], part='probe')
 
     # trialR shape: Trial x Cell x Context x Probe x Time; R shape: Cell x Context x Probe x Time
     trialR, R, _ = cdPCA.format_raster(raster)
@@ -545,7 +541,7 @@ def dPCA_site_summary(site, probe):
 def var_explained(dpca):
     # plots variance explained
     fig, var_ax = plt.subplots()
-    fig, var_ax, inset = cdPCA.variance_explained(dpca, ax=var_ax, names=['probe', 'context'], colors=['gray', 'green'])
+    fig, var_ax, inset = src.visualization.fancy_plots.variance_explained(dpca, ax=var_ax, names=['probe', 'context'], colors=['gray', 'green'])
     _, labels, autotexts = inset
     plt.setp(autotexts, size=15, weight='normal')
     plt.setp(labels, size=15, weight='normal')

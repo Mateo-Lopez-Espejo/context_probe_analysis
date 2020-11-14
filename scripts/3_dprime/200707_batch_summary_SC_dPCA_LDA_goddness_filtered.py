@@ -10,8 +10,8 @@ import scipy.stats as sst
 import seaborn as sns
 from statannot import add_stat_annotation
 
-import fancy_plots as fplt
-from cpp_cache import set_name
+from src.visualization import fancy_plots as fplt
+from src.data.cache import set_name
 
 """
 2020-05-??
@@ -28,14 +28,9 @@ Also compares the R2 goodness of fit with the standard error of the fitted param
 """
 
 config = ConfigParser()
-if pl.Path('../context_probe_analysis/config/settings.ini').exists():
-    config.read(pl.Path('../context_probe_analysis/config/settings.ini'))
-elif pl.Path('../../../context_probe_analysis/config/settings.ini').exists():
-    config.read(pl.Path('../../../context_probe_analysis/config/settings.ini'))
-else:
-    raise FileNotFoundError('config file coluld not be foud')
+config.read_file(open(pl.Path(__file__).parents[2] / 'config' / 'settings.ini'))
 
-# analysis should be createde and cached with cpn_batch_dprime.py beforehand, using the same meta parameters
+# analysis should be createde and cached with trp_batch_dprime.py beforehand, using the same meta parameters
 meta = {'reliability': 0.1,  # r value
         'smoothing_window': 0,  # ms
         'raster_fs': 30,
