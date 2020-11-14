@@ -37,12 +37,12 @@ def ndarray_dprime(array0, array1, axis, flip=None):
 
     elif flip == 'max':
         # flip value signs so the highest absolute dprime value is positive
-        toflip = (np.abs(np.min(dprime, axis=-1)) > np.max(dprime, axis=-1))[..., None]  # asume last dimensio is time
+        toflip = (np.abs(np.min(dprime, axis=-1)) > np.max(dprime, axis=-1))[..., None]  # assume last dimension is time
         dprime = np.negative(dprime, where=toflip, out=dprime)
 
     elif flip == 'first':
         # flips value signs so the first value in time is positive.
-        toflip = (dprime[..., 0] < 0)[..., None]  # asumes last dimension is time
+        toflip = (dprime[..., 0] < 0)[..., None]  # assumes last dimension is time
         dprime = np.negative(dprime, where=toflip, out=dprime)
 
     elif flip is None:

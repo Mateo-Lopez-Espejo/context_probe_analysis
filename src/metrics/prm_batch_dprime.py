@@ -7,7 +7,7 @@ import numpy as np
 from joblib import Memory, dump, load
 
 import src.data.rasters
-from src.data import LDA as cLDA, dPCA as cdPCA
+from src.data import dPCA as cdPCA
 from src.data.cache import set_name
 from src.data.load import load
 from src.metrics import dprime as cDP
@@ -18,7 +18,7 @@ config = ConfigParser()
 config.read_file(open(pl.Path(__file__).parents[2] / 'config' / 'settings.ini'))
 
 # memory = Memory(pl.Path(config['paths']['analysis_cache']))
-memory = Memory(str(pl.Path(__file__).parents[2] / 'data' / 'cpp_dprimes_cache'))
+memory = Memory(str(pl.Path(config['paths']['analysis_cache']) / 'prm_dprimes'))
 
 
 @memory.cache
@@ -200,20 +200,6 @@ for site, (func_key, func) in itt.product(sites, analysis_functions.items()):
 
     for pp, probe in enumerate(all_probes):
 
-        # cache location and function name
-        # object_name = f'{site}_P{probe}_{func_key}_dprime'
-        # analysis_parameters = '_'.join(['{}-{}'.format(key, str(val)) for key, val in meta.items()])
-        # analysis_name = f'CPP_{func_key}_dprime'
-        # cache_folder = pl.Path(config['paths']['analysis_cache']) / f'{analysis_name}/{analysis_parameters}'
-        #
-        # SC_cache = make_cache(function=func,
-        #                       func_args={'site': site, 'probe': probe, 'meta': meta},
-        #                       classobj_name=object_name,
-        #                       cache_folder=cache_folder,
-        #                       recache=dprime_recache)
-        #
-        # dprime, shuf_dprime, sim_dprime, cell_names = get_cache(SC_cache)
-
         dprime, shuf_dprime, sim_dprime, cell_names = func(site, probe, meta)
 
         real_dprimes.append(dprime)
@@ -252,14 +238,13 @@ for site, (func_key, func) in itt.product(sites, analysis_functions.items()):
 
             del batch_dprimes[func_key][source][site]
 
-# set defaultdict factory functions as None to allowe pickling
-
+# set defaultdict factory functions as None to allow pickling
 for middle_dict in batch_dprimes.values():
     middle_dict.default_factory = None
 batch_dprimes.default_factory = None
 
 # caches the bulk dprimes
-batch_dprime_file = pl.Path(config['paths']['analysis_cache']) / 'batch_prm_dprimes' / set_name(meta)
+batch_dprime_file = pl.Path(config['paths']['analysis_cache']) / 'prm_dprimes' / set_name(meta)
 if batch_dprime_file.parent.exists() is False:
     batch_dprime_file.parent.mkdir()
 

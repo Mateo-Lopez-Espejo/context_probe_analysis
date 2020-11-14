@@ -9,7 +9,7 @@ from src.utils.cpp_parameter_handlers import _channel_handler
 from src.utils.tools import raster_smooth
 
 
-def make_full_array(signal, channels='all', smooth_window=None, raster_fs=None):
+def make_full_array(signal, channels='all', smooth_window=None, raster_fs=None, zscore=False):
     '''
     given a CPP/CPN signal, extract rasters and organizes in a 5D array with axes Context x Probe x Repetition x Unit x Time
     :param signal: nems signal. It should have the context probe epochs defined.
@@ -22,6 +22,14 @@ def make_full_array(signal, channels='all', smooth_window=None, raster_fs=None):
     channels = _channel_handler(signal, channels)
 
     signal = signal.rasterize(fs=raster_fs)
+
+    # Zscores de data in a cell by cell manner
+    if zscore:
+        signal._data = tools.zscore(signal._data, axis=1)
+    elif zscore is False:
+        pass
+    else:
+        raise ValueError('meta zscore must be boolean')
 
     reg_ex = r'\AC\d_P\d\Z'
 
@@ -54,6 +62,7 @@ def make_full_array(signal, channels='all', smooth_window=None, raster_fs=None):
 
     # gaussian window smooth
     if smooth_window is not None and smooth_window != 0:
+        print('warning: smooting the data so early might lead to questionable results. Preferably smooth before plotting')
         full_array = raster_smooth(full_array, signal.fs, smooth_window, axis=4)
 
     return full_array, invalid_cp, valid_cp, context_names, probe_names
@@ -204,7 +213,7 @@ def raster_from_sig(signal, probe, channels, transitions, smooth_window, raster_
 
 
     full_array, invalid_cp, valid_cp, all_contexts, all_probes = \
-        make_full_array(signal, channels=channels, smooth_window=smooth_window, raster_fs=raster_fs)
+        make_full_array(signal, channels=channels, smooth_window=None, raster_fs=raster_fs, zscore=zscore)
 
     raster = extract_sub_arr(probes=probe, contexts=transitions, full_array=full_array,
                                           context_names=all_contexts, probe_names=all_probes, squeeze=False)
@@ -220,13 +229,5 @@ def raster_from_sig(signal, probe, channels, transitions, smooth_window, raster_
         pass
     else:
         raise ValueError("unknonw value for 'part' parameter")
-
-    # Zscores de data in a cell by cell manner
-    if zscore is True:
-        raster = tools.zscore(raster, axis=(0,1,2,4))
-    elif zscore is False:
-        pass
-    else:
-        raise ValueError('meta zscore must be boolean')
 
     return raster
