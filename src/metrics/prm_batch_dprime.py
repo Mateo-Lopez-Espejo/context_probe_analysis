@@ -17,12 +17,11 @@ from src.utils.tools import shuffle_along_axis as shuffle
 config = ConfigParser()
 config.read_file(open(pl.Path(__file__).parents[2] / 'config' / 'settings.ini'))
 
-# memory = Memory(pl.Path(config['paths']['analysis_cache']))
 memory = Memory(str(pl.Path(config['paths']['analysis_cache']) / 'prm_dprimes'))
 
 
 @memory.cache
-def cell_dprime(site, probe, meta):
+def single_cell_dprimes(site, probe, meta):
     # recs = load(site, remote=True, rasterfs=meta['raster_fs'], recache=False)
     recs = load(site, rasterfs=meta['raster_fs'], recache=rec_recache)
     if len(recs) > 2:
@@ -77,7 +76,7 @@ def cell_dprime(site, probe, meta):
 
 
 @memory.cache
-def dPCA_fourway_analysis(site, probe, meta):
+def probewise_dPCA_dprimes(site, probe, meta):
     recs = load(site, rasterfs=meta['raster_fs'], recache=rec_recache)
 
     if len(recs) > 2:
@@ -107,6 +106,7 @@ def dPCA_fourway_analysis(site, probe, meta):
 
     # calculates floor (ctx shuffle) and ceiling (simulated data)
     sim_dprime = np.empty([meta['montecarlo']] + list(dprime.shape))
+    # sim_dprime = None
     shuf_dprime = np.empty([meta['montecarlo']] + list(dprime.shape))
 
     # ctx_shuffle = trialR.copy()
@@ -120,36 +120,39 @@ def dPCA_fourway_analysis(site, probe, meta):
         sim_dprime[rr, ...] = cDP.pairwise_dprimes(sim_projection, observation_axis=0, condition_axis=1,
                                                    flip=meta['dprime_absolute'])
 
+        # # floor: shuffles context identity, calculates dprime
         # ctx_shuffle = shuffle(ctx_shuffle, shuffle_axis=2, indie_axis=0)
         # shuf_projection = cdPCA.transform(ctx_shuffle, dPCA_transformation)
         shuf_projection = shuffle(shuf_projection, shuffle_axis=1, indie_axis=0, rng=rng)
         shuf_dprime[rr, ...] = cDP.pairwise_dprimes(shuf_projection, observation_axis=0, condition_axis=1,
                                                     flip=meta['dprime_absolute'])
 
-    # test plots
-    # fig, axes = plt.subplots(3,6)
+    # # test plots
+    # import matplotlib.pyplot as plt
+    # import src.visualization.fancy_plots as fplt
+    # fig, axes = plt.subplots(3,10)
     # t = np.arange(30)
     # for tt, trans in enumerate(itt.combinations(meta['transitions'], 2)):
     #
     #     t0_idx = meta['transitions'].index(trans[0])
     #     t1_idx = meta['transitions'].index(trans[1])
     #
-    #     axes[0,tt].plot(t, dPCA_projection[:, t0_idx, :].mean(axis=0), color=trans_color_map[trans[0]], linewidth=3)
-    #     axes[0,tt].plot(t, dPCA_projection[:, t1_idx, :].mean(axis=0), color=trans_color_map[trans[1]], linewidth=3)
+    #     axes[0,tt].plot(t, dPCA_projection[:, t0_idx, :].mean(axis=0), color='blue', linewidth=3)
+    #     axes[0,tt].plot(t, dPCA_projection[:, t1_idx, :].mean(axis=0), color='orange', linewidth=3)
     #
     # # Raster, dprime, CI
     # bottom, top = axes[0, 0].get_ylim()
     # half = ((top - bottom) / 2) + bottom
     # for tt, trans in enumerate(itt.combinations(meta['transitions'], 2)):
-    #     pair_idx = SC_trans_pairs.index(f'{trans[0]}_{trans[1]}')
+    #     pair_idx = tt
     #
     #     t0_idx = meta['transitions'].index(trans[0])
     #     t1_idx = meta['transitions'].index(trans[1])
     #
     #     _ = fplt._raster(t, dPCA_projection[:, t0_idx, :], y_offset=0, y_range=(bottom, half), ax=axes[0,tt],
-    #                      scatter_kws={'color': trans_color_map[trans[0]], 'alpha': 0.4, 's': 10})
+    #                      scatter_kws={'color': 'blue', 'alpha': 0.4, 's': 10})
     #     _ = fplt._raster(t, dPCA_projection[:, t1_idx, :], y_offset=0, y_range=(half, top), ax=axes[0,tt],
-    #                      scatter_kws={'color': trans_color_map[trans[1]], 'alpha': 0.4, 's': 10})
+    #                      scatter_kws={'color': 'orange', 'alpha': 0.4, 's': 10})
     #
     #     # plots the real dprime and the shuffled dprime
     #     axes[1,tt].plot(t, dprime[pair_idx, :], color='black')
@@ -183,9 +186,7 @@ sites = {'AMT028b', 'AMT029a', 'AMT030a', 'AMT031a', 'AMT032a', 'CRD002a', 'CRD0
          'DRX008b', 'DRX021a', 'DRX023a', 'ley070a', 'ley072b'}
 sites = sites.difference(badsites)
 
-sites = {'AMT029a'}
-
-analysis_functions = {'SC': cell_dprime, 'dPCA': dPCA_fourway_analysis}
+analysis_functions = {'SC': single_cell_dprimes, 'pdPCA': probewise_dPCA_dprimes}
 # initilizede nested dictionary with three layer: 1. Analysis type 2. calculated values 3. cell or site
 batch_dprimes = col.defaultdict(lambda: col.defaultdict(dict))
 for site, (func_key, func) in itt.product(sites, analysis_functions.items()):
