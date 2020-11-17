@@ -176,13 +176,11 @@ def _extract_permutations_sub_arr(probes, contexts, full_array, context_names, p
         raise ValueError('probe must be an int or a list of ints')
 
 
-    probe_index = np.asarray([probe_names.index(f'P{p}') for p in probes])
+    probe_indices = np.asarray([probe_names.index(f'P{p}') for p in probes])
     context_indices = np.asarray([context_names.index(f'C{c}') for c in contexts])
 
-    sliced_array = full_array[context_indices, probe_index, :, :, :].copy()
-    # recovers dimensions if lost
-    if len(probe_index) == 1:
-        sliced_array = sliced_array[:, None, :, :, :]
+    sliced_array = np.take(full_array, context_indices, axis=0).copy()
+    sliced_array = np.take(sliced_array, probe_indices, axis=1).copy()
 
     if squeeze: sliced_array = np.squeeze(sliced_array)
 

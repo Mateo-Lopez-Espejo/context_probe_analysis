@@ -63,7 +63,7 @@ def fit_transform(site, probe, meta, part):
     trialR, R, _ = cdPCA.format_raster(raster)
     trialR, R = trialR.squeeze(), R.squeeze()  # squeezes out probe
 
-    _, dPCA_projection, _, dpca = cdPCA.trials_dpca(R, trialR, significance=False, dPCA_parms={})
+    _, dPCA_projection, _, dpca = cdPCA._cpp_dPCA(R, trialR, significance=False, dPCA_parms={})
     dPCA_projection = dPCA_projection['ct'][:, 0, ...]
     dPCA_weights = np.tile(dpca.D['ct'][:, 0][:, None, None], [1, 1, R.shape[-1]])
 

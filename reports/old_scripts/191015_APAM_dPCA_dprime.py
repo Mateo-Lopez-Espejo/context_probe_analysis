@@ -86,7 +86,7 @@ def dPCA_fourway_analysis(site, probe, meta):
 
     # calculates full dPCA. i.e. considering all 4 categories
     def fit_transformt(R, trialR):
-        _, dPCA_projection, _, dpca = cdPCA.trials_dpca(R, trialR, significance=False, dPCA_parms={})
+        _, dPCA_projection, _, dpca = cdPCA._cpp_dPCA(R, trialR, significance=False, dPCA_parms={})
         dPCA_projection = dPCA_projection['ct'][:, 0, ]
         dPCA_transformation = np.tile(dpca.D['ct'][:, 0][:, None, None], [1, 1, T])
         return dPCA_projection, dPCA_transformation
@@ -147,7 +147,7 @@ def dPCA_twoway_analysis(site, probe, meta):
 
         # calculates full dPCA. i.e. considering all 4 categories
         def fit_transformt(R, trialR):
-            _, dPCA_projection, _, dpca = cdPCA.trials_dpca(R, trialR, significance=False, dPCA_parms={})
+            _, dPCA_projection, _, dpca = cdPCA._cpp_dPCA(R, trialR, significance=False, dPCA_parms={})
             dPCA_projection = dPCA_projection['ct'][:, 0, ]
             dPCA_transformation = np.tile(dpca.D['ct'][:, 0][:, None, None], [1, 1, T])
             return dPCA_projection, dPCA_transformation

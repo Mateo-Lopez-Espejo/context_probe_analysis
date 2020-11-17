@@ -26,11 +26,12 @@ def format_raster(raster):
     return trialR, R, centers
 
 
-def trials_dpca(R, trialR, dPCA_parms={}):
+def _cpp_dPCA(R, trialR, dPCA_parms={}):
     '''
     dPCA over data arrays
-    :param R: ndarray. categories (mean) with shape Neuron x Context x TimeBin
-    :param trialR: ndarray. raw data with shape Trial x Neuron x Context x TimeBin
+    :param R: ndarray. categories (mean) with shape Neuron x Context x TimeBin or Neuron x Context x Probe x TimeBin
+    :param trialR: ndarray. raw data with shape Trial x Neuron x Context x TimeBin or
+    Trial x Neuron x Context x Probe x TimeBin
     :param dPCA_parms: furthe dPCA parameters to be passed to the function call
     :return: Z, dict of arrays of mean projection into different marginalizations;
              trialZ, dict of arrays of single trial projection into different marginalizations;
@@ -38,13 +39,24 @@ def trials_dpca(R, trialR, dPCA_parms={}):
              exp_var, dict of arrays with explained variance
     '''
 
-    triplet_defaults = {'labels': 'ct',
+    single_probe_defaults = {'labels': 'ct',
                         'regularizer': 'auto',
                         'n_components': 10,
                         'join': {'ct': ['c', 'ct']}}
-    dPCA_parms.update(triplet_defaults)
 
-    Tr, N, C, T = trialR.shape
+    all_probes_defaults = {'labels': 'cpt',
+                             'regularizer': 'auto',
+                             'n_components': 10,
+                             'join': {'ct' : ['c','ct'], 'pt':['p', 'pt'], 'cpt':['cp', 'cpt']}}
+
+    if len(trialR.shape) == 4:
+        dPCA_parms.update(single_probe_defaults)
+        Tr, N, C, T = trialR.shape
+    elif len(trialR.shape) == 5:
+        dPCA_parms.update(all_probes_defaults)
+        Tr, N, C, P, T = trialR.shape
+    else:
+        raise ValueError('trialR has an uncompatible number of dimensions')
 
     dPCA_parms['n_components'] = N if N < dPCA_parms['n_components'] else dPCA_parms['n_components']
 
@@ -59,8 +71,10 @@ def trials_dpca(R, trialR, dPCA_parms={}):
 
     # transform in a trial by trial basis
     trialZ = dict()
+    new_trial_shape = list(trialR.shape)
+    new_trial_shape[1] = dPCA_parms['n_components']
     for marg in dpca.marginalizations.keys():
-        zz = np.empty([Tr, dPCA_parms['n_components'], C, T])
+        zz = np.empty(new_trial_shape)
         for rep in range(trialR.shape[0]):
             zz[rep, ...] = dpca.transform(trialR[rep,...], marginalization=marg)
         trialZ[marg] = zz
@@ -93,7 +107,7 @@ def tran_dpca(signal, probe, channels, transitions, smooth_window, dPCA_parms={}
     trialR, R = np.squeeze(trialR), np.squeeze(R)
 
     # calculates dPCA
-    Z, trialZ, dpca = trials_dpca(R, trialR, dPCA_parms=dPCA_parms)
+    Z, trialZ, dpca = _cpp_dPCA(R, trialR, dPCA_parms=dPCA_parms)
 
     return Z, trialZ, dpca
 
@@ -145,7 +159,7 @@ def fit_transform(R, trialR, dPCA_params={}):
     :return: first dPC ndarray (Resp x Ctx x Time), transformation function ndarray (Cells x dPCs x Time)
     '''
     Re, C, S, T = trialR.shape
-    _, dPCA_projection, dpca = trials_dpca(R, trialR, dPCA_parms=dPCA_params)
+    _, dPCA_projection, dpca = _cpp_dPCA(R, trialR, dPCA_parms=dPCA_params)
     dPCA_projection = dPCA_projection['ct'][:, 0, ...]
     dPCA_transformation = np.tile(dpca.D['ct'][:, 0][:, None, None], [1, 1, T])
 
