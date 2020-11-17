@@ -179,11 +179,13 @@ dprime_recache = False
 rec_recache = False
 two_tail_p = True
 
+if dprime_recache: memory.clear()
+
 all_probes = [1, 2, 3, 4]
 # sites = set(get_site_ids(316).keys())
 badsites = {'AMT031a'}  # empirically deciced
 sites = {'AMT028b', 'AMT029a', 'AMT030a', 'AMT031a', 'AMT032a', 'CRD002a', 'CRD003b', 'CRD004a',
-         'DRX008b', 'DRX021a', 'DRX023a', 'ley070a', 'ley072b'}
+         'ley070a', 'ley072b'}
 sites = sites.difference(badsites)
 
 analysis_functions = {'SC': single_cell_dprimes, 'pdPCA': probewise_dPCA_dprimes}
