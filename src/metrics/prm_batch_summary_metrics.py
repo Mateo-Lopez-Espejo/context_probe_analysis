@@ -73,7 +73,7 @@ nbin = np.max([value.shape[-1] for value in batch_dprimes['SC']['dprime'].values
 times = np.linspace(0, nbin / meta['raster_fs'], nbin, endpoint=False) * 1000
 
 sites = set(batch_dprimes['pdPCA']['dprime'].keys())
-all_probes = [2, 3, 5, 6]
+all_probes = [1, 2, 3, 4]
 all_trans = [f'{t0}_{t1}' for t0, t1 in itt.combinations(meta['transitions'], 2)]
 
 # creates and caches, or loads the DF
@@ -87,6 +87,10 @@ if summary_DF_file.exists() is False or recache is True:
         print(f'\nanalysis {analysis}')
 
         for source, id_dict in source_dict.items():
+            if source in ['dprime', 'significance']:
+                pass
+            else:
+                continue
             print(f'\nsource {source}\n')
 
             for id, array in id_dict.items():
