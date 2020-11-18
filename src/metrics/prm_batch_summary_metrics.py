@@ -15,7 +15,7 @@ from src.data.cache import set_name
 takes all the dprimes and pvalues, fits exponential decays to both the dprimes and the profiles of dprime
 significance (derived from pvalues). 
 This is done for all combinations of probe, and context transtion pairs.
-This is done for single cells, dPCA and LDA.
+This is done for single cells (SC), probewise dPCA (pdPCA) and full_dPCA (fdPCA).
 """
 
 config = ConfigParser()
@@ -60,16 +60,13 @@ region_map = dict(zip(sites2map, regions2map))
 recache = True
 
 # loads the raw calculated dprimes and montecarlos
-batch_dprime_file = pl.Path(config['paths']['analysis_cache']) / 'prm_dprimes' / set_name(meta)
+batch_dprime_file = pl.Path(config['paths']['analysis_cache']) / 'prm_dprimes_v2' / set_name(meta)
 batch_dprimes = jl.load(batch_dprime_file)
 
 # defines significant values based on loaded pvalue and defined threshold
 threshold = 0.01
 for analysis_name, mid_dict in batch_dprimes.items():
-    mid_dict['shuffled_significance'] = {key: (val <= threshold) for key, val in mid_dict['shuffled_pvalue'].items()}
-    if analysis_name != 'SC':
-        mid_dict['simulated_significance'] = {key: (val <= threshold) for key, val in
-                                              mid_dict['simulated_pvalue'].items()}
+    mid_dict['significance'] = {key: (val <= threshold) for key, val in mid_dict['pvalue'].items()}
 
 # set up the time bin labels in milliseconds, this is critical for plotting and calculating the tau
 nbin = np.max([value.shape[-1] for value in batch_dprimes['SC']['dprime'].values()])
@@ -81,7 +78,7 @@ all_trans = [f'{t0}_{t1}' for t0, t1 in itt.combinations(meta['transitions'], 2)
 
 # creates and caches, or loads the DF
 
-summary_DF_file = pl.Path(config['paths']['analysis_cache']) / 'prm_summary_DF' / set_name(meta)
+summary_DF_file = pl.Path(config['paths']['analysis_cache']) / 'prm_summary_DF_v2' / set_name(meta)
 if summary_DF_file.exists() is False or recache is True:
 
     print('creating summary DataFrame')
@@ -90,12 +87,6 @@ if summary_DF_file.exists() is False or recache is True:
         print(f'\nanalysis {analysis}')
 
         for source, id_dict in source_dict.items():
-            if source == 'dprime':
-                pass
-            elif source == 'shuffled_significance':
-                source = 'significance'
-            else:
-                continue
             print(f'\nsource {source}\n')
 
             for id, array in id_dict.items():
@@ -176,7 +167,7 @@ if summary_DF_file.exists() is False or recache is True:
 
 
                         # gets the significant bins from the full data array and take the mean across categories as needed
-                        signif_array = batch_dprimes[analysis]['shuffled_significance'][id]
+                        signif_array = batch_dprimes[analysis]['significance'][id]
                         if mean_dict['probe'] == 'mean' and mean_dict['transition_pair'] != 'mean':
                             signinf_mean = np.mean(signif_array, axis=0)[all_trans.index(mean_dict['transition_pair']),:]
                         elif mean_dict['probe'] != 'mean' and mean_dict['transition_pair'] == 'mean':

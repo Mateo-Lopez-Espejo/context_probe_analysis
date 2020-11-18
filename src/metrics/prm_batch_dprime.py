@@ -302,7 +302,7 @@ for site, (func_key, func) in itt.product(sites, analysis_functions.items()):
         # appends probe arrays and  organizes into data structure
         batch_dprimes[func_key]['dprime'][site] = np.stack(real_dprimes)
         batch_dprimes[func_key]['shuffled_dprime'][site] = np.stack(shuffled_dprimes, axis=1)
-        batch_dprimes[func_key]['shuffled_pvalue'][site] = np.stack(pvalues)
+        batch_dprimes[func_key]['pvalue'][site] = np.stack(pvalues)
 
     elif func_key in ['SC', 'fdPCA']:
         real_dprimes, shuffled_dprimes, cell_names = func(site, all_probes,
