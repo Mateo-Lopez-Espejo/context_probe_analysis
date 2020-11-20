@@ -125,38 +125,6 @@ def probewise_dPCA_dprimes(site, probe, meta):
 
     shuffled_dprimes = np.stack(shuffled_dprimes, axis=2).squeeze(axis=0)  # shape Montecarlo x ContextPair x Time
 
-    # #test plots
-    # import matplotlib.pyplot as plt
-    # import src.visualization.fancy_plots as fplt
-    # fig, axes = plt.subplots(2,10)
-    # t = np.arange(30)
-    # for tt, trans in enumerate(itt.combinations(meta['transitions'], 2)):
-    #
-    #     t0_idx = meta['transitions'].index(trans[0])
-    #     t1_idx = meta['transitions'].index(trans[1])
-    #
-    #     axes[0,tt].plot(t, dPCA_projection[:, t0_idx, :].mean(axis=0), color='blue', linewidth=3)
-    #     axes[0,tt].plot(t, dPCA_projection[:, t1_idx, :].mean(axis=0), color='orange', linewidth=3)
-    #
-    # # Raster, dprime, CI
-    # bottom, top = axes[0, 0].get_ylim()
-    # half = ((top - bottom) / 2) + bottom
-    # for tt, trans in enumerate(itt.combinations(meta['transitions'], 2)):
-    #     pair_idx = tt
-    #
-    #     t0_idx = meta['transitions'].index(trans[0])
-    #     t1_idx = meta['transitions'].index(trans[1])
-    #
-    #     _ = fplt._raster(t, dPCA_projection[:, t0_idx, :], y_offset=0, y_range=(bottom, half), ax=axes[0,tt],
-    #                      scatter_kws={'color': 'blue', 'alpha': 0.4, 's': 10})
-    #     _ = fplt._raster(t, dPCA_projection[:, t1_idx, :], y_offset=0, y_range=(half, top), ax=axes[0,tt],
-    #                      scatter_kws={'color': 'orange', 'alpha': 0.4, 's': 10})
-    #
-    #     # plots the real dprime and the shuffled dprime
-    #     axes[1,tt].plot(t, dprime[pair_idx, :], color='black')
-    #     _ = fplt._cint(t, shuffled_dprimes[:, pair_idx, :], confidence=0.95, ax=axes[1,tt],
-    #                    fillkwargs={'color': 'black', 'alpha': 0.5})
-
     return dprime, shuffled_dprimes, goodcells
 
 
@@ -211,39 +179,6 @@ def full_dPCA_dprimes(site, probe, meta):
 
     shuffled_dprimes = np.stack(shuffled_dprimes, axis=3).squeeze(axis=0)  # shape Montecarlo x Probe x Ctx_pair x Time
     dprime = np.moveaxis(dprime, 1, 0)  # shape Probe x Ctx_pair x Time
-
-    # # test plots
-    # import matplotlib.pyplot as plt
-    # import src.visualization.fancy_plots as fplt
-    # fig, axes = plt.subplots(2,10)
-    # t = np.arange(30)
-    # pp = 0
-    # for tt, trans in enumerate(itt.combinations(meta['transitions'], 2)):
-    #
-    #     t0_idx = meta['transitions'].index(trans[0])
-    #     t1_idx = meta['transitions'].index(trans[1])
-    #
-    #     axes[0,tt].plot(t, dPCA_projection[:, t0_idx, pp, :].mean(axis=0), color='blue', linewidth=3)
-    #     axes[0,tt].plot(t, dPCA_projection[:, t1_idx, pp, :].mean(axis=0), color='orange', linewidth=3)
-    #
-    # # Raster, dprime, CI
-    # bottom, top = axes[0, 0].get_ylim()
-    # half = ((top - bottom) / 2) + bottom
-    # for tt, trans in enumerate(itt.combinations(meta['transitions'], 2)):
-    #     pair_idx = tt
-    #
-    #     t0_idx = meta['transitions'].index(trans[0])
-    #     t1_idx = meta['transitions'].index(trans[1])
-    #
-    #     _ = fplt._raster(t, dPCA_projection[:, t0_idx, pp,:], y_offset=0, y_range=(bottom, half), ax=axes[0,tt],
-    #                      scatter_kws={'color': 'blue', 'alpha': 0.4, 's': 10})
-    #     _ = fplt._raster(t, dPCA_projection[:, t1_idx, pp,:], y_offset=0, y_range=(half, top), ax=axes[0,tt],
-    #                      scatter_kws={'color': 'orange', 'alpha': 0.4, 's': 10})
-    #
-    #     # plots the real dprime and the shuffled dprime
-    #     axes[1,tt].plot(t, dprime[pp, pair_idx, :], color='black')
-    #     _ = fplt._cint(t, shuffled_dprimes[:, pp, pair_idx, :], confidence=0.95, ax=axes[1,tt],
-    #                    fillkwargs={'color': 'black', 'alpha': 0.5})
 
     return dprime, shuffled_dprimes, goodcells
 
