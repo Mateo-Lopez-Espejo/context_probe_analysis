@@ -1113,14 +1113,17 @@ def savefig(fig, root, name, type='png'):
     return None
 
 
-def variance_explained(dpca, ax=None, names=None, colors=None, inset=True):
+def variance_explained(dpca, ax=None, names=None, colors=None, inset=True, trials=True, marginalizations='all'):
 
     if ax is None:
         fig, ax = plt.subplots()
     else:
         fig = ax.figure
 
-    expl_var = dpca.explained_variance_ratio_
+    if marginalizations == 'all':
+        expl_var = dpca.explained_variance_ratio_
+    elif isinstance(marginalizations, list):
+        expl_var = {marg: arr for marg, arr in dpca.explained_variance_ratio_ if marg in marginalizations}
 
     n_comp = len(next(iter(expl_var.values())))
 
