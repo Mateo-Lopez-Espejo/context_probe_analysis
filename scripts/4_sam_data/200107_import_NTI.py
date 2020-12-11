@@ -51,9 +51,10 @@ def get_NTI_files(batch):
         sites_files.append(filename)
 
     return sites_files
-
-print('\nA1 files\n', get_NTI_files(318))
-print('\nPEG files\n', get_NTI_files(319))
+A1 = get_NTI_files(318)
+PEG = get_NTI_files(319)
+print('\nA1 files\n', A1)
+print('\nPEG files\n', PEG)
 
 
 '''
