@@ -19,6 +19,7 @@ import scipy.stats as sst
 
 from src.utils.cpp_parameter_handlers import _epoch_name_handler, _channel_handler, _fs_handler
 from src.utils import fits as fts
+from src.data.dPCA import variance_captured as var_capt
 from nems.signal import PointProcess
 
 config = ConfigParser()
@@ -1159,6 +1160,68 @@ def variance_explained(dpca, ax=None, names=None, colors=None, inset=True):
 
     return fig, ax, inset
 
+def variance_captured(dpca, R, ncomp=None, ax=None, names=None, colors=None, inset=True):
+    """
+    plots the variance captured for each marginalization (color) by each component. The components are pooled across all
+    marginalizations and organized by the total variance captured.
+    :param dpca: fitted dpca object
+    :param R: nd array with shape Units x Context x (Probe) x Time
+    :param ncomp: None or int. number of components to plot
+    :param ax: None or matplotlib axis
+    :param names: None or dict. The dict should map from the marginalization names as in dpca to the desired names
+    :param colors: None, list. Color assigned to each marginalization
+    :param inset: bool. To plot or not a pie chart summarizing the variance captured by marginalization.
+    :return: fig, ax, inset.
+    """
+    if ax is None:
+        fig, ax = plt.subplots()
+    else:
+        fig = ax.figure
+
+    cum_var, dpc_var, marg_var, total_marginalized_var, comp_id = var_capt(dpca, R)
+
+    ncomp = ncomp if isinstance(ncomp,int) else len(cum_var)
+
+    # renames marginalizations
+    if names is not None:
+        marg_var = {names[key]: val for key, val in marg_var.items()}
+        total_marginalized_var = {names[key]: val for key, val in total_marginalized_var.items()}
+        comp_id = [f"{names[comp.split('_')[0]]}_{comp.split('_')[1]}" for comp in comp_id]
+
+
+    bar_bottom = np.zeros(ncomp)
+    for mm, (marg, arr) in enumerate(marg_var.items()):
+        # plots the explained variance
+        x = np.arange(ncomp)
+        y = np.asarray(arr)
+        width = 0.35
+
+        color = colors[mm] if colors is not None else None
+
+        ax.bar(x, y, width, bottom=bar_bottom, label=marg, color=color)
+        bar_bottom += y
+
+    ax.set_xticks(np.arange(ncomp))
+    # ax.set_xticklabels([comp_id])
+    ax.set_xticklabels([comp.split('_')[0] for comp in comp_id], rotation=45, ha='right')
+    ax.set_ylabel('explained variance (%)')
+    ax.set_xlabel('dPC')
+
+    if inset:
+        pie_vals = list(total_marginalized_var.values())
+        labels = list(total_marginalized_var.keys())
+        # normalizes to 100 variance explained
+        if not np.isclose(np.sum(pie_vals), 100):
+            print('normalizing total_marginalized_var to 100')
+            pie_vals = pie_vals * 100/np.sum(pie_vals)
+
+        inset = inset_axes(ax, width="65%", height="65%", loc=1)
+        inset = inset.pie(pie_vals, labels=labels, colors=colors, autopct='%1.1f%%')
+
+    else:
+        inset = None
+
+    return fig, ax, inset
 
 def weight_pdf(dpca, marginalization=None, axes=None, cellnames=None, only_first=False, color=None):
 
