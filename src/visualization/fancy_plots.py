@@ -1193,7 +1193,7 @@ def variance_captured(dpca, R, ncomp=None, ax=None, names=None, colors=None, ins
     for mm, (marg, arr) in enumerate(marg_var.items()):
         # plots the explained variance
         x = np.arange(ncomp)
-        y = np.asarray(arr)
+        y = arr[:ncomp]
         width = 0.35
 
         color = colors[mm] if colors is not None else None
@@ -1203,7 +1203,7 @@ def variance_captured(dpca, R, ncomp=None, ax=None, names=None, colors=None, ins
 
     ax.set_xticks(np.arange(ncomp))
     # ax.set_xticklabels([comp_id])
-    ax.set_xticklabels([comp.split('_')[0] for comp in comp_id], rotation=45, ha='right')
+    ax.set_xticklabels([comp.split('_')[0] for comp in comp_id][:ncomp], rotation=45, ha='right')
     ax.set_ylabel('explained variance (%)')
     ax.set_xlabel('dPC')
 
