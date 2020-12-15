@@ -956,10 +956,12 @@ def unit_line(ax, square_shape=False, **pltkwargs):
     plot_lim = np.stack([ax.get_xlim(), ax.get_ylim()], axis=0)
     if square_shape is False:
         # finds the minimum common range between x and y axis
-        range = np.min(plot_lim, axis=0)
+        bottom = np.max(plot_lim, axis=0)
+        top = np.min(plot_lim, axis=0)
+        range = [bottom[0],top[1]]
 
     if square_shape is True:
-        # finds the max comon range across x and y axis
+        # finds the max common range across x and y axis
         range = np.max(plot_lim, axis=0)
 
     ax.plot(range, range, **pltkwargs)
