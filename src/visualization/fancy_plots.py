@@ -1071,7 +1071,7 @@ def add_stat_annotation(ax, plot='boxplot',
 
     """
     a hack to make add_stat_anotation only draw significant bars
-    Calls twice the original statsanot, the first time to get all the significant pairs, wihtoput drawing
+    Calls twice the original statsanot, the first time to get all the significant pairs, without drawing
     and the second time to draw only the statistic comparison between the predefined significantly different pairs
     """
     arguments = locals()
