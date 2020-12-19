@@ -5,6 +5,7 @@ import pathlib as pl
 from src.data.cache import set_name
 import nems.recording as recording
 import nems_lbhb.baphy as nb
+from nems_lbhb.baphy_experiment import BAPHYExperiment
 from src.data import epochs as cpe
 from src.data.stim_paradigm import split_recording
 from nems import db as nd
@@ -60,9 +61,36 @@ def load(site, boxload=True, **kwargs):
     recordings  = split_recording(CPN_rec)
     return recordings
 
-# load tests:
-# recs = load('AMT028b')
+def load_with_parms(site, **kwargs):
+    # defaults
 
+    options = {'batch': 316,
+               'cellid': site,
+               'stimfmt': 'envelope',
+               'rasterfs': 100,
+               'runclass': 'CPN',
+               'stim': False,
+               'resp':True}
+
+    options.update(**kwargs)
+
+    manager = BAPHYExperiment(siteid=site, batch=options['batch'])
+
+    loaded_rec = manager.get_recording(recache=True, **options)
+    parameters = manager.get_baphy_exptparams()
+
+    # load_URI, _ = nb.baphy_load_recording_uri(**options)
+    # loaded_rec = recording.load_recording(load_URI)
+
+    CPN_rec = cpe.set_recording_subepochs(loaded_rec)
+    recordings  = split_recording(CPN_rec)
+
+    return recordings, parameters
+
+
+# load tests:
+# recs = load('AMT028b', recache=True)
+# recs, params = load_with_parms('AMT028b')
 
 def get_site_ids(batch):
     '''
