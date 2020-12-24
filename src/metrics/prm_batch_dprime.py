@@ -9,7 +9,7 @@ from joblib import Memory, dump, load
 import src.data.rasters
 from src.data import dPCA as cdPCA
 from src.data.cache import set_name
-from src.data.load import load
+from src.data.load import load, get_site_ids
 from src.metrics import dprime as cDP
 from src.metrics.reliability import signal_reliability
 from src.utils.tools import shuffle_along_axis as shuffle
@@ -199,10 +199,8 @@ if dprime_recache: memory.clear()
 
 all_probes = [1, 2, 3, 4]
 
-# sites = set(get_site_ids(316).keys())
-badsites = {'AMT031a'}  # empirically deciced
-sites = {'AMT028b', 'AMT029a', 'AMT030a', 'AMT031a', 'AMT032a', 'CRD002a', 'CRD003b', 'CRD004a',
-         'ley070a', 'ley072b'}
+sites = set(get_site_ids(316).keys())
+badsites = {'AMT031a', 'DRX008b','DRX021a', 'DRX023a'}  # empirically decided
 sites = sites.difference(badsites)
 
 analysis_functions = {'SC': single_cell_dprimes, 'pdPCA': probewise_dPCA_dprimes, 'fdPCA': full_dPCA_dprimes}
