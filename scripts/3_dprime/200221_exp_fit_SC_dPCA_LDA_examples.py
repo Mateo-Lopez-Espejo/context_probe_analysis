@@ -495,7 +495,7 @@ def dPCA_site_summary(site, probe):
     # trialR shape: Trial x Cell x Context x Probe x Time; R shape: Cell x Context x Probe x Time
     trialR, R, _ = cdPCA.format_raster(raster)
     trialR, R = trialR.squeeze(axis=3), R.squeeze(axis=2)  # squeezes out probe
-    Z, trialZ, dpca = cdPCA.trials_dpca(R, trialR)
+    Z, trialZ, dpca = cdPCA._cpp_dPCA(R, trialR)
 
     fig, axes = plt.subplots(2, 3, sharex='all', sharey='row')
     for vv, (marginalization, arr) in enumerate(Z.items()):

@@ -9,7 +9,7 @@ import numpy as np
 import src.data.rasters
 from src.data import LDA as cLDA, dPCA as cdPCA
 from src.metrics import dprime as cDP
-from src.data.load import load
+from src.data.load import load, get_site_ids
 from src.data.cache import make_cache, get_cache, set_name
 from src.metrics.reliability import signal_reliability
 from src.utils.tools import shuffle_along_axis as shuffle
@@ -259,15 +259,13 @@ meta = {'reliability': 0.1,  # r value
         'zscore': True,
         'dprime_absolute': None}
 
-dprime_recache = True
+dprime_recache = False
 rec_recache = False
 two_tail_p = True
 
 all_probes = [2, 3, 5, 6]
-# sites = set(get_site_ids(316).keys())
-badsites = {'AMT031a'} # empirically deciced
-sites = {'AMT028b', 'AMT029a', 'AMT030a', 'AMT031a', 'AMT032a', 'CRD002a', 'CRD003b', 'CRD004a',
-         'DRX008b', 'DRX021a', 'DRX023a', 'ley070a', 'ley072b'}
+sites = set(get_site_ids(316).keys())
+badsites = {'AMT031a', 'ley074a' } # empirically deciced
 sites = sites.difference(badsites)
 
 analysis_functions = {'SC': cell_dprime, 'dPCA': dPCA_fourway_analysis, 'LDA': LDA_fourway_analysis}

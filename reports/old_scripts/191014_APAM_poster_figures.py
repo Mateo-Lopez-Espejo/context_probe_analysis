@@ -366,7 +366,7 @@ for ii in pbar(range(nreps)):
     centers = np.mean(shuf_R.reshape((shuf_R.shape[0], -1)), axis=1)[:, None, None]
     shuf_R -= centers
     # calculates dpca and projections
-    _, shuf_trialZ, _, _ = cdPCA.trials_dpca(shuf_R, ctx_shuffle, significance=False)
+    _, shuf_trialZ, _, _ = cdPCA._cpp_dPCA(shuf_R, ctx_shuffle, significance=False)
     shuf_dPCA_proj = [shuf_trialZ['ct'][:, 0, ctx, :] for ctx in range(shuf_trialZ['ct'].shape[2]) ]
     dPCA_floor_d[ii, :] = cpd.dprime(shuf_dPCA_proj[c0].squeeze(), shuf_dPCA_proj[c1].squeeze())
 

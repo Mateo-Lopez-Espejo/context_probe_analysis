@@ -1,7 +1,5 @@
-# computer specific settings
+# configs
 config/settings.ini
-results
-figures
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
@@ -82,6 +80,9 @@ target/
 
 # exclude data from source control by default
 /data/
+
+# excludes figures from source control by default
+/reports/figures
 
 # Mac OS-specific storage files
 .DS_Store

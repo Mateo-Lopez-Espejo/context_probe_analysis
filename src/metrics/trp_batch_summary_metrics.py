@@ -10,6 +10,7 @@ from scipy.integrate import trapz
 from src.metrics import dprime as cDP
 from src.utils import fits as fts
 from src.data.cache import set_name
+from src.data.region_map import region_map
 
 """
 takes all the dprimes and pvalues, fits exponential decays to both the dprimes and the profiles of dprime
@@ -28,34 +29,6 @@ meta = {'reliability': 0.1,  # r value
         'montecarlo': 1000,
         'zscore': True,
         'dprime_absolute': None}
-
-sites2map = ['AMT028b',
-             'AMT029a',
-             'AMT030a',
-             'AMT031a',
-             'AMT032a',
-             'CRD002a',
-             'CRD003b',
-             'CRD004a',
-             'DRX008b',
-             'DRX021a',
-             'DRX023a',
-             'ley070a',
-             'ley072b']
-regions2map = ['PEG',
-               'PEG',
-               'PEG',
-               'PEG',
-               'PEG',
-               'A1',
-               'A1',
-               'A1',
-               'A1',
-               'A1',
-               'A1',
-               'A1',
-               'A1']
-region_map = dict(zip(sites2map, regions2map))
 
 recache = True
 
