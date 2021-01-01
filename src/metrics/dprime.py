@@ -3,7 +3,7 @@ import itertools as itt
 import numpy as np
 
 
-def ndarray_dprime(array0, array1, axis, flip=None):
+def ndarray_dprime(array0, array1, axis, flip=None, keepdims=False):
     """
     general function to calculate the d prime between two arrays with the same shape. the d prime is calculated in
     a dimension wise manner but for the specified axis, which is treated as observations/repetitions
@@ -17,15 +17,16 @@ def ndarray_dprime(array0, array1, axis, flip=None):
     """
 
     # main dprime calculation
-    dprime = ((np.mean(array0, axis=axis) - np.mean(array1, axis=axis)) /
-              np.sqrt(0.5 * (np.var(array0, axis=axis) + np.var(array1, axis=axis))))
+    dprime = ((np.mean(array0, axis=axis, keepdims=keepdims) - np.mean(array1, axis=axis, keepdims=keepdims)) /
+              np.sqrt(0.5 * (np.var(array0, axis=axis, keepdims=keepdims) + np.var(array1, axis=axis, keepdims=keepdims))))
 
     # check for edge cases
     if np.any(np.isnan(dprime)):
         dprime[np.where(np.isnan(dprime))] = 0
 
     if np.any(np.isinf(dprime)):
-        dprime[np.where(np.isinf(dprime))] = (array0.mean(axis=axis) - array1.mean(axis=axis))[np.isinf(dprime)]
+        dprime[np.where(np.isinf(dprime))] = (array0.mean(axis=axis, keepdims=keepdims)
+                                              - array1.mean(axis=axis, keepdims=keepdims))[np.isinf(dprime)]
 
     # due to floating point error, variancese that should be zero are really small numbers, which lead to really big
     # dprimes, this happens most of the time due zero spikes counted
@@ -51,25 +52,28 @@ def ndarray_dprime(array0, array1, axis, flip=None):
     return dprime
 
 
-def pairwise_dprimes(array, observation_axis, condition_axis, flip=None):
+def pairwise_dprimes(array, observation_axis, condition_axis, flip=None, keepdims=False):
     """
     calculates the dprime in an array where different conditions and different observations correspond to two of the
     dimension of the array.
     :array: ndarray with at least 2 dimensions e.g Montecarlos x Observations x Units x Conditions X Time
     :observation_axis: int. which axis correspond to repeated observations.
     :conditions_axis: int. which axis correspond to the conditions to be paired and compared.
-    :return: array of pairwise correlations whit shape Pair x ...  keeping all the original array dimensions sans the
-    observations and conditions axis e.g. Condition_pairs x Montecarlos x Units x Time
+    :return: array of pairwise correlations whith the paired dprimes along the same dimension as the coditions compared
+     e.g. (MOntecarlos) x (Repetitions) x Units x Context_Pairs x (Probes) x Time
     """
 
     dprimes = list()
     for c0, c1 in itt.combinations(range(array.shape[condition_axis]), 2):
         arr0 = np.expand_dims(array.take(c0, axis=condition_axis), axis=condition_axis)
         arr1 = np.expand_dims(array.take(c1, axis=condition_axis), axis=condition_axis)
-        dprimes.append(ndarray_dprime(arr0, arr1, axis=observation_axis, flip=flip))
+        dprimes.append(ndarray_dprime(arr0, arr1, axis=observation_axis, flip=flip, keepdims=True))
 
-    # stack the condition pairs along a new first dimension, eliminates the dimension of the original conditions
-    dprimes = np.stack(dprimes, axis=0).squeeze(axis=condition_axis)
+    # stack the condition pairs along the same dimension of the original conditions
+    dprimes = np.stack(dprimes, axis=condition_axis).squeeze(axis=condition_axis+1)
+
+    if keepdims is False:
+        dprimes = dprimes.squeeze(axis=observation_axis)
 
     return dprimes
 

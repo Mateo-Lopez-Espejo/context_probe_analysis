@@ -120,41 +120,6 @@ def dPCA_fourway_analysis(site, probe, meta):
         shuf_dprime[rr, ...] = cDP.pairwise_dprimes(shuf_projection, observation_axis=0, condition_axis=1,
                                                     flip=meta['dprime_absolute'])
 
-    # test plots
-    # fig, axes = plt.subplots(3,6)
-    # t = np.arange(30)
-    # for tt, trans in enumerate(itt.combinations(meta['transitions'], 2)):
-    #
-    #     t0_idx = meta['transitions'].index(trans[0])
-    #     t1_idx = meta['transitions'].index(trans[1])
-    #
-    #     axes[0,tt].plot(t, dPCA_projection[:, t0_idx, :].mean(axis=0), color=trans_color_map[trans[0]], linewidth=3)
-    #     axes[0,tt].plot(t, dPCA_projection[:, t1_idx, :].mean(axis=0), color=trans_color_map[trans[1]], linewidth=3)
-    #
-    # # Raster, dprime, CI
-    # bottom, top = axes[0, 0].get_ylim()
-    # half = ((top - bottom) / 2) + bottom
-    # for tt, trans in enumerate(itt.combinations(meta['transitions'], 2)):
-    #     pair_idx = SC_trans_pairs.index(f'{trans[0]}_{trans[1]}')
-    #
-    #     t0_idx = meta['transitions'].index(trans[0])
-    #     t1_idx = meta['transitions'].index(trans[1])
-    #
-    #     _ = fplt._raster(t, dPCA_projection[:, t0_idx, :], y_offset=0, y_range=(bottom, half), ax=axes[0,tt],
-    #                      scatter_kws={'color': trans_color_map[trans[0]], 'alpha': 0.4, 's': 10})
-    #     _ = fplt._raster(t, dPCA_projection[:, t1_idx, :], y_offset=0, y_range=(half, top), ax=axes[0,tt],
-    #                      scatter_kws={'color': trans_color_map[trans[1]], 'alpha': 0.4, 's': 10})
-    #
-    #     # plots the real dprime and the shuffled dprime
-    #     axes[1,tt].plot(t, dprime[pair_idx, :], color='black')
-    #     _ = fplt._cint(t, shuf_dprime[:, pair_idx, :], confidence=0.95, ax=axes[1,tt],
-    #                    fillkwargs={'color': 'black', 'alpha': 0.5})
-    #
-    #     # plots the real dprime and simulatede dprime
-    #     axes[2, tt].plot(t, dprime[pair_idx, :], color='black')
-    #     _ = fplt._cint(t, sim_dprime[:, pair_idx, :], confidence=0.95, ax=axes[2, tt],
-    #                    fillkwargs={'color': 'black', 'alpha': 0.5})
-
     return dprime, shuf_dprime, sim_dprime, goodcells
 
 
@@ -188,7 +153,6 @@ def LDA_fourway_analysis(site, probe, meta):
                                   flip=meta['dprime_absolute'])
 
     # calculates floor (ctx shuffle) and ceiling (simulated data)
-    # calculates floor (ctx shuffle) and ceiling (simulated data)
     sim_dprime = np.empty([meta['montecarlo']] + list(dprime.shape))
     shuf_dprime = np.empty([meta['montecarlo']] + list(dprime.shape))
 
@@ -212,42 +176,6 @@ def LDA_fourway_analysis(site, probe, meta):
         shuf_dprime[rr, ...] = cDP.pairwise_dprimes(shuf_projection, observation_axis=0, condition_axis=1,
                                                     flip=meta['dprime_absolute'])
 
-    # # test plots
-    # fig, axes = plt.subplots(3,6)
-    # t = np.arange(30)
-    # for tt, trans in enumerate(itt.combinations(meta['transitions'], 2)):
-    #
-    #     t0_idx = meta['transitions'].index(trans[0])
-    #     t1_idx = meta['transitions'].index(trans[1])
-    #
-    #     axes[0,tt].plot(t, LDA_projection[:, t0_idx, :].mean(axis=0), color=trans_color_map[trans[0]], linewidth=3)
-    #     axes[0,tt].plot(t, LDA_projection[:, t1_idx, :].mean(axis=0), color=trans_color_map[trans[1]], linewidth=3)
-    #
-    # # Raster, dprime, CI
-    # bottom, top = axes[0, 0].get_ylim()
-    # half = ((top - bottom) / 2) + bottom
-    # for tt, trans in enumerate(itt.combinations(meta['transitions'], 2)):
-    #     # pair_idx = SC_trans_pairs.index(f'{trans[0]}_{trans[1]}')
-    #     pair_idx = tt
-    #
-    #     t0_idx = meta['transitions'].index(trans[0])
-    #     t1_idx = meta['transitions'].index(trans[1])
-    #
-    #     _ = fplt._raster(t, LDA_projection[:, t0_idx, :], y_offset=0, y_range=(bottom, half), ax=axes[0,tt],
-    #                      scatter_kws={'color': trans_color_map[trans[0]], 'alpha': 0.4, 's': 10})
-    #     _ = fplt._raster(t, LDA_projection[:, t1_idx, :], y_offset=0, y_range=(half, top), ax=axes[0,tt],
-    #                      scatter_kws={'color': trans_color_map[trans[1]], 'alpha': 0.4, 's': 10})
-    #
-    #     # plots the real dprime and the shuffled dprime
-    #     axes[1,tt].plot(t, dprime[pair_idx, :], color='black')
-    #     _ = fplt._cint(t, shuf_dprime[:, pair_idx, :], confidence=0.95, ax=axes[1,tt],
-    #                    fillkwargs={'color': 'black', 'alpha': 0.5})
-    #
-    #     # plots the real dprime and simulatede dprime
-    #     axes[2, tt].plot(t, dprime[pair_idx, :], color='black')
-    #     _ = fplt._cint(t, sim_dprime[:, pair_idx, :], confidence=0.95, ax=axes[2, tt],
-    #                    fillkwargs={'color': 'black', 'alpha': 0.5})
-
     return dprime, shuf_dprime, sim_dprime, goodcells
 
 
@@ -259,8 +187,8 @@ meta = {'reliability': 0.1,  # r value
         'zscore': True,
         'dprime_absolute': None}
 
-dprime_recache = False
-rec_recache = False
+dprime_recache = True
+rec_recache = True
 two_tail_p = True
 
 all_probes = [2, 3, 5, 6]
@@ -268,7 +196,10 @@ sites = set(get_site_ids(316).keys())
 badsites = {'AMT031a', 'ley074a' } # empirically deciced
 sites = sites.difference(badsites)
 
+sites = ['CRD004a'] # test_site for debuging.
+
 analysis_functions = {'SC': cell_dprime, 'dPCA': dPCA_fourway_analysis, 'LDA': LDA_fourway_analysis}
+analysis_functions = {'dPCA': dPCA_fourway_analysis}
 # initilizede nested dictionary with three layer: 1. Analysis type 2. calculated values 3. cell or site
 batch_dprimes = col.defaultdict(lambda: col.defaultdict(dict))
 for site, (func_key, func) in itt.product(sites, analysis_functions.items()):

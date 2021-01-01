@@ -207,13 +207,13 @@ def extract_sub_arr(probes, contexts, full_array, context_names, probe_names, sq
     return sliced_array
 
 
-def raster_from_sig(signal, probe, channels, transitions, smooth_window, raster_fs=None, part='probe', zscore=False):
+def raster_from_sig(signal, probes, channels, transitions, smooth_window, raster_fs=None, part='probe', zscore=False):
 
 
     full_array, invalid_cp, valid_cp, all_contexts, all_probes = \
-        make_full_array(signal, channels=channels, smooth_window=None, raster_fs=raster_fs, zscore=zscore)
+        make_full_array(signal, channels=channels, smooth_window=smooth_window, raster_fs=raster_fs, zscore=zscore)
 
-    raster = extract_sub_arr(probes=probe, contexts=transitions, full_array=full_array,
+    raster = extract_sub_arr(probes=probes, contexts=transitions, full_array=full_array,
                                           context_names=all_contexts, probe_names=all_probes, squeeze=False)
 
     # selects raster for context, probe or both (all)
