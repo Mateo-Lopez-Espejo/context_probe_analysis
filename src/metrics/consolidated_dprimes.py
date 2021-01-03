@@ -55,10 +55,12 @@ def single_cell_dprimes(site, probes, meta):
     """
     calculated the dprime between context for all probes and for all cells in a site. Calculates significance using
     montecarlo shuffling of the context identity
-    :param site:
-    :param probe:
-    :param meta:
-    :return:
+    :param site: string  identifying the site
+    :param probes: list of probe numbers
+    :param meta: dict with meta parameters
+    :return: dprime (ndarray with shape Unit x Ctx_pair x Probe x Time),
+             shuffled_dprimes (ndarray with shape Montecarlo x Unit x Ctx_pair x Probe x Time),
+             goocells (list of strings)
     """
     raster, goodcells = _load_raster(site, probes, meta)
 
@@ -95,41 +97,63 @@ def single_cell_dprimes(site, probes, meta):
     shuffled_dprimes = np.stack(shuffled_dprimes, axis=2).squeeze(axis=3) # shape Montecarlo x Unit x Ctx_pair x Probe x Time
     return dprime, shuffled_dprimes, goodcells
 
-def dPCA_fourway_analysis(site, probes, meta):
-    raster, goodcells = _load_raster(site, probes, meta, stim_type='triplets')
+def probewise_dPCA_dprimes(site, probes, meta):
+    """
+    performs dimensionality reduction with dPCA done independently for each probe. Then uses the first context dependent
+    demixed principal component to calculated the dprime between context for all probes in the site. Calculates
+    significance using montecarlo shuffling of the context identity.
+    :param site: string  identifying the site
+    :param probes: list of probe numbers
+    :param meta: dict with meta parameters
+    :return: dprime (ndarray with shape Ctx_pair x Probe x Time),
+             shuffled_dprimes (ndarray with shape Montecarlo x Ctx_pair x Probe x Time),
+             goocells (list of strings)
+    """
+    raster, goodcells = _load_raster(site, probes, meta)
 
     # trialR shape: Trial x Cell x Context x Probe x Time; R shape: Cell x Context x Probe x Time
     trialR, R, _ = cdPCA.format_raster(raster)
-    trialR, R = trialR.squeeze(axis=3), R.squeeze(axis=2)  # squeezes out probe
-    Re, C, S, T = trialR.shape
+    rep, unt, ctx, prb, tme = trialR.shape
+    transition_pairs = list(itt.combinations(meta['transitions'], 2))
 
-    # calculates full dPCA. i.e. considering all 4 categories
-    dPCA_projection, dPCA_transformation = cdPCA.fit_transform(R, trialR)
-    dprime = cDP.pairwise_dprimes(dPCA_projection, observation_axis=0, condition_axis=1,
-                                  flip=meta['dprime_absolute'])
+    # iterates over each probe
+    dprime = np.empty([len(transition_pairs), prb, tme])
+    shuffled_dprime = np.empty([meta['montecarlo'], len(transition_pairs), prb, tme])
 
-    # calculates floor (ctx shuffle) and ceiling (simulated data)
-    sim_dprime = np.empty([meta['montecarlo']] + list(dprime.shape))
-    shuf_dprime = np.empty([meta['montecarlo']] + list(dprime.shape))
+    for pp in probes:
+        probe_idx = probes.index(pp)
+        probe_trialR = trialR[..., probe_idx, :]
+        probe_R = R[..., probe_idx, :]
 
-    # ctx_shuffle = trialR.copy()
-    shuf_projection = dPCA_projection.copy()
+        # calculates full dPCA. i.e. considering all 4 categories
+        _, trialZ, _ = cdPCA._cpp_dPCA(probe_R, probe_trialR)
+        dPCA_projection = trialZ['ct'][:, 0, ...]
+        dprime[:, probe_idx, :] = cDP.pairwise_dprimes(dPCA_projection, observation_axis=0, condition_axis=1,
+                                                       flip=meta['dprime_absolute'])
 
-    for rr in range(meta['montecarlo']):
-        # ceiling: simulates data, calculates dprimes
-        sim_trial = np.random.normal(np.mean(trialR, axis=0), np.std(trialR, axis=0),
-                                     size=[Re, C, S, T])
-        sim_projection = cdPCA.transform(sim_trial, dPCA_transformation)
-        sim_dprime[rr, ...] = cDP.pairwise_dprimes(sim_projection, observation_axis=0, condition_axis=1,
-                                                   flip=meta['dprime_absolute'])
+        # Shuffles the rasters n times and organizes in an array with the same shape the raster plus one dimension
+        # with size n containing each shuffle
+        # calculates the pairwise dprime
+        shuffled_probe_dprime = list()
+        print(f"\nshuffling {meta['montecarlo']} times")
+        rng = np.random.default_rng(42)
+        for pair_idx, tp in enumerate(transition_pairs):
+            shuf_projections = np.empty([meta['montecarlo'], rep, 2, tme])
+            shuf_projections[:] = np.nan
 
-        # ctx_shuffle = shuffle(ctx_shuffle, shuffle_axis=2, indie_axis=0)
-        # shuf_projection = cdPCA.transform(ctx_shuffle, dPCA_transformation)
-        shuf_projection = shuffle(shuf_projection, shuffle_axis=1, indie_axis=0)
-        shuf_dprime[rr, ...] = cDP.pairwise_dprimes(shuf_projection, observation_axis=0, condition_axis=1,
-                                                    flip=meta['dprime_absolute'])
+            tran_idx = np.array([meta['transitions'].index(t) for t in tp])
+            ctx_shuffle = dPCA_projection[:, tran_idx, :].copy()
 
-    return dprime, shuf_dprime, sim_dprime, goodcells
+            for rr in range(meta['montecarlo']):
+                shuf_projections[rr, ...] = shuffle(ctx_shuffle, shuffle_axis=1, indie_axis=0, rng=rng)
+
+            shuffled_dprime[:, pair_idx, probe_idx, :] = cDP.pairwise_dprimes(shuf_projections,
+                                                                              observation_axis=1,
+                                                                              condition_axis=2,
+                                                                              flip=meta['dprime_absolute']
+                                                                              ).squeeze(axis=1)
+
+    return dprime, shuffled_dprime, goodcells
 
 def LDA_fourway_analysis(site, probes, meta):
     raster, goodcells = _load_raster(site, probes, meta, stim_type='triplets')
@@ -170,44 +194,6 @@ def LDA_fourway_analysis(site, probes, meta):
                                                     flip=meta['dprime_absolute'])
 
     return dprime, shuf_dprime, sim_dprime, goodcells
-
-def probewise_dPCA_dprimes(site, probes, meta):
-    raster, goodcells = _load_raster(site, probes, meta, stim_type='permuations')
-
-    # trialR shape: Trial x Cell x Context x Probe x Time; R shape: Cell x Context x Probe x Time
-    trialR, R, _ = cdPCA.format_raster(raster)
-    trialR, R = trialR.squeeze(axis=3), R.squeeze(axis=2)  # squeezes out probe
-
-    # calculates full dPCA. i.e. considering all 4 categories
-    _, trialZ, _ = cdPCA._cpp_dPCA(R, trialR)
-    dPCA_projection = trialZ['ct'][:, 0, ...]
-    dprime = cDP.pairwise_dprimes(dPCA_projection, observation_axis=0, condition_axis=1,
-                                  flip=meta['dprime_absolute'])
-
-    # Shuffles the rasters n times and organizes in an array with the same shape the raster plus one dimension
-    # with size n containing each shuffle
-    # calculates the pairwise dprime
-    rep, ctx, tme = dPCA_projection.shape
-    shuffled_dprimes = list()
-    trans_pairs = [f'{x}_{y}' for x, y in itt.combinations(meta['transitions'], 2)]
-    print(f"\nshuffling {meta['montecarlo']} times")
-    rng = np.random.default_rng(42)
-    for tp in trans_pairs:
-        shuf_projections = np.empty([meta['montecarlo'], rep, 2, tme])
-        shuf_projections[:] = np.nan
-
-        tran_idx = np.array([meta['transitions'].index(int(t)) for t in tp.split('_')])
-        ctx_shuffle = dPCA_projection[:, tran_idx, :].copy()
-
-        for rr in range(meta['montecarlo']):
-            shuf_projections[rr, ...] = shuffle(ctx_shuffle, shuffle_axis=1, indie_axis=0, rng=rng)
-
-        shuffled_dprimes.append(cDP.pairwise_dprimes(shuf_projections, observation_axis=1, condition_axis=2,
-                                                     flip=meta['dprime_absolute']))
-
-    shuffled_dprimes = np.stack(shuffled_dprimes, axis=2).squeeze(axis=0)  # shape Montecarlo x ContextPair x Time
-
-    return dprime, shuffled_dprimes, goodcells
 
 def full_dPCA_dprimes(site, probes, meta):
     raster, goodcells = _load_raster(site, probes, meta, stim_type='permuations')
@@ -250,20 +236,20 @@ def full_dPCA_dprimes(site, probes, meta):
 rec_recache = False
 site = 'CRD004a'
 sites = [site]
-all_probes = [2, 3, 5, 6] #triplets
-all_probes = [1,2,3,4]
-probe = [1]
+# all_probes = [2, 3, 5, 6] #triplets
+all_probes = [1, 2, 3, 4] #permutations
+probes = all_probes
 stim_type = 'triplets'
 
-meta = {'reliability': 0.1,  # r value
-        'smoothing_window': 0,  # ms
-        'raster_fs': 30,
-        'transitions': ['silence', 'continuous', 'similar', 'sharp'],
-        'montecarlo': 1000,
-        'zscore': True,
-        'dprime_absolute': None,
-        'stim_type': 'triplets'}
-
+# meta = {'reliability': 0.1,  # r value
+#         'smoothing_window': 0,  # ms
+#         'raster_fs': 30,
+#         'transitions': ['silence', 'continuous', 'similar', 'sharp'],
+#         'montecarlo': 1000,
+#         'zscore': True,
+#         'dprime_absolute': None,
+#         'stim_type': 'triplets'}
+#
 meta = {'reliability': 0.1,  # r value
         'smoothing_window': 0,  # ms
         'raster_fs': 30,
@@ -273,7 +259,5 @@ meta = {'reliability': 0.1,  # r value
         'dprime_absolute': None,
         'stim_type': 'permutations'}
 
-
-
-single_cell_dprimes(site, probe, meta)
-
+# single_cell_dprimes(site, probe, meta)
+probewise_dPCA_dprimes(site, probes, meta)
