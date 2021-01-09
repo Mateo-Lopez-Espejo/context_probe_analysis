@@ -48,6 +48,46 @@ def _load_raster(site, probes, meta):
     return raster, goodcells
 
 
+def  _significance(array, mont_array, multiple_comparisons_axis, alpha=0.01, tails='both'):
+
+    mont_num = mont_array.shape[0] # number of montecarlo repetitions
+
+    if tails is 'both':
+        #ToDo is this right??
+        top_pval = np.sum((mont_array >= array), axis=0) / mont_num
+        bottom_pval = np.sum((mont_array <= array), axis=0) / mont_num
+        pvalues = np.where(array >= np.mean(mont_array, axis=0), top_pval, bottom_pval)
+    elif tails == 'greater':
+        pvalues = np.sum((mont_array >= array), axis=0) / mont_num
+    elif tails == 'lesser':
+        pvalues = np.sum((mont_array >= array), axis=0) / mont_num
+    else:
+        raise ValueError("tails must be 'greater' 'lesser' or 'both'")
+
+    significance = pvalues <= alpha
+
+    n_comparisons = np.prod(np.asarray(significance.shape)[np.asarray(multiple_comparisons_axis)])
+    n_chance_comp = n_comparisons * alpha
+
+    # count the number of significant bins pooling acrooss the multiple conparions axis
+    sig_count = np.sum(significance, axis=tuple(multiple_comparisons_axis), keepdims=True)
+
+    # creates a corrected significance by taking the significant bins of a groups of multiple comparisons, if the sum
+    # of significant bins is over the chance comparisons threshold
+    # ToDo this is where the next step is unclear, what do we need to do when we pass or fail the treshold?
+    corrected_signif = np.where(sig_count > n_chance_comp, significance, np.full(significance.shape, False))
+    print(np.allclose(corrected_signif, significance))
+
+    # defines the confidence intervals as the top and bottom percentiles summing to alpha
+    low = alpha * 100
+    high = (1 - alpha) * 100
+    confidence_interval = np.percentile(mont_array, [low, high], axis=0)
+
+    return significance, corrected_signif, confidence_interval
+
+
+
+
 # these functionse should operate over site, and a probe, and return a pairwise dprime between contexts, plus the shuffled
 # and simulated montecarlos and  good cells
 
@@ -274,5 +314,22 @@ meta = {'reliability': 0.1,  # r value
 # probewise_dPCA_dprimes(site, probes, meta)
 # probewise_LDA_dprimes(site, probes, meta)
 
-full_dPCA_dprimes(site, probes, meta)
+dprime, shuffled_dprime, _ = full_dPCA_dprimes(site, probes, meta)
+
+
+significance, corrected_signif, confidence_interval = _significance(dprime,shuffled_dprime, [0, 1, 2])
+
+import matplotlib.pyplot as plt
+from src.visualization.fancy_plots import _significance_bars, _cint
+
+fig, ax = plt.subplots()
+t = np.arange(dprime.shape[-1])
+ax.plot(t, dprime[0,0,:], color='black')
+ax.fill_between(t, confidence_interval[0,0,0,:], confidence_interval[1,0,0,:], color='black', alpha=0.5)
+ax_bottom = ax.get_ylim()[0]
+ax.bar(t, significance[0, 0, :], width=1, align='center', color='blue', edgecolor='black', bottom=ax_bottom)
+# _ = _cint(t, shuffled_dprime[:, 0, 0, :], confidence=0.95, ax=ax,
+#                fillkwargs={'color': 'black', 'alpha': 0.5})
+
+
 
