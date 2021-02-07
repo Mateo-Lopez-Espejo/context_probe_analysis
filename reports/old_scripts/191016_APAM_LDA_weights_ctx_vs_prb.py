@@ -55,7 +55,7 @@ def fit_transform(site, probe, meta, part):
     goodcells = goodcells.tolist()
 
     # get the full data raster Context x Probe x Rep x Neuron x Time
-    raster = src.data.rasters.raster_from_sig(sig, probe, channels=goodcells, transitions=meta['transitions'],
+    raster = src.data.rasters.raster_from_sig(sig, probe, channels=goodcells, contexts=meta['transitions'],
                                               smooth_window=meta['smoothing_window'], raster_fs=meta['raster_fs'],
                                               part=part, zscore=meta['zscore'])
 

@@ -276,7 +276,7 @@ all_dPCA_proj = [trialZ['ct'][:, 0, ctx, :] for ctx in range(trialZ['ct'].shape[
 ########################################################################################################################
 # figure 1: Shows the raw data, i.e.the projection
 # gets the real data raster (no dim reduction) to calculate single cell, population independent d'
-raster = src.data.rasters.raster_from_sig(sig, probe, channels=goodcells, transitions=transitions,
+raster = src.data.rasters.raster_from_sig(sig, probe, channels=goodcells, contexts=transitions,
                                           smooth_window=meta['smoothing_window'], raster_fs=meta['raster_fs'])
 
 # trialR shape: Trial x Cell x Context x Probe x Time; R shape: Cell x Context x Probe x Time

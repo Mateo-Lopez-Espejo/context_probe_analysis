@@ -55,7 +55,7 @@ def fit_transform(site, probe, meta, part):
     r_vals, goodcells = signal_reliability(sig, r'\ASTIM_*', threshold=meta['reliability'])
     goodcells = goodcells.tolist()
 
-    raster = src.data.rasters.raster_from_sig(sig, probe, channels=goodcells, transitions=meta['transitions'],
+    raster = src.data.rasters.raster_from_sig(sig, probe, channels=goodcells, contexts=meta['transitions'],
                                               smooth_window=meta['smoothing_window'], raster_fs=meta['raster_fs'],
                                               part=part, zscore=meta['zscore'])
 
@@ -85,7 +85,7 @@ def transform(site, probe, meta, part, dpca):
     r_vals, goodcells = signal_reliability(sig, r'\ASTIM_*', threshold=meta['reliability'])
     goodcells = goodcells.tolist()
 
-    raster = src.data.rasters.raster_from_sig(sig, probe, channels=goodcells, transitions=meta['transitions'],
+    raster = src.data.rasters.raster_from_sig(sig, probe, channels=goodcells, contexts=meta['transitions'],
                                               smooth_window=meta['smoothing_window'], raster_fs=meta['raster_fs'],
                                               part=part, zscore=meta['zscore'])
 

@@ -5,12 +5,12 @@ import pathlib as pl
 from configparser import ConfigParser
 
 import numpy as np
-from joblib import Memory, dump, load
+from joblib import Memory
 
 import src.data.rasters
 from src.data import dPCA as cdPCA
 from src.data.cache import set_name
-from src.data.load import load, get_site_ids
+from src.data.load import load
 from src.metrics import dprime as cDP
 from src.metrics.reliability import signal_reliability
 from src.utils.tools import shuffle_along_axis as shuffle
@@ -18,11 +18,21 @@ from src.utils.tools import shuffle_along_axis as shuffle
 config = ConfigParser()
 config.read_file(open(pl.Path(__file__).parents[2] / 'config' / 'settings.ini'))
 
-memory = Memory(str(pl.Path(config['paths']['analysis_cache']) / 'prm_dprimes_v2'))
+memory = Memory(str(pl.Path(config['paths']['analysis_cache']) / 'consolidated_dprimes'))
 
 # private functions of snipets of code common to all dprime calculations
-def _load_raster(site, probes, meta):
-    recs = load(site, rasterfs=meta['raster_fs'], recache=rec_recache)
+def load_site_formated_raste(site, probes, meta, recache_rec=False):
+    """
+    wrapper of wrappers. Load a recording, selects the subset of data (triplets, or permutations), generates raster using
+    selected  probes and transitions
+    :param site:
+    :param probes:
+    :param meta:
+    :param recache_rec:
+    :return:
+    """
+
+    recs = load(site, rasterfs=meta['raster_fs'], recache=recache_rec)
     if len(recs) > 2:
         print(f'\n\n{recs.keys()}\n\n')
 
@@ -41,7 +51,7 @@ def _load_raster(site, probes, meta):
     goodcells = goodcells.tolist()
 
     # get the full data raster Context x Probe x Rep x Neuron x Time
-    raster = src.data.rasters.raster_from_sig(sig, probes, channels=goodcells, transitions=meta['transitions'],
+    raster = src.data.rasters.raster_from_sig(sig, probes, channels=goodcells, contexts=meta['transitions'],
                                               smooth_window=meta['smoothing_window'], raster_fs=meta['raster_fs'],
                                               zscore=meta['zscore'], part='probe')
 
@@ -102,7 +112,7 @@ def single_cell_dprimes(site, probes, meta):
              shuffled_dprimes (ndarray with shape Montecarlo x Unit x Ctx_pair x Probe x Time),
              goocells (list of strings)
     """
-    raster, goodcells = _load_raster(site, probes, meta)
+    raster, goodcells = load_site_formated_raste(site, probes, meta)
 
     # trialR shape: Trial x Cell x Context x Probe x Time; R shape: Cell x Context x Probe x Time
     trialR, _, _ = cdPCA.format_raster(raster)
@@ -146,7 +156,7 @@ def probewise_dPCA_dprimes(site, probes, meta):
              shuffled_dprimes (ndarray with shape Montecarlo x Ctx_pair x Probe x Time),
              goocells (list of strings)
     """
-    raster, goodcells = _load_raster(site, probes, meta)
+    raster, goodcells = load_site_formated_raste(site, probes, meta)
 
     # trialR shape: Trial x Cell x Context x Probe x Time; R shape: Cell x Context x Probe x Time
     trialR, R, _ = cdPCA.format_raster(raster)
@@ -204,7 +214,7 @@ def probewise_LDA_dprimes(site, probes, meta):
              shuffled_dprimes (ndarray with shape Montecarlo x Ctx_pair x Probe x Time),
              goocells (list of strings)
     """
-    raster, goodcells = _load_raster(site, probes, meta)
+    raster, goodcells = load_site_formated_raste(site, probes, meta)
 
     # trialR shape: Trial x Cell x Context x Probe x Time; R shape: Cell x Context x Probe x Time
     trialR, R, _ = cdPCA.format_raster(raster)
@@ -251,7 +261,7 @@ def probewise_LDA_dprimes(site, probes, meta):
 
 
 def full_dPCA_dprimes(site, probes, meta):
-    raster, goodcells = _load_raster(site, probes, meta)
+    raster, goodcells = load_site_formated_raste(site, probes, meta)
 
     # trialR shape: Trial x Cell x Context x Probe x Time; R shape: Cell x Context x Probe x Time
     trialR, R, _ = cdPCA.format_raster(raster)
@@ -285,22 +295,11 @@ def full_dPCA_dprimes(site, probes, meta):
 
     return dprime, shuffled_dprimes, goodcells
 
+'''
 rec_recache = False
 site = 'CRD004a'
-sites = [site]
-# all_probes = [2, 3, 5, 6] #triplets
-all_probes = [1, 2, 3, 4] #permutations
-probes = all_probes
+probes = [1, 2, 3, 4] #permutations
 
-# meta = {'reliability': 0.1,  # r value
-#         'smoothing_window': 0,  # ms
-#         'raster_fs': 30,
-#         'transitions': ['silence', 'continuous', 'similar', 'sharp'],
-#         'montecarlo': 1000,
-#         'zscore': True,
-#         'dprime_absolute': None,
-#         'stim_type': 'triplets'}
-#
 meta = {'reliability': 0.1,  # r value
         'smoothing_window': 0,  # ms
         'raster_fs': 30,
@@ -310,26 +309,10 @@ meta = {'reliability': 0.1,  # r value
         'dprime_absolute': None,
         'stim_type': 'permutations'}
 
-# single_cell_dprimes(site, probes, meta)
-# probewise_dPCA_dprimes(site, probes, meta)
-# probewise_LDA_dprimes(site, probes, meta)
-
+dprime, shuffled_dprime, _ = single_cell_dprimes(site, probes, meta)
+dprime, shuffled_dprime, _ = probewise_dPCA_dprimes(site, probes, meta)
+dprime, shuffled_dprime, _ = probewise_LDA_dprimes(site, probes, meta)
 dprime, shuffled_dprime, _ = full_dPCA_dprimes(site, probes, meta)
 
-
-significance, corrected_signif, confidence_interval = _significance(dprime,shuffled_dprime, [0, 1, 2])
-
-import matplotlib.pyplot as plt
-from src.visualization.fancy_plots import _significance_bars, _cint
-
-fig, ax = plt.subplots()
-t = np.arange(dprime.shape[-1])
-ax.plot(t, dprime[0,0,:], color='black')
-ax.fill_between(t, confidence_interval[0,0,0,:], confidence_interval[1,0,0,:], color='black', alpha=0.5)
-ax_bottom = ax.get_ylim()[0]
-ax.bar(t, significance[0, 0, :], width=1, align='center', color='blue', edgecolor='black', bottom=ax_bottom)
-# _ = _cint(t, shuffled_dprime[:, 0, 0, :], confidence=0.95, ax=ax,
-#                fillkwargs={'color': 'black', 'alpha': 0.5})
-
-
-
+significance, corrected_signif, confidence_interval = _significance(dprime,shuffled_dprime, [0, 1, 2], alpha=0.01)
+'''

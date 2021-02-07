@@ -34,7 +34,7 @@ def single_cell_dprimes(site, probe, meta):
     goodcells = goodcells.tolist()
 
     # get the full data raster Context x Probe x Rep x Neuron x Time
-    raster = src.data.rasters.raster_from_sig(sig, probe, channels=goodcells, transitions=meta['transitions'],
+    raster = src.data.rasters.raster_from_sig(sig, probe, channels=goodcells, contexts=meta['transitions'],
                                               smooth_window=meta['smoothing_window'], raster_fs=meta['raster_fs'],
                                               zscore=meta['zscore'], part='probe')
 
@@ -88,7 +88,7 @@ def probewise_dPCA_dprimes(site, probe, meta):
     goodcells = goodcells.tolist()
 
     # get the full data raster Context x Probe x Rep x Neuron x Time
-    raster = src.data.rasters.raster_from_sig(sig, probe, channels=goodcells, transitions=meta['transitions'],
+    raster = src.data.rasters.raster_from_sig(sig, probe, channels=goodcells, contexts=meta['transitions'],
                                               smooth_window=meta['smoothing_window'], raster_fs=meta['raster_fs'],
                                               zscore=meta['zscore'])
 
@@ -143,7 +143,7 @@ def full_dPCA_dprimes(site, probe, meta):
     goodcells = goodcells.tolist()
 
     # get the full data raster Context x Probe x Rep x Neuron x Time
-    raster = src.data.rasters.raster_from_sig(sig, probe, channels=goodcells, transitions=meta['transitions'],
+    raster = src.data.rasters.raster_from_sig(sig, probe, channels=goodcells, contexts=meta['transitions'],
                                               smooth_window=meta['smoothing_window'], raster_fs=meta['raster_fs'],
                                               zscore=meta['zscore'])
 
