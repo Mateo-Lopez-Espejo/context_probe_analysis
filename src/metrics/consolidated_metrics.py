@@ -4,6 +4,7 @@ from configparser import ConfigParser
 
 import joblib as jl
 import numpy as np
+import numpy.ma as ma
 import pandas as pd
 from scipy.integrate import trapz
 
@@ -40,39 +41,50 @@ meta = {'reliability': 0.1,  # r value
 permutations = {'contexts': [0, 1, 2, 3, 4],
                 'probes': [1, 2, 3, 4],}
 
-dprime, shuffled_dprime, goodcells = single_cell_dprimes('CRD004a', **permutations, meta=meta)
+dprimes, shuffled_dprimes, goodcells = single_cell_dprimes('CRD004a', **permutations, meta=meta)
 
 
 
 # calculate significant time bins, both raw and corrected for multiple comparisons
-significance, corrected_signif, confidence_interval = _significance(dprime, shuffled_dprime, [1,2,3], alpha=0.01)
+significance, corrected_signif, confidence_interval = _significance(dprimes, shuffled_dprimes, [1,2,3], alpha=0.01)
 
 
 # masks dprime with different significances
-masked_dprime = np.where(significance, dprime, np.nan)
+dprimes_mask = ma.masked_array(dprimes, ~significance)
 
 # take multiple means across transision pairs, probes or both
-def _get_multiple_means(masked_dprime):
-    mean_dicts = list()
-    # individual values i.e. no mean
-    for (pp, probe), (tt, trans) in itt.product(enumerate(permutations['probes']),
-                                                enumerate(itt.combinations(permutations['contexts'], 2))):
-        mean = array[pp, tt, :]
-        mean_dicts.append({'probe': f'probe_{probe}', 'transition_pair': f'{trans[0]}_{trans[1]}', 'value': mean})
-
+def _get_multiple_means(dprimes):
+    """
+    Private function to get the different combinations of means across probes, contexts pairs, or both
+    :param dprime: ndarray with shape Channel x ContextPairs x Probes x Time
+    :return:
+    """
+    mean_dicts = dict()
     # mean of transition pairs for each probe
-    for pp, probe in enumerate(all_probes):
-        mean = np.mean(array[pp, :, :], axis=0)
-        mean_dicts.append({'probe': f'probe_{probe}', 'transition_pair': 'mean', 'value': mean})
+    mean_dicts['probe'] = np.mean(dprimes, axis=1)
+    mean_dicts['transition_pair'] = np.mean(dprimes, axis=2)
+    mean_dicts['full'] = np.mean(dprimes, axis=(1,2))
 
-    # mean of probes for each transition pair
-    for tt, trans in enumerate(itt.combinations(meta['transitions'], 2)):
-        mean = np.mean(array[:, tt, :], axis=0)
-        mean_dicts.append({'probe': 'mean', 'transition_pair': f'{trans[0]}_{trans[1]}', 'value': mean})
+    return mean_dicts
 
-    # full mean across probes and transition pairs
-    mean = np.mean(array[:, :, :], axis=(0, 1))
-    mean_dicts.append({'probe': 'mean', 'transition_pair': 'mean', 'value': mean})
+means = _get_multiple_means(dprimes_mask)
+
+
+# defines all metrics functions with homogeneous input and output shapes
+def
+
+
+
+
+
+
+
+
+def ndim_array_to_long_DF(array, label_dict):
+
+
+
+
 
 
 
