@@ -1,17 +1,6 @@
-import itertools as itt
-import pathlib as pl
-from configparser import ConfigParser
-
-import joblib as jl
 import numpy as np
 import numpy.ma as ma
-import pandas as pd
-from scipy.integrate import trapz
 
-from src.metrics import dprime as cDP
-from src.utils import fits as fts
-from src.data.cache import set_name
-from src.data.region_map import region_map
 from src.metrics.significance import _significance
 from src.metrics.consolidated_dprimes import single_cell_dprimes
 
@@ -27,8 +16,6 @@ rec_recache = False
 dprime_recache = False
 signif_tails = 'both'
 alpha=0.01
-
-
 
 meta = {'reliability': 0.1,  # r value
         'smoothing_window': 0,  # ms
@@ -71,23 +58,19 @@ means = _get_multiple_means(dprimes_mask)
 
 
 # defines all metrics functions with homogeneous input and output shapes
-def
 
 
 
 
 
 
+# helper function to transform "labeled" ndimensional arrays into flat, long format pandas dataframes
 
-
-def ndim_array_to_long_DF(array, label_dict):
-
-
-
-
-
-
-
+# import timeit
+# number=1
+# print(timeit.timeit('o0(arr, all_lab)', globals=globals(), number=number))
+# print(timeit.timeit('o1(arr, all_lab)', globals=globals(), number=number))
+# print(timeit.timeit('o2(arr, all_lab)', globals=globals(), number=number))
 
 # config = ConfigParser()
 # config.read_file(open(pl.Path(__file__).parents[2] / 'config' / 'settings.ini'))

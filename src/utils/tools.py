@@ -2,6 +2,8 @@ from math import sqrt, log
 
 import numpy as np
 from collections import Iterable
+
+import pandas as pd
 from scipy.ndimage import gaussian_filter1d
 
 
@@ -86,3 +88,29 @@ def shuffle_along_axis(array, shuffle_axis, indie_axis=None, rng=None):
     array = np.transpose(array, np.argsort(new_order))
 
     return array
+
+
+def ndim_array_to_long_DF(array, label_dict):
+    """
+    turns an ndimensional array into a long format pandas dataframe, where the axis position on the array are translated
+    into labels, and the values of the array are the value column in the dataframe. This is particularly usefull to calculate
+    metrics in a vectorized maner instead of using for loops for multiple units or other parameters in a recording site
+    dataset
+    :param array: ndarray of values with D dimensions
+    :param label_dict: dictionary of array labels, with D entries of lists of the corresponding dimension length.
+    :return: pandas dataframe with D label columns and one value column.
+    """
+    flat_labels = np.empty([array.size, array.ndim], dtype=object)
+    repeat_num = 1
+    for ll, lab in enumerate(label_dict.values()):
+        tile_num = int(array.size / (len(lab) * repeat_num))
+        flat_lab = np.tile(np.repeat(lab, repeat_num), tile_num)
+        repeat_num *= len(lab)
+        flat_labels[:, ll] = flat_lab
+    flat_array = np.concatenate([flat_labels, array.flatten(order='F')[:, None]], axis=1)
+
+    columns = list(label_dict.keys())
+    columns.append('value')
+
+    DF = pd.DataFrame(flat_array, columns=columns)
+    return DF
