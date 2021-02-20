@@ -99,6 +99,9 @@ def flip_dprimes(dprime_array, montecarlo=None, flip='first'):
         # flip value signs so the highest absolute dprime value is positive
         toflip = (np.abs(np.min(dprime_array, axis=-1)) > np.max(dprime_array, axis=-1))[
             ..., None]  # asume last dimensio is time
+    elif flip == 'sum':
+        # flips so the sum of the time series is positive
+        toflip = (np.sum(dprime_array, axis=-1) < 0)[..., None]
     elif flip is None:
         toflip = np.empty(dprime_array.shape)
         toflip[:] = False
