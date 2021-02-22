@@ -33,7 +33,7 @@ all_metrics = {'significant_abs_mass_center': signif_abs_mass_center,
                'significant_abs_sum': signif_abs_sum}
 
 ################################################
-def _add_means_to_array(array, label_dictionary):
+def _append_means_to_array(array, label_dictionary):
     """
     defines means across probes, context_pairse or both, and append to a copy of the original array. Updates the dimension
     label dictionary
@@ -59,13 +59,10 @@ def _add_means_to_array(array, label_dictionary):
 
 def metrics_to_DF(array, label_dictionary, metrics):
     metrics = {metric: all_metrics[metric] for metric in metrics}
-
-    means, means_lab_dict = _add_means_to_array(array, label_dictionary)
     site_DF = pd.DataFrame()
     for metric_name, func in metrics.items():
-        sig_abs_sum, sas_lab = signif_abs_sum(means, means_lab_dict)
+        sig_abs_sum, sas_lab = func(array, label_dictionary)
         df = arr2df(sig_abs_sum, sas_lab)
         df['metric'] = metric_name
         site_DF = site_DF.append(df)
-
     return site_DF

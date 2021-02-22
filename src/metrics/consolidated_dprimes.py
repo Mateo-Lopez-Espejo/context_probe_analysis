@@ -99,7 +99,7 @@ def single_cell_dprimes(site, contexts, probes, meta):
         shuffled_dprime[:, :, pair_idx, :, :] = cDP.pairwise_dprimes(shuf_trialR, observation_axis=1, condition_axis=3,
                                                                      flip=meta['dprime_absolute'] ).squeeze(axis=2)
 
-    return dprime, shuffled_dprime, goodcells
+    return dprime, shuffled_dprime, goodcells, None
 
 @memory.cache
 def probewise_dPCA_dprimes(site, contexts, probes, meta):
@@ -161,7 +161,7 @@ def probewise_dPCA_dprimes(site, contexts, probes, meta):
     dprime = np.expand_dims(dprime, axis=0)
     shuffled_dprime = np.expand_dims(shuffled_dprime, axis=1)
 
-    return dprime, shuffled_dprime, goodcells
+    return dprime, shuffled_dprime, goodcells, None
 
 @memory.cache
 def probewise_LDA_dprimes(site, contexts, probes, meta):
@@ -222,7 +222,7 @@ def probewise_LDA_dprimes(site, contexts, probes, meta):
     dprime = np.expand_dims(dprime, axis=0)
     shuffled_dprime = np.expand_dims(shuffled_dprime, axis=1)
 
-    return dprime, shuffled_dprime, goodcells
+    return dprime, shuffled_dprime, goodcells, None
 
 @memory.cache
 def full_dPCA_dprimes(site, contexts, probes, meta):
@@ -232,10 +232,13 @@ def full_dPCA_dprimes(site, contexts, probes, meta):
     trialR, R, _ = cdPCA.format_raster(raster)
 
     # calculates full dPCA. i.e. considering all 4 categories
-    _, trialZ, _ = cdPCA._cpp_dPCA(R, trialR)
+    _, trialZ, dpca = cdPCA._cpp_dPCA(R, trialR)
     dPCA_projection = trialZ['ct'][:, 0, ...]
     dprime = cDP.pairwise_dprimes(dPCA_projection, observation_axis=0, condition_axis=1,
                                   flip=meta['dprime_absolute'])
+
+    # calculates the variance explained. special case for full dpca, not present in other dprime approaches
+    var_capt = cdPCA.variance_captured(dpca, R)
 
     # Shuffles the rasters n times and organizes in an array with the same shape the raster plus one dimension
     # with size n containing each shuffle
@@ -262,7 +265,7 @@ def full_dPCA_dprimes(site, contexts, probes, meta):
     dprime = np.expand_dims(dprime, axis=0)
     shuffled_dprime = np.expand_dims(shuffled_dprime, axis=1)
 
-    return dprime, shuffled_dprime, goodcells
+    return dprime, shuffled_dprime, goodcells, var_capt
 
 
 # site = 'CRD004a'

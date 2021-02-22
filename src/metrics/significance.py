@@ -1,6 +1,8 @@
 import pathlib as pl
 from configparser import ConfigParser
+from src.metrics.consolidated_metrics import _append_means_to_array
 import numpy as np
+import numpy.ma as ma
 
 def  _significance(array, mont_array, multiple_comparisons_axis, alpha=0.01, tails='both'):
     """
@@ -49,4 +51,33 @@ def  _significance(array, mont_array, multiple_comparisons_axis, alpha=0.01, tai
     confidence_interval = np.percentile(mont_array, [low, high], axis=0)
 
     return significance, confidence_interval
+
+
+def _mask_with_significance(dprime, significance, label_dictionary, mean_type='zeros'):
+    """
+    uses the significance array to mask the dprime for later analysis. The critial use of this fuction is to deal with
+    different aproaches on how to deal with the significance for the mean across context_pairs, probes or both.
+    zeros:
+    :param dprime: arraye of dprime values
+    :param significance: boolean array of the significance of said dprimes
+    :param label_dict: dictionary of the dimension labels for dprime
+    :param mean_type: how to deal with the sigificance for the mean values
+    :return: masked array containing appended mean values, ready for metric calculation
+    """
+
+    if mean_type == "zeros":
+        # turns nonsigificant values into zeros and takes the means normally
+        zeroed = np.where(significance, dprime, 0)
+        dprime_means, mean_lable_dict = _append_means_to_array(zeroed, label_dictionary)
+        masked_dprime_means = ma.array(dprime_means)
+
+    elif mean_type == "mean":
+        # takes the mean of the significances and uses it to determine what mean values are significant
+        dprime_means, mean_lable_dict = _append_means_to_array(dprime, label_dictionary)
+        signif_means,_ = _append_means_to_array(significance, label_dictionary)
+        masked_dprime_means = ma.array(dprime_means, mask=signif_means==0)
+    else:
+        raise ValueError(f'Unrecognized mean_type: {mean_type}')
+
+    return masked_dprime_means, mean_lable_dict
 
