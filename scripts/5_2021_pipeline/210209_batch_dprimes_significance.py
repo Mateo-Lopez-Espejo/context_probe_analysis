@@ -4,6 +4,7 @@ from src.metrics.dprime import flip_dprimes
 from src.data.load import get_site_ids
 from src.metrics.consolidated_metrics import metrics_to_DF
 from src.data.load import set_name
+from src.data.region_map import region_map
 
 import itertools as itt
 import numpy as np
@@ -91,14 +92,19 @@ for site, expt, (fname, func) in itt.product(sites, experiments, analysis_functi
         continue
 
     print(site, expt['stim_type'], fname)
+
+    # parses the stim_type from the experiment into the meta parameters
     expt = expt.copy()
     meta['stim_type'] = expt.pop('stim_type')
+
+    # runs the dprime function
     try:
         dprime, shuffled_dprime, goodcells, var_capt = func(site, **expt, meta=meta)
     except:
         print('failed')
         bads.append((site, expt['stim_type'], fname))
 
+    # for analysis with dimensionality reduction, changes the cellname to nan for proper dimension labeling.
     if fname != 'SC':
         chan_name = [np.nan]
     else:
@@ -131,10 +137,11 @@ for site, expt, (fname, func) in itt.product(sites, experiments, analysis_functi
             df['mean_signif_type'] = mean_type
             df['stim_type'] = meta['stim_type']
             df['analysis'] = fname
-            df['site'] = site
+            df['siteid'] = site
+            df['region'] = region_map[site]
 
             DF = DF.append(df)
-
+print(bads)
 
 if summary_DF_file.parent.exists() is False:
     summary_DF_file.parent.mkdir()

@@ -4,7 +4,7 @@ from src.metrics.consolidated_metrics import _append_means_to_array
 import numpy as np
 import numpy.ma as ma
 
-def  _significance(array, mont_array, multiple_comparisons_axis, alpha=0.01, tails='both'):
+def  _significance(array, mont_array, multiple_comparisons_axis=None, alpha=0.01, tails='both'):
     """
     calculates significance (boolean) for the values of array using the montecarlo method e.g. n simulations or shuffles of the
     original data in array. These n repetitions are specified in the mont_array, therefore mont_array should have the
@@ -13,7 +13,7 @@ def  _significance(array, mont_array, multiple_comparisons_axis, alpha=0.01, tai
     specify wheter calculate a one tailed (upper or lower) or two tailed pvalue.
     :param array: ndarray e.g. Unit x Context x ...
     :param mont_array: ndarray e.g. Montecarlo x Unit x Context ...
-    :param multiple_comparisons_axis: list of ints, None
+    :param multiple_comparisons_axis: None, list of ints. default None.
     :param alpha: float [0:1]
     :param tails: str, 'lesser', 'Greater', 'Both'
     :return:
