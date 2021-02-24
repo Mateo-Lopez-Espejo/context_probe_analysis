@@ -52,10 +52,10 @@ def _cpp_dPCA(R, trialR, dPCA_parms={}):
                              'join': {'ct' : ['c','ct'], 'pt':['p', 'pt'], 'cpt':['cp', 'cpt']}}
 
     if len(trialR.shape) == 4:
-        dPCA_parms.update(single_probe_defaults)
+        dPCA_parms = dict(single_probe_defaults, **dPCA_parms)
         Tr, N, C, T = trialR.shape
     elif len(trialR.shape) == 5:
-        dPCA_parms.update(all_probes_defaults)
+        dPCA_parms = dict(all_probes_defaults, **dPCA_parms)
         Tr, N, C, P, T = trialR.shape
     else:
         raise ValueError('trialR has an uncompatible number of dimensions')
