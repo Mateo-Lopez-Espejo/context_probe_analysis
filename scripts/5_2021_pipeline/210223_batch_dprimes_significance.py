@@ -57,7 +57,7 @@ meta = {'reliability': 0.1,  # r value
         'dprime_absolute': None}
 
 summary_DF_file = pl.Path(config['paths']['analysis_cache']) / 'consolidated_summary_DF_v2' / set_name(meta)
-variance_DF_file = pl.Path(config['paths']['analysis_cache']) / 'variance_explained_DF_v2' / set_name(meta)
+variance_DF_file = pl.Path(config['paths']['analysis_cache']) / 'variance_explained_DF' / set_name(meta)
 
 analysis_functions = {'SC': single_cell_dprimes,'LDA':probewise_LDA_dprimes,
                       'pdPCA': probewise_dPCA_dprimes, 'fdPCA': full_dPCA_dprimes}

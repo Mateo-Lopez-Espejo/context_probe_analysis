@@ -46,7 +46,7 @@ meta = {'reliability': 0.1,  # r value
         'dprime_absolute': None}
 
 summary_DF_file = pl.Path(config['paths']['analysis_cache']) / 'consolidated_summary_DF_v3' / set_name(meta)
-variance_DF_file = pl.Path(config['paths']['analysis_cache']) / 'variance_explained_DF_v3' / set_name(meta)
+variance_DF_file = pl.Path(config['paths']['analysis_cache']) / 'variance_explained_DF' / set_name(meta)
 
 analysis_functions = {'SC': single_cell_dprimes,'LDA':probewise_LDA_dprimes,
                       'pdPCA': probewise_dPCA_dprimes, 'fdPCA': full_dPCA_dprimes}
@@ -64,9 +64,6 @@ experiments = [permutations, triplets]
 
 multiple_corrections = {'none': (None, None),
                         'full': ([1,2,3], None),
-                        'time': ([3], None),
-                        'probe': ([2,3], None),
-                        'context_pair': ([1,3], None),
                         'consecutive_2': ([3], 2),
                         'consecutive_3': ([3], 3),
                         'consecutive_4': ([3], 4)}
@@ -137,7 +134,7 @@ for site, expt, (fname, func) in itt.product(sites, experiments, analysis_functi
             df['siteid'] = site
             df['region'] = region_map[site]
 
-            DF = DF.append(df)
+            DF = DF.append(df,ignore_index=True)
 print('failed sites: ', bads)
 
 DF.drop_duplicates(inplace=True)

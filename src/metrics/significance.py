@@ -28,6 +28,11 @@ def where_contiguous_chunks(array, axis, length, func='>='):
     ops = {'>': operator.gt, '<': operator.lt, '>=': operator.ge, '<=': operator.le, '==': operator.eq}
     good_chunks = ops[func](stops[axis] - starts[axis], length)
 
+    # skips everything if there are not good chunks
+    if not np.any(good_chunks):
+        chunk_idx = tuple([np.empty(shape=(0,0), dtype=int) for dim in starts])
+        return chunk_idx
+
     # save the indices from the other dimensions
     if array.ndim > 1:
         other_dims_idx = list(starts)
@@ -101,7 +106,7 @@ def  _significance(array, mont_array, multiple_comparisons_axis=None, consecutiv
                 raise ValueError('when counting consecutive True, multiple_comparisons_axis must be singleton')
 
             chunk_idx = where_contiguous_chunks(significance, multiple_comparisons_axis[0], consecutive, func='>=')
-            chunk_signif = np.full_like(significance)
+            chunk_signif = np.full_like(significance, False)
             chunk_signif[chunk_idx] = True
             significance = chunk_signif
 
