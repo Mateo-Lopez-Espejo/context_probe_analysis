@@ -56,6 +56,29 @@ def _append_means_to_array(array, label_dictionary):
 
     return array_with_means, new_lab_dict
 
+def _append_means_to_shuff_array(array, label_dictionary):
+    """
+    defines means across probes, context_pairse or both, and append to a copy of the original array. Updates the dimension
+    label dictionary
+    :param array: array of shape Cell x Context_Pair x Probe x Time
+    :param label_dictionary: dimension labels dictionary
+    :return: array, dictionary
+    """
+    newshape = np.asarray(array.shape) + [0,0,1,1,0] # add space for the Context_Pair, and/or Probe
+    array_with_means = np.full(newshape, np.nan)
+
+    array_with_means[:, :, :-1, :-1, :] = array #original values
+    array_with_means[:, :, -1, :-1, :] = np.mean(array, axis=2) # context_pair mean
+    array_with_means[:, :, :-1, -1, :] = np.mean(array, axis=3) # probe mean
+    array_with_means[:, :, -1, -1, :] = np.mean(array, axis=(2,3)) # full mean
+
+    # updates dimension label dictionary
+    new_lab_dict = copy.deepcopy(label_dictionary)
+    new_lab_dict['context_pair'].append('mean')
+    new_lab_dict['probe'].append('mean')
+
+    return array_with_means, new_lab_dict
+
 
 def metrics_to_DF(array, label_dictionary, metrics):
     metrics = {metric: all_metrics[metric] for metric in metrics}

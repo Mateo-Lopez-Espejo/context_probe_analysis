@@ -132,7 +132,7 @@ def  _significance(array, mont_array, multiple_comparisons_axis=None, consecutiv
     return significance, confidence_interval
 
 
-def _mask_with_significance(dprime, significance, label_dictionary, mean_type='zeros'):
+def _mask_with_significance(dprime, significance, label_dictionary, mean_type='zeros', mean_signif_arr=None):
     """
     uses the significance array to mask the dprime for later analysis. The critial use of this fuction is to deal with
     different aproaches on how to deal with the significance for the mean across context_pairs, probes or both.
@@ -144,17 +144,26 @@ def _mask_with_significance(dprime, significance, label_dictionary, mean_type='z
     :return: masked array containing appended mean values, ready for metric calculation
     """
 
-    if mean_type == "zeros":
+    if mean_type == 'zeros':
         # turns nonsigificant values into zeros and takes the means normally
         zeroed = np.where(significance, dprime, 0)
         dprime_means, mean_lable_dict = _append_means_to_array(zeroed, label_dictionary)
         masked_dprime_means = ma.array(dprime_means)
 
-    elif mean_type == "mean":
+    elif mean_type == 'mean':
         # takes the mean of the significances and uses it to determine what mean values are significant
         dprime_means, mean_lable_dict = _append_means_to_array(dprime, label_dictionary)
         signif_means,_ = _append_means_to_array(significance, label_dictionary)
         masked_dprime_means = ma.array(dprime_means, mask=signif_means==0)
+
+    elif mean_type == 'shuffles':
+        # merges the imported  mean signif array into the dprime signifs
+        dprime_means, mean_lable_dict = _append_means_to_array(dprime, label_dictionary)
+        signif_means,_ = _append_means_to_array(significance, label_dictionary)
+        signif_means[:,-1, :,:] = mean_signif_arr[:,-1, :,:]
+        signif_means[:, :, -1,:] = mean_signif_arr[:, :, -1,:]
+        masked_dprime_means = ma.array(dprime_means, mask=signif_means==0)
+
     else:
         raise ValueError(f'Unrecognized mean_type: {mean_type}')
 
