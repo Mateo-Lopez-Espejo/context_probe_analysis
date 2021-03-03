@@ -68,6 +68,8 @@ multiple_corrections = {'none': (None, None),
                         'consecutive_3': ([3], 3),
                         'consecutive_4': ([3], 4)}
 
+mean_types = ['zeros', 'mean', 'shuffles']
+
 metrics = ['significant_abs_mass_center', 'significant_abs_sum']
 
 
@@ -119,24 +121,27 @@ for site, expt, (fname, func) in itt.product(sites, experiments, analysis_functi
         fliped, fliped_shuffled = flip_dprimes(dprime, shuffled_dprime, flip='sum')
 
         # only time correction for the means
-
         dprime_means, _  = _append_means_to_array(fliped, dim_lab_dict)
         shuff_means, _  = _append_means_to_shuff_array(fliped_shuffled, dim_lab_dict)
         shuf_signif, shuf_CI = _significance(dprime_means, shuff_means, [3], cons, alpha=alpha)
 
-        # masks dprime with different significances, uses different approaches to define significance of the mean.
-        masked, masked_lab_dict = _mask_with_significance(fliped, significance, dim_lab_dict, mean_type='shuffles',
-                                                          mean_signif_arr=shuf_signif)
+        for mean_type in mean_types:
+            print(f'        mean_signif: {mean_type}')
 
-        # calculate different metrics and organize into a dataframe
-        df = metrics_to_DF(masked, masked_lab_dict, metrics=metrics)
-        df['mult_comp_corr'] = corr_name
-        df['stim_type'] = meta['stim_type']
-        df['analysis'] = fname
-        df['siteid'] = site
-        df['region'] = region_map[site]
+            # masks dprime with different significances, uses different approaches to define significance of the mean.
+            masked, masked_lab_dict = _mask_with_significance(fliped, significance, dim_lab_dict, mean_type=mean_type,
+                                                              mean_signif_arr=shuf_signif)
 
-        DF = DF.append(df,ignore_index=True)
+            # calculate different metrics and organize into a dataframe
+            df = metrics_to_DF(masked, masked_lab_dict, metrics=metrics)
+            df['mult_comp_corr'] = corr_name
+            df['mean_signif_type'] = mean_type
+            df['stim_type'] = meta['stim_type']
+            df['analysis'] = fname
+            df['siteid'] = site
+            df['region'] = region_map[site]
+
+            DF = DF.append(df,ignore_index=True)
 
 print('failed sites: ', bads)
 
