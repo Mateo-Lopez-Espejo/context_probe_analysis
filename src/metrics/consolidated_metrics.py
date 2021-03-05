@@ -28,9 +28,17 @@ def signif_abs_mass_center(array, label_dictionary):
     _ = updated_label_dict.pop('time')
     return metric, updated_label_dict
 
+def signif_abs_mean(array, label_dictionary):
+    t = label_dictionary['time']
+    metric = np.mean(np.abs(array), axis=3)
+    updated_label_dict = copy.deepcopy(label_dictionary)
+    _ = updated_label_dict.pop('time')
+    return metric, updated_label_dict
+
 
 all_metrics = {'significant_abs_mass_center': signif_abs_mass_center,
-               'significant_abs_sum': signif_abs_sum}
+               'significant_abs_sum': signif_abs_sum,
+               'significant_abs_mean': signif_abs_mean}
 
 ################################################
 def _append_means_to_array(array, label_dictionary):

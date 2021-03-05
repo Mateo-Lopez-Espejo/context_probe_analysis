@@ -63,6 +63,7 @@ triplets = {'contexts': ['silence', 'continuous', 'similar', 'sharp'],
 experiments = [permutations, triplets]
 
 multiple_corrections = {'none': (None, None),
+                        'time': ([3], None),
                         'full': ([1,2,3], None),
                         'consecutive_2': ([3], 2),
                         'consecutive_3': ([3], 3),
@@ -70,7 +71,7 @@ multiple_corrections = {'none': (None, None),
 
 mean_types = ['zeros', 'mean', 'shuffles']
 
-metrics = ['significant_abs_mass_center', 'significant_abs_sum']
+metrics = ['significant_abs_mass_center', 'significant_abs_sum', 'significant_abs_mean']
 
 
 sites = set(get_site_ids(316).keys())
