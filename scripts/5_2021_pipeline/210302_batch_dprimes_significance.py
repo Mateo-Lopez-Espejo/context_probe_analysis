@@ -36,7 +36,7 @@ rec_recache = False
 dprime_recache = False
 
 signif_tails = 'both'
-alpha=0.01
+alpha=0.05
 
 meta = {'reliability': 0.1,  # r value
         'smoothing_window': 0,  # ms
@@ -45,8 +45,8 @@ meta = {'reliability': 0.1,  # r value
         'zscore': True,
         'dprime_absolute': None}
 
-summary_DF_file = pl.Path(config['paths']['analysis_cache']) / '210302_consolidated_summary_DF' / set_name(meta)
-variance_DF_file = pl.Path(config['paths']['analysis_cache']) / '210302_variance_explained_DF' / set_name(meta)
+summary_DF_file = pl.Path(config['paths']['analysis_cache']) / f'210302_consolidated_summary_DF_alpha_{alpha}' / set_name(meta)
+variance_DF_file = pl.Path(config['paths']['analysis_cache']) / f'210302_variance_explained_DF' / set_name(meta)
 
 analysis_functions = {'SC': single_cell_dprimes,'LDA':probewise_LDA_dprimes,
                       'pdPCA': probewise_dPCA_dprimes, 'fdPCA': full_dPCA_dprimes}
