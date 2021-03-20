@@ -1,5 +1,3 @@
-import src.data.rasters
-from src.data import LDA as cLDA, dPCA as cdPCA
 import itertools as itt
 import pathlib as pl
 from configparser import ConfigParser
@@ -8,16 +6,18 @@ import numpy as np
 from joblib import Memory
 
 import src.data.rasters
+import src.data.rasters
+from src.data import LDA as cLDA, dPCA as cdPCA
 from src.data.load import load
 from src.metrics import dprime as cDP
 from src.metrics.reliability import signal_reliability
-from src.metrics.significance import _significance
 from src.utils.tools import shuffle_along_axis as shuffle
 
 config = ConfigParser()
 config.read_file(open(pl.Path(__file__).parents[2] / 'config' / 'settings.ini'))
 
-memory = Memory(str(pl.Path(config['paths']['analysis_cache']) / 'consolidated_dprimes'))
+memory = Memory(str(pl.Path(config['paths']['analysis_cache']) / 'consolidated_dprimes_v2'))
+
 
 # private functions of snipets of code common to all dprime calculations
 def _load_site_formated_raste(site, contexts, probes, meta, recache_rec=False):
@@ -40,7 +40,7 @@ def _load_site_formated_raste(site, contexts, probes, meta, recache_rec=False):
     elif meta['stim_type'] == 'permutations':
         type_key = 'perm0'
     else:
-        raise ValueError(f"unknown stim type, use 'triplets' or 'permutations'" )
+        raise ValueError(f"unknown stim type, use 'triplets' or 'permutations'")
 
     sig = recs[type_key]['resp']
 
@@ -77,7 +77,6 @@ def single_cell_dprimes(site, contexts, probes, meta):
     rep, chn, ctx, prb, tme = trialR.shape
     transition_pairs = list(itt.combinations(contexts, 2))
 
-
     dprime = cDP.pairwise_dprimes(trialR, observation_axis=0, condition_axis=2,
                                   flip=meta['dprime_absolute'])  # shape Cell x CtxPair x Probe x Time
 
@@ -86,20 +85,18 @@ def single_cell_dprimes(site, contexts, probes, meta):
 
     print(f"\nshuffling {meta['montecarlo']} times")
     rng = np.random.default_rng(42)
-    shuffled_dprime = np.empty([meta['montecarlo'], chn, len(transition_pairs), prb, tme])
-    for pair_idx, tp in enumerate(transition_pairs):
-        shuf_trialR = np.empty((meta['montecarlo'], rep, chn, 2, prb, tme))
 
-        tran_idx = np.array([contexts.index(t) for t in tp])
-        ctx_shuffle = trialR[:, :, tran_idx, ...].copy()
+    shuf_trialR = np.empty((meta['montecarlo'], rep, chn, ctx, prb, tme))
+    ctx_shuffle = trialR.copy()
 
-        for rr in range(meta['montecarlo']):
-            shuf_trialR[rr, ...] = shuffle(ctx_shuffle, shuffle_axis=2, indie_axis=0, rng=rng)
+    for rr in range(meta['montecarlo']):
+        shuf_trialR[rr, ...] = shuffle(ctx_shuffle, shuffle_axis=2, indie_axis=0, rng=rng)
 
-        shuffled_dprime[:, :, pair_idx, :, :] = cDP.pairwise_dprimes(shuf_trialR, observation_axis=1, condition_axis=3,
-                                                                     flip=meta['dprime_absolute'] ).squeeze(axis=2)
+    shuffled_dprime = cDP.pairwise_dprimes(shuf_trialR, observation_axis=1, condition_axis=3,
+                                           flip=meta['dprime_absolute'])
 
     return dprime, shuffled_dprime, goodcells, None
+
 
 @memory.cache
 def probewise_dPCA_dprimes(site, contexts, probes, meta):
@@ -125,13 +122,15 @@ def probewise_dPCA_dprimes(site, contexts, probes, meta):
     dprime = np.empty([len(transition_pairs), prb, tme])
     shuffled_dprime = np.empty([meta['montecarlo'], len(transition_pairs), prb, tme])
 
+    var_capt = list()
     for pp in probes:
         probe_idx = probes.index(pp)
         probe_trialR = trialR[..., probe_idx, :]
         probe_R = R[..., probe_idx, :]
 
         # calculates dPCA considering all 4 categories
-        _, trialZ, _ = cdPCA._cpp_dPCA(probe_R, probe_trialR)
+        _, trialZ, dpca = cdPCA._cpp_dPCA(probe_R, probe_trialR)
+        var_capt.append(cdPCA.variance_captured(dpca, probe_R))
         dPCA_projection = trialZ['ct'][:, 0, ...]
         dprime[:, probe_idx, :] = cDP.pairwise_dprimes(dPCA_projection, observation_axis=0, condition_axis=1,
                                                        flip=meta['dprime_absolute'])
@@ -141,27 +140,35 @@ def probewise_dPCA_dprimes(site, contexts, probes, meta):
         # calculates the pairwise dprime
         print(f"\nshuffling {meta['montecarlo']} times")
         rng = np.random.default_rng(42)
-        for pair_idx, tp in enumerate(transition_pairs):
-            shuf_projections = np.empty([meta['montecarlo'], rep, 2, tme])
-            shuf_projections[:] = np.nan
 
-            tran_idx = np.array([contexts.index(t) for t in tp])
-            ctx_shuffle = dPCA_projection[:, tran_idx, :].copy()
+        shuf_projections = np.empty([meta['montecarlo'], rep, ctx, tme])
+        shuf_projections[:] = np.nan
 
-            for rr in range(meta['montecarlo']):
-                shuf_projections[rr, ...] = shuffle(ctx_shuffle, shuffle_axis=1, indie_axis=0, rng=rng)
+        shuf_trialR = probe_trialR.copy()
+        for rr in range(meta['montecarlo']):
+            shuf_trialR = shuffle(shuf_trialR, shuffle_axis=2, indie_axis=0, rng=rng)
+            shuf_R = np.mean(shuf_trialR, axis=0)
 
-            shuffled_dprime[:, pair_idx, probe_idx, :] = cDP.pairwise_dprimes(shuf_projections,
-                                                                              observation_axis=1,
-                                                                              condition_axis=2,
-                                                                              flip=meta['dprime_absolute']
-                                                                              ).squeeze(axis=1)
+            #saves the first regularizer to speed things up.
+            if rr == 0:
+                _, shuf_trialZ, shuf_dpca = cdPCA._cpp_dPCA(shuf_R, shuf_trialR)
+                regularizer = shuf_dpca.regularizer
+            else:
+                _, shuf_trialZ, dpca = cdPCA._cpp_dPCA(shuf_R, shuf_trialR, {'regularizer':regularizer})
+
+            shuf_projections[rr, :] = shuf_trialZ['ct'][:, 0, ...]
+
+        shuffled_dprime[:, :, probe_idx, :] = cDP.pairwise_dprimes(shuf_projections,
+                                                                   observation_axis=1,
+                                                                   condition_axis=2,
+                                                                   flip=meta['dprime_absolute'])
 
     # add dimension for single PC, for compatibility with single cell arrays
     dprime = np.expand_dims(dprime, axis=0)
     shuffled_dprime = np.expand_dims(shuffled_dprime, axis=1)
 
-    return dprime, shuffled_dprime, goodcells, None
+    return dprime, shuffled_dprime, goodcells, var_capt
+
 
 @memory.cache
 def probewise_LDA_dprimes(site, contexts, probes, meta):
@@ -190,11 +197,10 @@ def probewise_LDA_dprimes(site, contexts, probes, meta):
     for pp in probes:
         probe_idx = probes.index(pp)
         probe_trialR = trialR[..., probe_idx, :]
-        probe_R = R[..., probe_idx, :]
 
         # calculates LDA considering all 4 categories
         LDA_projection, _ = cLDA.fit_transform_over_time(probe_trialR)
-        LDA_projection = LDA_projection.squeeze(axis=1) # shape Trial x Context x Time
+        LDA_projection = LDA_projection.squeeze(axis=1)  # shape Trial x Context x Time
         dprime[:, probe_idx, :] = cDP.pairwise_dprimes(LDA_projection, observation_axis=0, condition_axis=1,
                                                        flip=meta['dprime_absolute'])
 
@@ -203,26 +209,27 @@ def probewise_LDA_dprimes(site, contexts, probes, meta):
         # calculates the pairwise dprime
         print(f"\nshuffling {meta['montecarlo']} times")
         rng = np.random.default_rng(42)
-        for pair_idx, tp in enumerate(transition_pairs):
-            shuf_projections = np.empty([meta['montecarlo'], rep, 2, tme])
-            shuf_projections[:] = np.nan
 
-            tran_idx = np.array([contexts.index(t) for t in tp])
-            ctx_shuffle = LDA_projection[:, tran_idx, :].copy()
+        shuf_projections = np.empty([meta['montecarlo'], rep, ctx, tme])
+        shuf_projections[:] = np.nan
 
-            for rr in range(meta['montecarlo']):
-                shuf_projections[rr, ...] = shuffle(ctx_shuffle, shuffle_axis=1, indie_axis=0, rng=rng)
+        shuf_trialR = probe_trialR.copy()
 
-            shuffled_dprime[:, pair_idx, probe_idx, :] = cDP.pairwise_dprimes(shuf_projections,
-                                                                              observation_axis=1,
-                                                                              condition_axis=2,
-                                                                              flip=meta['dprime_absolute']
-                                                                              ).squeeze(axis=1)
+        for rr in range(meta['montecarlo']):
+            shuf_trialR = shuffle(shuf_trialR, shuffle_axis=2, indie_axis=0, rng=rng)
+            shuf_LDA_projection, _ = cLDA.fit_transform_over_time(shuf_trialR)
+            shuf_projections[rr, ...] = shuf_LDA_projection.squeeze(axis=1)  # shape Trial x Context x Time
+
+        shuffled_dprime[:, :, probe_idx, :] = cDP.pairwise_dprimes(shuf_projections,
+                                                                   observation_axis=1,
+                                                                   condition_axis=2,
+                                                                   flip=meta['dprime_absolute'])
     # add dimension for single PC, for compatibility with single cell arrays
     dprime = np.expand_dims(dprime, axis=0)
     shuffled_dprime = np.expand_dims(shuffled_dprime, axis=1)
 
     return dprime, shuffled_dprime, goodcells, None
+
 
 @memory.cache
 def full_dPCA_dprimes(site, contexts, probes, meta):
@@ -246,20 +253,28 @@ def full_dPCA_dprimes(site, contexts, probes, meta):
     rep, ctx, prb, tme = dPCA_projection.shape
     transition_pairs = list(itt.combinations(contexts, 2))
 
-    shuffled_dprime = np.empty([meta['montecarlo'], len(transition_pairs), prb, tme])
     print(f"\nshuffling {meta['montecarlo']} times")
     rng = np.random.default_rng(42)
-    for pair_idx, tp in enumerate(transition_pairs):
-        shuf_projections = np.empty([meta['montecarlo'], rep, 2, prb, tme])
 
-        tran_idx = np.array([contexts.index(t) for t in tp])
-        ctx_shuffle = dPCA_projection[:, tran_idx, :, :].copy()
+    shuf_projections = np.empty([meta['montecarlo'], rep, ctx, prb, tme])
 
-        for rr in range(meta['montecarlo']):
-            shuf_projections[rr, ...] = shuffle(ctx_shuffle, shuffle_axis=1, indie_axis=0, rng=rng)
+    shuf_trialR = trialR.copy()
 
-        shuffled_dprime[:, pair_idx, :, :] = cDP.pairwise_dprimes(shuf_projections, observation_axis=1, condition_axis=2,
-                                                                   flip=meta['dprime_absolute']).squeeze(axis=1)
+    for rr in range(meta['montecarlo']):
+        shuf_trialR = shuffle(shuf_trialR, shuffle_axis=2, indie_axis=0, rng=rng)
+        shuf_R = np.mean(shuf_trialR, axis=0)
+
+        # saves the first regularizer to speed things up.
+        if rr == 0:
+            _, shuf_trialZ, shuf_dpca = cdPCA._cpp_dPCA(shuf_R, shuf_trialR)
+            regularizer = shuf_dpca.regularizer
+        else:
+            _, shuf_trialZ, dpca = cdPCA._cpp_dPCA(shuf_R, shuf_trialR, {'regularizer': regularizer})
+
+        shuf_projections[rr, ...] = shuf_trialZ['ct'][:, 0, ...]
+
+    shuffled_dprime = cDP.pairwise_dprimes(shuf_projections, observation_axis=1, condition_axis=2,
+                                           flip=meta['dprime_absolute'])
 
     # add dimension for single PC, for compatibility with single cell arrays
     dprime = np.expand_dims(dprime, axis=0)
@@ -267,13 +282,11 @@ def full_dPCA_dprimes(site, contexts, probes, meta):
 
     return dprime, shuffled_dprime, goodcells, var_capt
 
-
 # site = 'CRD004a'
 # probes = [1, 2, 3, 4] #permutations
 # # probes = [2, 3, 5, 6] #triplets
 # contexts = [0, 1, 2, 3, 4]
 # # contexts = ['silence', 'continuous', 'similar', 'sharp']
-#
 #
 # meta = {'reliability': 0.1,  # r value
 #         'smoothing_window': 0,  # ms
@@ -283,18 +296,17 @@ def full_dPCA_dprimes(site, contexts, probes, meta):
 #         'dprime_absolute': None,
 #         'stim_type': 'permutations'}
 #
-# meta = {'reliability': 0.1,  # r value
-#         'smoothing_window': 0,  # ms
-#         'raster_fs': 30,
-#         'montecarlo': 1000,
-#         'zscore': True,
-#         'dprime_absolute': None,
-#         'stim_type': 'triplets'}
+# # meta = {'reliability': 0.1,  # r value
+# #         'smoothing_window': 0,  # ms
+# #         'raster_fs': 30,
+# #         'montecarlo': 1000,
+# #         'zscore': True,
+# #         'dprime_absolute': None,
+# #         'stim_type': 'triplets'}
 #
-# dprime, shuffled_dprime, _ = single_cell_dprimes(site, contexts, probes, meta)
-# dprime, shuffled_dprime, _ = probewise_dPCA_dprimes(site, contexts, probes, meta)
-# dprime, shuffled_dprime, _ = probewise_LDA_dprimes(site, contexts, probes, meta)
-# dprime, shuffled_dprime, _ = full_dPCA_dprimes(site, contexts, probes, meta)
-#
-# significance, corrected_signif, confidence_interval = _significance(dprime, shuffled_dprime, [1, 2, 3], alpha=0.01)
-#
+# dprime, shuffled_dprime, _, _ = single_cell_dprimes(site, contexts, probes, meta)
+# dprime, shuffled_dprime, _, _ = probewise_dPCA_dprimes(site, contexts, probes, meta)
+# dprime, shuffled_dprime, _, _ = probewise_LDA_dprimes(site, contexts, probes, meta)
+# dprime, shuffled_dprime, _, _ = full_dPCA_dprimes(site, contexts, probes, meta)
+
+
