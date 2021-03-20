@@ -2,6 +2,7 @@ import copy
 import numpy as np
 import pandas as pd
 from src.utils.tools import ndim_array_to_long_DF as arr2df
+from src.utils import fits as fts
 
 """
 takes all the dprimes and pvalues, fits exponential decays to both the dprimes and the profiles of dprime
@@ -34,6 +35,26 @@ def signif_abs_mean(array, label_dictionary):
     updated_label_dict = copy.deepcopy(label_dictionary)
     _ = updated_label_dict.pop('time')
     return metric, updated_label_dict
+
+def signif_abs_decay(array, label_dictionary):
+    # unused old function to fit exponential decay on dprime.
+    print('warning, exponential decay fit is an untestede metric')
+    t = label_dictionary['time']
+    unfolded = array.reshape(-1, array.shape[-1])
+    metric = np.empty(unfolded.shape[0],3)
+    for aa,arr in enumerate(unfolded):
+        popt, pcov, r2 = fts.exp_decay(t, arr, skip_error=True)
+        perr = np.sqrt(np.diag(pcov)) #error
+        metric[aa, 0] = popt[0] # r0
+        metric[aa, 1] = popt[1] # tau
+        metric[aa, 2] = r2 # r2
+
+    metric = metric.reshape(list(array.shape)[0:-1], 3)
+    updated_label_dict = copy.deepcopy(label_dictionary)
+    _ = updated_label_dict.pop('time')
+    updated_label_dict['metric values'] = ['r0', 'tau', 'r2']
+    return metric, updated_label_dict
+
 
 
 all_metrics = {'significant_abs_mass_center': signif_abs_mass_center,

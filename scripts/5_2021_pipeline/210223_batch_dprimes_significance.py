@@ -1,5 +1,5 @@
 from src.metrics.significance import _significance, _mask_with_significance
-from src.metrics.consolidated_dprimes_v2 import single_cell_dprimes, probewise_LDA_dprimes, probewise_dPCA_dprimes, full_dPCA_dprimes
+from src.metrics.consolidated_dprimes import single_cell_dprimes, probewise_LDA_dprimes, probewise_dPCA_dprimes, full_dPCA_dprimes
 from src.metrics.dprime import flip_dprimes
 from src.data.load import get_site_ids
 from src.metrics.consolidated_metrics import metrics_to_DF
@@ -15,7 +15,7 @@ from joblib import dump
 
 """
 NOTE: after some discussion with charlie about the order of shuffling, reducing dimension and paired shuffles, I made 
-some strong modifications on 'consolidated_dprimes.py', see the copy 'consolidated_dprimes_v2.py'. This pipeline is similar
+some strong modifications on 'consolidated_dprimes.py', see the copy 'consolidated_dprimes.py'. This pipeline is similar
 as its more recent namesake, the only difference being that it calls the new dprimes/shuffle from the aforementioned 
 module. For the sake of comparison, it saves the results in different caches.
 

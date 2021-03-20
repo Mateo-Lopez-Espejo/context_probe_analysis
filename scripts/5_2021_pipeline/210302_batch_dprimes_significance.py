@@ -1,5 +1,5 @@
 from src.metrics.significance import _significance, _mask_with_significance
-from src.metrics.consolidated_dprimes_v2 import single_cell_dprimes, probewise_LDA_dprimes, probewise_dPCA_dprimes, full_dPCA_dprimes
+from src.metrics.consolidated_dprimes import single_cell_dprimes, probewise_LDA_dprimes, probewise_dPCA_dprimes, full_dPCA_dprimes
 from src.metrics.dprime import flip_dprimes
 from src.data.load import get_site_ids
 from src.metrics.consolidated_metrics import metrics_to_DF, _append_means_to_array, _append_means_to_shuff_array

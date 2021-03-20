@@ -16,7 +16,7 @@ from src.utils.tools import shuffle_along_axis as shuffle
 config = ConfigParser()
 config.read_file(open(pl.Path(__file__).parents[2] / 'config' / 'settings.ini'))
 
-memory = Memory(str(pl.Path(config['paths']['analysis_cache']) / 'consolidated_dprimes_v2'))
+memory = Memory(str(pl.Path(config['paths']['analysis_cache']) / 'consolidated_dprimes'))
 
 
 # private functions of snipets of code common to all dprime calculations
