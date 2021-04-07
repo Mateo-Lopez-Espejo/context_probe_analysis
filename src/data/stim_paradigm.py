@@ -52,7 +52,9 @@ def _split_signal(signal):
         raise ValueError('First argument must be a NEMS signal')
 
     epochs = signal.epochs
-    epoch_names = nep.epoch_names_matching(signal.epochs, '\AFILE_[a-zA-Z]{3}\d{3}[a-z]\d{2}_p_CPN\Z')
+    epoch_names = nep.epoch_names_matching(signal.epochs, '\AFILE_[a-zA-Z]{3}\d{3}[a-z]\d{2}_[ap]_CPN\Z')
+    if len(epoch_names) == 0:
+        raise ValueError('Epochs do not contain files matching CPN experiments.')
     file_epochs = epochs.loc[epochs.name.isin(epoch_names), :]
 
     sub_signals = dict()

@@ -1,9 +1,8 @@
 from src.metrics.significance import _significance, _mask_with_significance
 from src.metrics.consolidated_dprimes import single_cell_dprimes, probewise_LDA_dprimes, probewise_dPCA_dprimes, full_dPCA_dprimes
 from src.metrics.dprime import flip_dprimes
-from src.data.load import get_site_ids
+from src.data.load import get_site_ids, set_name
 from src.metrics.consolidated_metrics import metrics_to_DF, _append_means_to_array, _append_means_to_shuff_array
-from src.data.load import set_name
 from src.data.region_map import region_map
 
 import itertools as itt
@@ -11,22 +10,14 @@ import numpy as np
 import pandas as pd
 from configparser import ConfigParser
 import pathlib as pl
-from joblib import dump
+from joblib import dump, load
 
 """
 I finaly realized that there is no need for weird mean significance policies. I can just take the mean of the flipped
 shuffles, and use it to calculate significance (and CI) over the means. This is equivalent to shuffling and then taking 
 the mean of the dprime n times. which is the sound approach to begin with.
 
-1. Adds different corrections for multiple comparisons
-
-2. Adds contiguous significance counting
-
-3. Adds different ways of considering significance for the means of probes and context pairs, which I have
-speculated in the past, might lead to over estimation of significance in late time bins.
-
-4. Parses the variance captured by the full dPCA, so we can potentially see differences in the
-marginalizations between regions.
+1. adds shuffle mean policy, which uses the mean of shuffled dprimes to calculate significance for the mean dprimes. 
 """
 
 config = ConfigParser()
@@ -77,9 +68,17 @@ metrics = ['significant_abs_mass_center', 'significant_abs_sum', 'significant_ab
 sites = set(get_site_ids(316).keys())
 badsites = {'AMT031a', 'DRX008b','DRX021a', 'DRX023a', 'ley074a' }  # empirically decided
 sites = sites.difference(badsites)
-# sites = ['CRD004a']
 
-DF = pd.DataFrame()
+
+if summary_DF_file.exists():
+
+    DF = load(summary_DF_file)
+    ready_sites = set(DF.siteid.unique())
+    sites = sites.difference(ready_sites)
+    print('appening new sites to existing DF', sites)
+else:
+    DF = pd.DataFrame()
+
 bads = list()
 for site, expt, (fname, func) in itt.product(sites, experiments, analysis_functions.items()):
 
@@ -94,11 +93,11 @@ for site, expt, (fname, func) in itt.product(sites, experiments, analysis_functi
     meta['stim_type'] = expt.pop('stim_type')
 
     # runs the dprime function
-    try:
-        dprime, shuffled_dprime, goodcells, var_capt = func(site, **expt, meta=meta)
-    except:
-        print('failed')
-        bads.append((site, expt['stim_type'], fname))
+    # try:
+    dprime, shuffled_dprime, goodcells, var_capt = func(site, **expt, meta=meta)
+    # except:
+    #     print('failed calculating dprimes')
+    #     bads.append((site, meta['stim_type'], fname))
 
     # for analysis with dimensionality reduction, changes the cellname to nan for proper dimension labeling.
     if fname != 'SC':

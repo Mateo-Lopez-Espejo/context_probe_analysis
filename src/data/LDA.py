@@ -1,5 +1,6 @@
 import numpy as np
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
+from warnings import warn
 
 def _fit(X, N=1):
     '''
@@ -83,7 +84,11 @@ def fit_over_time(X, N=1):
     transformations = np.zeros([D, N, T])
     for tt in range(T):
         # transformations[..., tt] = _fit(X[..., tt], N=N)
-        transformations[..., tt] = _fit2(X[..., tt])
+        try:
+            transformations[..., tt] = _fit2(X[..., tt])
+        except:
+            warn('failed to fit LDA, using previos time bin fit')
+            transformations[..., tt] = transformations[..., tt-1]
 
     return transformations
 
