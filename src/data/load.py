@@ -63,7 +63,6 @@ def load(site, boxload=True, **kwargs):
 
 def load_with_parms(site, **kwargs):
     # defaults
-
     options = {'batch': 316,
                'cellid': site,
                'stimfmt': 'envelope',
@@ -74,23 +73,19 @@ def load_with_parms(site, **kwargs):
 
     options.update(**kwargs)
 
-    manager = BAPHYExperiment(siteid=site, batch=options['batch'])
+    manager = BAPHYExperiment(cellid=site, batch=options['batch'])
 
+    # Loads recording plus parameters to identify which recordings are AllPermutations or Triplets
     loaded_rec = manager.get_recording(recache=True, **options)
     parameters = manager.get_baphy_exptparams()
 
-    # load_URI, _ = nb.baphy_load_recording_uri(**options)
-    # loaded_rec = recording.load_recording(load_URI)
-
-    CPN_rec = cpe.set_recording_subepochs(loaded_rec)
-    recordings  = split_recording(CPN_rec)
-
+    recordings  = split_recording(loaded_rec)
     return recordings, parameters
 
 
 # load tests:
-# recs = load('AMT028b', recache=True)
-# recs, params = load_with_parms('AMT028b')
+# recs = load('ARM031a', recache=True)
+recs, params = load_with_parms('ARM031a')
 
 def get_site_ids(batch):
     '''

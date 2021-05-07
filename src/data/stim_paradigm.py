@@ -10,35 +10,6 @@ from nems.signal import PointProcess, RasterizedSignal, TiledSignal
 Collection of functions to identify and separate different stimulation paradigms (triplets or all_permuations) when 
 they are loaded together
 """
-def _detect_type(epoch):
-    '''
-    Based on the name of stimuli epochs, defines if the experiment was 'triplets' or all 'permutations'
-    :param epoch: pandas DF. NEMS epochs
-    :return: str. 'trip' or 'perm'
-    '''
-
-    # hardwired sequences names, since they are invariant across experiments
-    permutations = {'STIM_sequence001: 1 , 3 , 2 , 4 , 4',
-                    'STIM_sequence002: 3 , 4 , 1 , 1 , 2',
-                    'STIM_sequence003: 4 , 2 , 3 , 3 , 1',
-                    'STIM_sequence004: 2 , 2 , 1 , 4 , 3',}
-
-    triplets = {'STIM_sequence001: 5 , 6 , 2 , 3 , 5',
-                'STIM_sequence002: 6 , 5 , 3 , 2 , 6',
-                'STIM_sequence003: 2 , 4 , 5 , 4 , 6',
-                'STIM_sequence004: 3 , 1 , 2 , 1 , 3'}
-
-    names = set(epoch.name.unique())
-
-    if names.issuperset(permutations):
-        exp_type = 'perm'
-    elif names.issuperset(triplets):
-        exp_type = 'trip'
-    else:
-        raise ValueError('unknown epoch type, not permutations nor triplets')
-
-    return exp_type
-
 
 def _split_signal(signal):
     # finds in epochs the transition between one experiment and the next
@@ -52,38 +23,30 @@ def _split_signal(signal):
         raise ValueError('First argument must be a NEMS signal')
 
     epochs = signal.epochs
-    epoch_names = nep.epoch_names_matching(signal.epochs, '\AFILE_[a-zA-Z]{3}\d{3}[a-z]\d{2}_[ap]_CPN\Z')
-    if len(epoch_names) == 0:
-        raise ValueError('Epochs do not contain files matching CPN experiments.')
-    file_epochs = epochs.loc[epochs.name.isin(epoch_names), :]
+    structure_epochs = epochs.loc[epochs.name.isin(['AllPermutations', 'Triplets']), :]
 
     sub_signals = dict()
     trip_counter = 0
     perm_counter = 0
 
-    for ff, (_, file) in enumerate(file_epochs.iterrows()):
+    for ff, (_, structure) in enumerate(structure_epochs.iterrows()):
 
         # extract relevant epochs and data
-        sub_epochs = epochs.loc[(epochs.start >= file.start) & (epochs.end <= file.end), :].copy()
-        sub_epochs[['start', 'end']] = sub_epochs[['start', 'end']] - file.start
+        sub_epochs = epochs.loc[(epochs.start >= structure.start) & (epochs.end <= structure.end), :].copy()
+        sub_epochs[['start', 'end']] = sub_epochs[['start', 'end']] - structure.start
 
-        sub_data = {cell: spikes[np.logical_and(spikes >= file.start, spikes < file.end)] - file.start
+        sub_data = {cell: spikes[np.logical_and(spikes >= structure.start, spikes < structure.end)] - structure.start
                     for cell, spikes in signal._data.copy().items()}
 
-        meta = signal.meta.copy()
-        meta['rawid'] = [meta['rawid'][ff]]
+        sub_signal = signal._modified_copy(data=sub_data, epochs=sub_epochs)
 
-        sub_signal = signal._modified_copy(data=sub_data, epochs=sub_epochs, meta=meta)
-
-        # checks names of epochs to define triples or permutation
         # keeps track of number of trip of perm experiments
         # names the signal with the experiment type and number in case of repeated trip and/or perm
-        exp_type = _detect_type(sub_epochs)
-        if exp_type == 'perm':
-            exp_type = f'{exp_type}{perm_counter}'
+        if structure['name'] == 'AllPermutations':
+            exp_type = f'perm{perm_counter}'
             perm_counter += 1
-        elif exp_type == 'trip':
-            exp_type = f'{exp_type}{trip_counter}'
+        elif structure['name'] == 'Triplets':
+            exp_type = f'trip{trip_counter}'
             trip_counter += 1
         else:
             raise ValueError('not Permutations or Triplets')
