@@ -8,7 +8,7 @@ from joblib import Memory
 import src.data.rasters
 import src.data.rasters
 from src.data import LDA as cLDA, dPCA as cdPCA
-from src.data.load import load
+from src.data.load import load_with_parms
 from src.metrics import dprime as cDP
 from src.metrics.reliability import signal_reliability
 from src.utils.tools import shuffle_along_axis as shuffle
@@ -30,7 +30,7 @@ def _load_site_formated_raste(site, contexts, probes, meta, recache_rec=False):
     :return:
     """
 
-    recs = load(site, rasterfs=meta['raster_fs'], recache=recache_rec)
+    recs, _ = load_with_parms(site, rasterfs=meta['raster_fs'], recache=recache_rec)
     if len(recs) > 2:
         print(f'\n\n{recs.keys()}\n\n')
 
@@ -45,7 +45,7 @@ def _load_site_formated_raste(site, contexts, probes, meta, recache_rec=False):
     sig = recs[type_key]['resp']
 
     # calculates response realiability and select only good cells to improve analysis
-    r_vals, goodcells = signal_reliability(sig, r'\ASTIM_*', threshold=meta['reliability'])
+    r_vals, goodcells = signal_reliability(sig, r'\ASTIM_sequence*', threshold=meta['reliability'])
     goodcells = goodcells.tolist()
 
     # get the full data raster Context x Probe x Rep x Neuron x Time
@@ -75,7 +75,6 @@ def single_cell_dprimes(site, contexts, probes, meta):
     # trialR shape: Trial x Cell x Context x Probe x Time; R shape: Cell x Context x Probe x Time
     trialR, _, _ = cdPCA.format_raster(raster)
     rep, chn, ctx, prb, tme = trialR.shape
-    transition_pairs = list(itt.combinations(contexts, 2))
 
     dprime = cDP.pairwise_dprimes(trialR, observation_axis=0, condition_axis=2,
                                   flip=meta['dprime_absolute'])  # shape Cell x CtxPair x Probe x Time
@@ -112,6 +111,13 @@ def probewise_dPCA_dprimes(site, contexts, probes, meta):
              goocells (list of strings)
     """
     raster, goodcells = _load_site_formated_raste(site, contexts, probes, meta)
+
+    # turns keywords into comprehensive list of contexts and probes
+    if contexts == 'all':
+        contexts = list(range(0, raster.shape[0]))
+    if probes == 'all':
+        probes = list(range(1, raster.shape[1]+1))
+
 
     # trialR shape: Trial x Cell x Context x Probe x Time; R shape: Cell x Context x Probe x Time
     trialR, R, _ = cdPCA.format_raster(raster)
@@ -185,6 +191,12 @@ def probewise_LDA_dprimes(site, contexts, probes, meta):
     """
     raster, goodcells = _load_site_formated_raste(site, contexts, probes, meta)
 
+    # turns keywords into comprehensive list of contexts and probes
+    if contexts == 'all':
+        contexts = list(range(0, raster.shape[0]))
+    if probes == 'all':
+        probes = list(range(1, raster.shape[1]+1))
+
     # trialR shape: Trial x Cell x Context x Probe x Time; R shape: Cell x Context x Probe x Time
     trialR, R, _ = cdPCA.format_raster(raster)
     rep, unt, ctx, prb, tme = trialR.shape
@@ -234,6 +246,13 @@ def probewise_LDA_dprimes(site, contexts, probes, meta):
 @memory.cache
 def full_dPCA_dprimes(site, contexts, probes, meta):
     raster, goodcells = _load_site_formated_raste(site, contexts, probes, meta)
+
+    # turns keywords into comprehensive list of contexts and probes
+    if contexts == 'all':
+        contexts = list(range(0, raster.shape[0]))
+    if probes == 'all':
+        probes = list(range(1, raster.shape[1]+1))
+
 
     # trialR shape: Trial x Cell x Context x Probe x Time; R shape: Cell x Context x Probe x Time
     trialR, R, _ = cdPCA.format_raster(raster)

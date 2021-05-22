@@ -61,6 +61,8 @@ def load(site, boxload=True, **kwargs):
     recordings  = split_recording(CPN_rec)
     return recordings
 
+# recs = load('ARM031a', recache=True)
+
 def load_with_parms(site, **kwargs):
     # defaults
     options = {'batch': 316,
@@ -68,6 +70,7 @@ def load_with_parms(site, **kwargs):
                'stimfmt': 'envelope',
                'rasterfs': 100,
                'runclass': 'CPN',
+               'recache': False,
                'stim': False,
                'resp':True}
 
@@ -76,16 +79,13 @@ def load_with_parms(site, **kwargs):
     manager = BAPHYExperiment(cellid=site, batch=options['batch'])
 
     # Loads recording plus parameters to identify which recordings are AllPermutations or Triplets
-    loaded_rec = manager.get_recording(recache=True, **options)
+    loaded_rec = manager.get_recording(**options)
     parameters = manager.get_baphy_exptparams()
 
     recordings  = split_recording(loaded_rec)
     return recordings, parameters
 
-
-# load tests:
-# recs = load('ARM031a', recache=True)
-recs, params = load_with_parms('ARM031a')
+# recs, params = load_with_parms('ARM031a', recache=True)
 
 def get_site_ids(batch):
     '''
@@ -103,11 +103,3 @@ def get_site_ids(batch):
         site_IDs[site_ID].append(cell)
 
     return dict(site_IDs)
-
-
-
-# This is just to check cached recordings of later http API load
-# sites = list(get_site_ids(316).keys())
-# print(list(sites))
-# for site in sites:
-#     recs = load(site, rasterfs=30, recache=False)

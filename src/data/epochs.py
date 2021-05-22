@@ -10,7 +10,9 @@ by the baphy convention "Stim , <whatever> , Reference", wich specify the sequen
 The events coresponding to these individual sounds are stored as "SubPreStimSilence, SubStim, SubPostStimSilence" 
 and therefore at not being automatically pulled by NEMS into eps.
 So far the substim events have equal duration, and their number, order and identity is stated in the epoch name,
-This takes advantages of this facts to generate corresponding subepochs. 
+This takes advantages of this facts to generate corresponding subepochs.
+
+_set_subepochs_pairs has been copied over to the CPN specific experiment loading in nems_db.nems_lbhb
 '''
 
 # base functions
@@ -23,7 +25,8 @@ def _set_subepoch_pairs(epochs):
     :param epochs: pandas DataFrame. original CPP or CPN epochs
     :return: pandas DataFrame. Modified epochs included context probe pairs
     '''
-
+    warnings.warn('deprecated: use nems_lbhb BAPHYExperiment loader, which handles CPN epochs formating')
+    
     # selects the subset of eps corresponding to sound sequences
     seq_names = [ep_name for ep_name in epochs.name.unique() if ep_name[0:13] == 'STIM_sequence']
     if len(seq_names) == 0:

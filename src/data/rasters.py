@@ -168,7 +168,7 @@ def _extract_permutations_sub_arr(probes, contexts, full_array, context_names, p
         probes = [probes]
 
     elif isinstance(probes, (list, tuple, set)):
-        if all(isinstance(x, int) for x in probes) and set(probes).issubset({1,2,3,4}):
+        if all(isinstance(x, int) for x in probes) and set(probes).issubset(set(range(11))):
             probes = list(probes)
         else:
             raise ValueError('all values in probe must be int between 1 and 4')
@@ -193,7 +193,7 @@ def extract_sub_arr(probes, contexts, full_array, context_names, probe_names, sq
     """
 
     triplet_contexts = {'silence', 'continuous', 'similar', 'sharp'} # clasified triplet transitions
-    permutation_contexts = {0, 1, 2, 3, 4} # simple contexts id numbers. 0 is silence
+    permutation_contexts = set(range(11)) # simple contexts id numbers. 0 is silence
 
     if set(contexts).issubset(triplet_contexts):
         sliced_array = _extract_triplets_sub_arr(probes, contexts, full_array, context_names, probe_names, squeeze)
@@ -212,6 +212,13 @@ def raster_from_sig(signal, probes, channels, contexts, smooth_window, raster_fs
 
     full_array, invalid_cp, valid_cp, all_contexts, all_probes = \
         make_full_array(signal, channels=channels, smooth_window=smooth_window, raster_fs=raster_fs, zscore=zscore)
+
+    # excludese silence as a probe
+    if probes == 'all':
+        probes = [int(pp[1:]) for pp in all_probes if pp != 'P0']
+
+    if contexts == 'all':
+        contexts = [int(cc[1:]) for cc in all_contexts]
 
     raster = extract_sub_arr(probes=probes, contexts=contexts, full_array=full_array,
                              context_names=all_contexts, probe_names=all_probes, squeeze=False)
