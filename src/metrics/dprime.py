@@ -28,7 +28,7 @@ def ndarray_dprime(array0, array1, axis, flip=None, keepdims=False):
         dprime[np.where(np.isinf(dprime))] = (array0.mean(axis=axis, keepdims=keepdims)
                                               - array1.mean(axis=axis, keepdims=keepdims))[np.isinf(dprime)]
 
-    # due to floating point error, variancese that should be zero are really small numbers, which lead to really big
+    # due to floating point error, variances that should be zero are really small numbers, which lead to really big
     # dprimes, this happens most of the time due zero spikes counted
     dprime[dprime > 100000] = 0
 
