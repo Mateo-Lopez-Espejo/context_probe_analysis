@@ -3,19 +3,17 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pathlib as pl
 import nems_lbhb.baphy_io as io
-from mpl_toolkits.axes_grid.inset_locator import (inset_axes, InsetPosition,
-                                                  mark_inset)
+from mpl_toolkits.axes_grid.inset_locator import InsetPosition
 from src.metrics.dprime import ndarray_dprime
-import matplotlib as mpl
 
-parmfile1 = '/auto/data/daq/Teonancatl/TNC004/TNC004a12_p_NON.m'
-parmfile2 = '/auto/data/daq/Teonancatl/TNC004/TNC004a13_p_NON.m'
+parmfile1 = '/auto/data/daq/Teonancatl/TNC006/TNC006a09_p_NON.m'
+parmfile2 = '/auto/data/daq/Teonancatl/TNC006/TNC006a10_p_NON.m'
 
 animal = 'Teonancatl'
 
 rasterfs = 1000
 recache = False
-options = {'resp': True, 'rasterfs': rasterfs}
+options = {'resp': True, 'rasterfs': rasterfs, 'stim':False}
 manager = BAPHYExperiment(parmfile=[parmfile1, parmfile2])
 tstart = -0.02
 tend = 0.1
@@ -55,9 +53,9 @@ best_neuron_idx = np.flip(np.argsort(np.max(np.abs(opt_stim_dprime), axis=1)))
 
 neurons = np.asarray(rec['resp'].chans)
 sorted_neurons = np.asarray(neurons)[best_neuron_idx]
-
-fig, ax = plt.subplots()
-ax.plot(opt_stim_dprime[best_neuron_idx[-1],:])
+#
+# fig, ax = plt.subplots()
+# ax.plot(opt_stim_dprime[best_neuron_idx[0],:])
 
 savefig = False
 DIR = pl.Path('')
@@ -103,17 +101,16 @@ def opto_plot(neuron, axes=(None, None)):
     # Manually set the position and relative size of the inset axes within ax1
     ip = InsetPosition(axes[1], [0.5, 0.5, 0.5, 0.5])
     axes[1].set_axes_locator(ip)
-    mwf = io.get_mean_spike_waveform(str(neuron), animal)
+    mwf = io.get_mean_spike_waveform(str(neuron), animal, usespkfile=True)
     axes[1].plot(mwf, color='red')
     axes[1].axis('off')
     axes[1].set_xlabel('Time from light onset (sec)')
 
     return fig, axes
 
-
+plt.ioff()
 good_neurons = []
 for neuron in sorted_neurons:
     plt.close('all')
     fig, axes = opto_plot(neuron)
     plt.show()
-
