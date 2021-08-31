@@ -332,32 +332,46 @@ class OptoIdCtrl():
 
 def main():
 
-    parmfiles = ['/auto/data/daq/Teonancatl/TNC014/TNC014a10_p_NON.m',
-                 '/auto/data/daq/Teonancatl/TNC014/TNC014a11_p_NON.m']
-
     parmfiles = ['/auto/data/daq/Teonancatl/TNC013/TNC013a10_p_NON.m',
                  '/auto/data/daq/Teonancatl/TNC013/TNC013a11_p_NON.m',
                  '/auto/data/daq/Teonancatl/TNC013/TNC013a12_p_NON.m']
 
+    parmfiles = ['/auto/data/daq/Teonancatl/TNC014/TNC014a10_p_NON.m',
+                 '/auto/data/daq/Teonancatl/TNC014/TNC014a11_p_NON.m']
+
     parmfiles = ['/auto/data/daq/Teonancatl/TNC015/TNC015a06_p_NON.m',
                  '/auto/data/daq/Teonancatl/TNC015/TNC015a12_p_NON.m']
 
+    # # mean waveform not exported!
+    # parmfiles = ['/auto/data/daq/Teonancatl/TNC016/TNC016a04_p_NON.m',
+    #              '/auto/data/daq/Teonancatl/TNC016/TNC016a05_p_NON.m',
+    #              '/auto/data/daq/Teonancatl/TNC016/TNC016a06_p_NON.m',
+    #              '/auto/data/daq/Teonancatl/TNC016/TNC016a12_p_NON.m',
+    #              ]
+
     parmfiles = ['/auto/data/daq/Teonancatl/TNC017/TNC017a12_p_NON.m']
-
-
-    # mean waveform not exportec!
-    parmfiles = ['/auto/data/daq/Teonancatl/TNC016/TNC016a04_p_NON.m',
-                 '/auto/data/daq/Teonancatl/TNC016/TNC016a05_p_NON.m',
-                 '/auto/data/daq/Teonancatl/TNC016/TNC016a06_p_NON.m',
-                 '/auto/data/daq/Teonancatl/TNC016/TNC016a12_p_NON.m',
-                 ]
 
     parmfiles = ['/auto/data/daq/Teonancatl/TNC018/TNC018a13_p_NON.m']
 
+    ## FTC related NON files
 
-    hk_map = {'e': 'exited',
+    parmfiles = ['/auto/data/daq/Teonancatl/TNC014/TNC014a16_p_NON.m',
+                 '/auto/data/daq/Teonancatl/TNC014/TNC014a17_p_NON.m']
+
+    parmfiles = ['/auto/data/daq/Teonancatl/TNC015/TNC015a17_p_NON.m']
+
+    parmfiles = ['/auto/data/daq/Teonancatl/TNC016/TNC016a17_p_NON.m']
+
+    parmfiles = ['/auto/data/daq/Teonancatl/TNC017/TNC017a18_p_NON.m']
+
+    parmfiles = ['/auto/data/daq/Teonancatl/TNC018/TNC018a20_p_NON.m']
+
+    parmfiles = ['/auto/data/daq/Teonancatl/TNC019/TNC019a17_p_NON.m']
+
+
+    hk_map = {'a': 'activated',
               'n': 'neutral',
-              'i': 'inhibited'}
+              's': 'suppressed'}
 
     model = OptoIdModel()
     model.ready_recording(parmfiles)
@@ -383,13 +397,13 @@ def main():
         plt.pause(0.01)
         # plt.show(block=False)
         while True:
-            imp = input('[e]xited, [n]eutral, [i]nhibited: ')
-            if imp in ['e', 'n', 'i' , 'E', 'N', 'I']:
+            imp = input('[a]ctivated, [n]eutral, [s]uppressed: ')
+            if imp in ['a', 'n', 's' , 'A', 'N', 'S']:
                 imp = imp.lower()
                 print(f'{neu} is {hk_map[imp]}')
                 break
             else:
-                print(f"Don't understan {imp}, use: e, n or i")
+                print(f"Don't understan {imp}, use: a, n or s")
 
         update_single_cell_data(neu, phototag=imp)
         answers[neu] = imp
