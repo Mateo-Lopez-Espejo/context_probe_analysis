@@ -8,7 +8,7 @@ from joblib import Memory
 import src.data.rasters
 import src.data.rasters
 from src.data import LDA as cLDA, dPCA as cdPCA
-from src.data.load import load
+from src.data.load import load_with_parms
 from src.metrics import dprime as cDP
 from src.metrics.reliability import signal_reliability
 from src.utils.tools import shuffle_along_axis as shuffle
@@ -17,7 +17,6 @@ config = ConfigParser()
 config.read_file(open(pl.Path(__file__).parents[2] / 'config' / 'settings.ini'))
 
 memory = Memory(str(pl.Path(config['paths']['analysis_cache']) / 'consolidated_dprimes'))
-
 
 # private functions of snipets of code common to all dprime calculations
 def _load_site_formated_raste(site, contexts, probes, meta, recache_rec=False):
@@ -30,7 +29,7 @@ def _load_site_formated_raste(site, contexts, probes, meta, recache_rec=False):
     :return:
     """
 
-    recs = load(site, rasterfs=meta['raster_fs'], recache=recache_rec)
+    recs, _ = load_with_parms(site, rasterfs=meta['raster_fs'], recache=recache_rec)
     if len(recs) > 2:
         print(f'\n\n{recs.keys()}\n\n')
 
@@ -45,7 +44,7 @@ def _load_site_formated_raste(site, contexts, probes, meta, recache_rec=False):
     sig = recs[type_key]['resp']
 
     # calculates response realiability and select only good cells to improve analysis
-    r_vals, goodcells = signal_reliability(sig, r'\ASTIM_*', threshold=meta['reliability'])
+    r_vals, goodcells = signal_reliability(sig, r'\ASTIM_sequence*', threshold=meta['reliability'])
     goodcells = goodcells.tolist()
 
     # get the full data raster Context x Probe x Rep x Neuron x Time

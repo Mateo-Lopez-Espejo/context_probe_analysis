@@ -70,20 +70,17 @@ def load_with_parms(site, **kwargs):
                'rasterfs': 100,
                'runclass': 'CPN',
                'stim': False,
-               'resp':True}
+               'resp':True,
+               'recache': False}
 
     options.update(**kwargs)
 
-    manager = BAPHYExperiment(siteid=site, batch=options['batch'])
+    manager = BAPHYExperiment(cellid=site, batch=options['batch'])
 
-    loaded_rec = manager.get_recording(recache=True, **options)
+    loaded_rec = manager.get_recording(**options)
     parameters = manager.get_baphy_exptparams()
 
-    # load_URI, _ = nb.baphy_load_recording_uri(**options)
-    # loaded_rec = recording.load_recording(load_URI)
-
-    CPN_rec = cpe.set_recording_subepochs(loaded_rec)
-    recordings  = split_recording(CPN_rec)
+    recordings  = split_recording(loaded_rec, parameters)
 
     return recordings, parameters
 

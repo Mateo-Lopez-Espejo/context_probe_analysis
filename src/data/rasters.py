@@ -31,7 +31,7 @@ def make_full_array(signal, channels='all', smooth_window=None, raster_fs=None, 
     else:
         raise ValueError('meta zscore must be boolean')
 
-    reg_ex = r'\AC\d_P\d\Z'
+    reg_ex = r'\AC\d{2}_P\d{2}'
 
     epoch_names = nep.epoch_names_matching(signal.epochs, (reg_ex))
     context_names = list(set([cp.split('_')[0] for cp in epoch_names]))
@@ -168,16 +168,16 @@ def _extract_permutations_sub_arr(probes, contexts, full_array, context_names, p
         probes = [probes]
 
     elif isinstance(probes, (list, tuple, set)):
-        if all(isinstance(x, int) for x in probes) and set(probes).issubset({1,2,3,4}):
+        if all(isinstance(x, int) for x in probes) and set(probes).issubset(set(range(1,11))):
             probes = list(probes)
         else:
-            raise ValueError('all values in probe must be int between 1 and 4')
+            raise ValueError('all values in probe must be int between 1 and 10')
     else:
         raise ValueError('probe must be an int or a list of ints')
 
 
-    probe_indices = np.asarray([probe_names.index(f'P{p}') for p in probes])
-    context_indices = np.asarray([context_names.index(f'C{c}') for c in contexts])
+    probe_indices = np.asarray([probe_names.index(f'P{p:02d}') for p in probes])
+    context_indices = np.asarray([context_names.index(f'C{c:02d}') for c in contexts])
 
     sliced_array = np.take(full_array, context_indices, axis=0).copy()
     sliced_array = np.take(sliced_array, probe_indices, axis=1).copy()
@@ -193,7 +193,7 @@ def extract_sub_arr(probes, contexts, full_array, context_names, probe_names, sq
     """
 
     triplet_contexts = {'silence', 'continuous', 'similar', 'sharp'} # clasified triplet transitions
-    permutation_contexts = {0, 1, 2, 3, 4} # simple contexts id numbers. 0 is silence
+    permutation_contexts = set(range(0,11)) # simple contexts id numbers. 0 is silence
 
     if set(contexts).issubset(triplet_contexts):
         sliced_array = _extract_triplets_sub_arr(probes, contexts, full_array, context_names, probe_names, squeeze)

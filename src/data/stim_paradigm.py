@@ -1,4 +1,5 @@
 import collections as col
+import warnings
 
 import numpy as np
 
@@ -16,7 +17,7 @@ def _detect_type(epoch):
     :param epoch: pandas DF. NEMS epochs
     :return: str. 'trip' or 'perm'
     '''
-
+    warnings.warn('deprecated stim type recording split. pass a parameter file instead')
     # hardwired sequences names, since they are invariant across experiments
     permutations = {'STIM_sequence001: 1 , 3 , 2 , 4 , 4',
                     'STIM_sequence002: 3 , 4 , 1 , 1 , 2',
@@ -40,7 +41,7 @@ def _detect_type(epoch):
     return exp_type
 
 
-def _split_signal(signal):
+def _split_signal(signal, parameters=None):
     # finds in epochs the transition between one experiment and the next
     if isinstance(signal, PointProcess):
         pass
@@ -70,15 +71,27 @@ def _split_signal(signal):
         sub_data = {cell: spikes[np.logical_and(spikes >= file.start, spikes < file.end)] - file.start
                     for cell, spikes in signal._data.copy().items()}
 
-        meta = signal.meta.copy()
-        meta['rawid'] = [meta['rawid'][ff]]
+
+        try:
+            meta = signal.meta.copy()
+            meta['rawid'] = [meta['rawid'][ff]]
+        except:
+            meta = None
 
         sub_signal = signal._modified_copy(data=sub_data, epochs=sub_epochs, meta=meta)
 
         # checks names of epochs to define triples or permutation
         # keeps track of number of trip of perm experiments
         # names the signal with the experiment type and number in case of repeated trip and/or perm
-        exp_type = _detect_type(sub_epochs)
+
+        if parameters == None:
+            exp_type = _detect_type(sub_epochs)
+
+        else:
+            exp_type = parameters[ff]['TrialObject'][1]['ReferenceHandle'][1]['SequenceStructure']
+            if exp_type == 'AllPermutations': exp_type = 'perm'
+            elif exp_type == 'Triplets': exp_type = 'trip'
+
         if exp_type == 'perm':
             exp_type = f'{exp_type}{perm_counter}'
             perm_counter += 1
@@ -86,14 +99,14 @@ def _split_signal(signal):
             exp_type = f'{exp_type}{trip_counter}'
             trip_counter += 1
         else:
-            raise ValueError('not Permutations or Triplets')
+            raise ValueError(f'perm or trip, not {exp_type}')
 
         sub_signals[exp_type] = sub_signal
 
     return sub_signals
 
 
-def split_recording(recording):
+def split_recording(recording, parameters=None):
     '''
     split recording into independent recordings for CPP and CPN, does this to all composing signals
     :param recording: a nems.Recording object
@@ -103,8 +116,7 @@ def split_recording(recording):
     sub_recordings = col.defaultdict(dict)
     metas = dict()
     for signame, signal in recording.signals.items():
-
-        sub_signals = _split_signal(signal)
+        sub_signals = _split_signal(signal, parameters=parameters)
 
         for sig_type, sub_signal in sub_signals.items():
             sub_recordings[sig_type][signame] = sub_signal
@@ -114,5 +126,6 @@ def split_recording(recording):
 
     sub_recordings = {sig_type: Recording(signals, meta=metas[sig_type]) for sig_type, signals in
                       sub_recordings.items()}
+
 
     return sub_recordings
