@@ -1,0 +1,17 @@
+#axes.labelsize : 15
+#axes.titlesize : 20
+#axes.spines.top : False
+#axes.spines.right : False
+#axes.prop_cycle : cycler('color', ['1f77b4', 'ff7f0e', '2ca02c', 'd62728', '9467bd', '8c564b', 'e377c2', '7f7f7f', 'bcbd22', '17becf'])
+#xtick.labelsize : 11
+#ytick.labelsize : 11
+#lines.markersize : 8
+#figure.titlesize : 30
+#figure.figsize : 4 , 4
+#figure.autolayout : True
+#svg.fonttype : None
+#font.sans-serif': Arial
+#legend.loc : upper right
+#legend.frameon : False
+#legend.fontsize : 15
+#legend.markerscale : 3

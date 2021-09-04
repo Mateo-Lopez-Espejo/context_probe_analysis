@@ -1,4 +1,5 @@
 import pathlib as pl
+import warnings
 from configparser import ConfigParser
 from src.metrics.consolidated_metrics import _append_means_to_array
 import numpy as np
@@ -81,22 +82,34 @@ def  _significance(array, mont_array, multiple_comparisons_axis=None, consecutiv
     :param multiple_comparisons_axis: None, list of ints. default None.
         :param consecutive: int, default None. If int, multiple_comparisons_axis must be a singleton
     :param alpha: float [0:1]
-    :param tails: str, 'lesser', 'Greater', 'Both'
+    :param tails: str, 'lesser', 'Greater', 'Both', only used with full montecarlo array.
     :return:
     """
 
-    mont_num = mont_array.shape[0] # number of montecarlo repetitions
+    # defines signficance based on calculated pvalues or passed quantile thresholds
+    if isinstance(mont_array, dict):
+        quantiles = mont_array[alpha]
+        significance = np.logical_or(array < quantiles[0, ...], quantiles[1, ...] < array)
+        confidence_interval = quantiles
 
-    if tails is 'both':
-        pvalues = np.sum(np.abs(mont_array) >= np.abs(array), axis=0) / mont_num
-    elif tails == 'greater':
-        pvalues = np.sum((mont_array >= array), axis=0) / mont_num
-    elif tails == 'lesser':
-        pvalues = np.sum((mont_array >= array), axis=0) / mont_num
+    elif isinstance(mont_array, np.ndarray):
+        warnings.warn('Deprecated, instead of passing full montecarlo array instead pass a dict of quantiles')
+
+        mont_num = mont_array.shape[0]  # number of montecarlo repetitions
+        if tails == 'both':
+            pvalues = np.sum(np.abs(mont_array) >= np.abs(array), axis=0) / mont_num
+        elif tails == 'greater':
+            pvalues = np.sum((mont_array >= array), axis=0) / mont_num
+        elif tails == 'lesser':
+            pvalues = np.sum((mont_array >= array), axis=0) / mont_num
+        else:
+            raise ValueError("tails must be 'greater' 'lesser' or 'both'")
+        significance = pvalues <= alpha
+        # defines the confidence intervals as the top and bottom percentiles summing to alpha
+        confidence_interval = np.quantile(mont_array, [alpha / 2, 1 - alpha / 2], axis=0)
+
     else:
-        raise ValueError("tails must be 'greater' 'lesser' or 'both'")
-
-    significance = pvalues <= alpha
+        raise ValueError(f'mont_array must be a dict of arrays or an array but is type {type(mont_array)}')
 
     # does corrections, otherwise passe the raw significance
     if multiple_comparisons_axis is not None:
@@ -124,13 +137,26 @@ def  _significance(array, mont_array, multiple_comparisons_axis=None, consecutiv
             # of significant bins is over the chance comparisons threshold
             significance = np.where(sig_count > n_chance_comp, significance, np.full(significance.shape, False))
 
-    # defines the confidence intervals as the top and bottom percentiles summing to alpha
-    low = alpha * 100
-    high = (1 - alpha) * 100
-    confidence_interval = np.percentile(mont_array, [low, high], axis=0)
-
     return significance, confidence_interval
 
+
+def _signif_quantiles(mont_array, alpha=(0.05, 0.01, 0.001)):
+    """
+    returns a dictionary of quantiles from the input montecarlo. These quantiles are effectively the thresholds
+    for significance difference from the Montecarlo distribution on a two tailed test.
+    :param mont_array: array with shape MontecarloReps x ...
+    :param alpha: int, list. alpha or list of alpha values
+    :return: dict of quatiles for each alpha
+    """
+    if not isinstance(alpha, (list, tuple)):
+        alpha = [alpha]
+
+    quantil_dict = dict()
+
+    for alp in alpha:
+        quantil_dict[alp] = np.quantile(mont_array, [alp/2, 1-alp/2], axis=0)
+
+    return quantil_dict
 
 def _mask_with_significance(dprime, significance, label_dictionary, mean_type='zeros', mean_signif_arr=None):
     """

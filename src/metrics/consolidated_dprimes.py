@@ -1,3 +1,4 @@
+from collections import defaultdict
 import itertools as itt
 import pathlib as pl
 from configparser import ConfigParser
@@ -11,6 +12,7 @@ from src.data import LDA as cLDA, dPCA as cdPCA
 from src.data.load import load_with_parms
 from src.metrics import dprime as cDP
 from src.metrics.reliability import signal_reliability
+from src.metrics.significance import _signif_quantiles
 from src.utils.tools import shuffle_along_axis as shuffle
 
 config = ConfigParser()
@@ -85,16 +87,27 @@ def single_cell_dprimes(site, contexts, probes, meta):
     print(f"\nshuffling {meta['montecarlo']} times")
     rng = np.random.default_rng(42)
 
-    shuf_trialR = np.empty((meta['montecarlo'], rep, chn, ctx, prb, tme))
-    ctx_shuffle = trialR.copy()
+    # does shuffling on a cell by cell basis to deal with memory limits
+    shuff_dprime_quantiles = defaultdict(list)
 
-    for rr in range(meta['montecarlo']):
-        shuf_trialR[rr, ...] = shuffle(ctx_shuffle, shuffle_axis=2, indie_axis=0, rng=rng)
+    for cc in range(chn):
 
-    shuffled_dprime = cDP.pairwise_dprimes(shuf_trialR, observation_axis=1, condition_axis=3,
-                                           flip=meta['dprime_absolute'])
+        shuf_trialR = np.empty((meta['montecarlo'], rep, ctx, prb, tme))
+        ctx_shuffle = trialR[:, cc, :, :, :].copy()
 
-    return dprime, shuffled_dprime, goodcells, None
+        for rr in range(meta['montecarlo']):
+            shuf_trialR[rr, ...] = shuffle(ctx_shuffle, shuffle_axis=1, indie_axis=0, rng=rng)
+
+        neur_shuff_dprime = cDP.pairwise_dprimes(shuf_trialR, observation_axis=1, condition_axis=2,
+                                               flip=meta['dprime_absolute'])
+
+        neur_shuff_quantils = _signif_quantiles(neur_shuff_dprime)
+
+        for alpha, qntls in neur_shuff_quantils.items():
+            shuff_dprime_quantiles[alpha].append(qntls)
+
+    shuff_dprime_quantiles = {alpha: np.stack(qntls, axis=1) for alpha, qntls in shuff_dprime_quantiles.items()}
+    return dprime, shuff_dprime_quantiles, goodcells, None
 
 
 @memory.cache
@@ -165,8 +178,9 @@ def probewise_dPCA_dprimes(site, contexts, probes, meta):
     # add dimension for single PC, for compatibility with single cell arrays
     dprime = np.expand_dims(dprime, axis=0)
     shuffled_dprime = np.expand_dims(shuffled_dprime, axis=1)
+    shuff_dprime_quantiles = _signif_quantiles(shuffled_dprime)
 
-    return dprime, shuffled_dprime, goodcells, var_capt
+    return dprime, shuff_dprime_quantiles, goodcells, var_capt
 
 
 @memory.cache
@@ -226,8 +240,9 @@ def probewise_LDA_dprimes(site, contexts, probes, meta):
     # add dimension for single PC, for compatibility with single cell arrays
     dprime = np.expand_dims(dprime, axis=0)
     shuffled_dprime = np.expand_dims(shuffled_dprime, axis=1)
+    shuff_dprime_quantiles = _signif_quantiles(shuffled_dprime)
 
-    return dprime, shuffled_dprime, goodcells, None
+    return dprime, shuff_dprime_quantiles, goodcells, None
 
 
 @memory.cache
@@ -278,8 +293,9 @@ def full_dPCA_dprimes(site, contexts, probes, meta):
     # add dimension for single PC, for compatibility with single cell arrays
     dprime = np.expand_dims(dprime, axis=0)
     shuffled_dprime = np.expand_dims(shuffled_dprime, axis=1)
+    shuff_dprime_quantiles = _signif_quantiles(shuffled_dprime)
 
-    return dprime, shuffled_dprime, goodcells, var_capt
+    return dprime, shuff_dprime_quantiles, goodcells, var_capt
 
 # site = 'CRD004a'
 # probes = [1, 2, 3, 4] #permutations

@@ -88,7 +88,7 @@ def _split_signal(signal, parameters=None):
             exp_type = _detect_type(sub_epochs)
 
         else:
-            exp_type = parameters[ff]['TrialObject'][1]['ReferenceHandle'][1]['SequenceStructure']
+            exp_type = parameters[ff]['TrialObject'][1]['ReferenceHandle'][1]['SequenceStructure'].strip()
             if exp_type == 'AllPermutations': exp_type = 'perm'
             elif exp_type == 'Triplets': exp_type = 'trip'
 

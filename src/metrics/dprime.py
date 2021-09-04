@@ -90,6 +90,9 @@ def flip_dprimes(dprime_array, montecarlo=None, flip='first'):
     :return: flipped dpriem_array,  flipped montecarlo array
     """
 
+
+
+
     # defines a boolean mask of what signs are to be flipped in dprime_array
     if flip == 'first':
         # first value is positive
@@ -116,8 +119,18 @@ def flip_dprimes(dprime_array, montecarlo=None, flip='first'):
 
     if montecarlo is None:
         flipped_montecarlo = None
-    else:
+
+    elif isinstance(montecarlo, dict):
+        flipped_montecarlo = dict()
+        for alpha, mont_array in montecarlo.items():
+            flipped_array = mont_array.copy()
+            flipped_array = np.negative(mont_array, where=mont_toflip, out=flipped_array)
+            flipped_montecarlo[alpha] = flipped_array
+
+    elif isinstance(montecarlo, np.ndarray):
         flipped_montecarlo = montecarlo.copy()
         flipped_montecarlo = np.negative(montecarlo, where=mont_toflip, out=flipped_montecarlo)
+    else:
+        raise ValueError(f'montecarlo must be a dict of arrays, an array or non but is of {type(montecarlo)}')
 
     return flipped_dprime, flipped_montecarlo
