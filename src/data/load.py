@@ -84,11 +84,6 @@ def load_with_parms(site, **kwargs):
 
     return recordings, parameters
 
-
-# load tests:
-# recs = load('AMT028b', recache=True)
-# recs, params = load_with_parms('AMT028b')
-
 def get_site_ids(batch):
     '''
     returns a list of the site ids for all experiments of a given batch. This site ID helps finding all the cells within
@@ -106,10 +101,4 @@ def get_site_ids(batch):
 
     return dict(site_IDs)
 
-
-
-# This is just to check cached recordings of later http API load
-# sites = list(get_site_ids(316).keys())
-# print(list(sites))
-# for site in sites:
-#     recs = load(site, rasterfs=30, recache=False)
+#### More complex loading functions with some preprocessing ####
