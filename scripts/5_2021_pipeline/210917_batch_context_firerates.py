@@ -36,7 +36,7 @@ meta = {'reliability': 0.1,  # r value
         'dprime_absolute': None,
         'stim_type': 'permutations'}
 
-ctx_fr_DF_file = pl.Path(config['paths']['analysis_cache']) / f'210902_context_firing_rate_DF' / set_name(meta)
+ctx_fr_DF_file = pl.Path(config['paths']['analysis_cache']) / f'210917_context_firing_rate_DF' / set_name(meta)
 
 analysis_functions = {'SC': single_cell_dprimes, #'LDA':probewise_LDA_dprimes,
                       'pdPCA': probewise_dPCA_dprimes, 'fdPCA': full_dPCA_dprimes}
