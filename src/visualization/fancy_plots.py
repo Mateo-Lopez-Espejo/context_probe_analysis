@@ -1099,7 +1099,7 @@ def add_stat_annotation(ax, plot='boxplot',
 
 ##### Other functions
 
-def savefig(fig, root, name, type='png'):
+def savefig(fig, root, name, type='png', transparent=True):
     root = pl.Path(config['paths']['figures']) / f'{root}'
     if not root.exists():
         print(f'making new folder at {root}')
@@ -1108,11 +1108,11 @@ def savefig(fig, root, name, type='png'):
     if type == 'png':
         png = root.joinpath(name).with_suffix('.png')
         print(f'saving figure at {png}')
-        fig.savefig(png, transparent=True, dpi=300)
+        fig.savefig(png, transparent=transparent, dpi=300)
     elif type == 'svg':
         svg = root.joinpath(name).with_suffix('.svg')
         print(f'saving figure at {svg}')
-        fig.savefig(svg, transparent=True)
+        fig.savefig(svg, transparent=transparent)
     else:
         raise ValueError(f"type must be 'png' or 'svg' but {type} was given")
 
