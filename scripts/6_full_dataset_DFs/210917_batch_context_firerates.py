@@ -56,7 +56,7 @@ badsites = {'AMT031a', 'DRX008b','DRX021a', 'DRX023a', 'ley074a' }  # empiricall
 sites = sites.difference(badsites)
 
 
-def _load_site_formated_context(site, contexts, probes, meta, part='probe', recache_rec=False):
+def _load_site_formated_context(site, contexts, probes, meta, part, recache_rec=False):
     """
     wrapper of wrappers. Load a recording, selects the subset of data (triplets, or permutations), generates raster using
     selected  probes and transitions and swaps dimentions into default order
@@ -125,7 +125,7 @@ else:
 
 # loads data for site, organizes in DF and appends to growing DF
 for site in sites:
-    trialR, _, goodcells = _load_site_formated_context(site, **expt, meta=meta)
+    trialR, _, goodcells = _load_site_formated_context(site, **expt, part='probe', meta=meta)
     DF = DF.append(firing_rates_to_DF(trialR, goodcells, meta),ignore_index=True)
 
 DF.drop_duplicates(inplace=True)
@@ -133,7 +133,4 @@ DF.drop_duplicates(inplace=True)
 if ctx_fr_DF_file.parent.exists() is False:
     ctx_fr_DF_file.parent.mkdir()
 jl.dump(DF, ctx_fr_DF_file)
-
-
-
 
