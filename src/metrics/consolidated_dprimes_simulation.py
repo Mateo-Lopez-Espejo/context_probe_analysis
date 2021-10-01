@@ -20,6 +20,12 @@ config.read_file(open(pl.Path(__file__).parents[2] / 'config' / 'settings.ini'))
 
 memory = Memory(str(pl.Path(config['paths']['analysis_cache']) / 'consolidated_dprimes'))
 
+def homogenize_cxt_modulation(raster, rep_dim, neu_dim, ctx_dim):
+    raster_sim = np.mean(raster, axis=ctx_dim, keepdims=True) + \
+                 np.mean(raster, axis=(rep_dim, neu_dim), keepdims=True) - \
+                 np.mean(raster, axis=(rep_dim, neu_dim, ctx_dim), keepdims=True)
+    return raster_sim
+
 # private functions of snipets of code common to all dprime calculations
 def _load_site_formated_raster(site, contexts, probes, meta, recache_rec=False):
     """
@@ -53,6 +59,8 @@ def _load_site_formated_raster(site, contexts, probes, meta, recache_rec=False):
     raster = src.data.rasters.raster_from_sig(sig, probes=probes, channels=goodcells, contexts=contexts,
                                               smooth_window=meta['smoothing_window'], raster_fs=meta['raster_fs'],
                                               zscore=meta['zscore'], part='probe')
+
+    raster = homogenize_cxt_modulation(raster, rep_dim=2, neu_dim=3, ctx_dim=0)
 
     return raster, goodcells
 
@@ -296,32 +304,3 @@ def full_dPCA_dprimes(site, contexts, probes, meta):
     shuff_dprime_quantiles = _signif_quantiles(shuffled_dprime)
 
     return dprime, shuff_dprime_quantiles, goodcells, var_capt
-
-# site = 'CRD004a'
-# probes = [1, 2, 3, 4] #permutations
-# # probes = [2, 3, 5, 6] #triplets
-# contexts = [0, 1, 2, 3, 4]
-# # contexts = ['silence', 'continuous', 'similar', 'sharp']
-#
-# meta = {'reliability': 0.1,  # r value
-#         'smoothing_window': 0,  # ms
-#         'raster_fs': 30,
-#         'montecarlo': 1000,
-#         'zscore': True,
-#         'dprime_absolute': None,
-#         'stim_type': 'permutations'}
-#
-# # meta = {'reliability': 0.1,  # r value
-# #         'smoothing_window': 0,  # ms
-# #         'raster_fs': 30,
-# #         'montecarlo': 1000,
-# #         'zscore': True,
-# #         'dprime_absolute': None,
-# #         'stim_type': 'triplets'}
-#
-# dprime, shuffled_dprime, _, _ = single_cell_dprimes(site, contexts, probes, meta)
-# dprime, shuffled_dprime, _, _ = probewise_dPCA_dprimes(site, contexts, probes, meta)
-# dprime, shuffled_dprime, _, _ = probewise_LDA_dprimes(site, contexts, probes, meta)
-# dprime, shuffled_dprime, _, _ = full_dPCA_dprimes(site, contexts, probes, meta)
-
-
