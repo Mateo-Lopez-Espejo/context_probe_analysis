@@ -6,8 +6,7 @@ from configparser import ConfigParser
 import numpy as np
 from joblib import Memory
 
-import src.data.rasters
-import src.data.rasters
+from src.data.rasters import raster_from_sig
 from src.data import LDA as cLDA, dPCA as cdPCA
 from src.data.load import load_with_parms
 from src.metrics import dprime as cDP
@@ -21,7 +20,7 @@ config.read_file(open(pl.Path(__file__).parents[2] / 'config' / 'settings.ini'))
 memory = Memory(str(pl.Path(config['paths']['analysis_cache']) / 'consolidated_dprimes'))
 
 # private functions of snipets of code common to all dprime calculations
-def _load_site_formated_raster(site, contexts, probes, meta, recache_rec=False):
+def _load_site_formated_raste(site, contexts, probes, meta, recache_rec=False):
     """
     wrapper of wrappers. Load a recording, selects the subset of data (triplets, or permutations), generates raster using
     selected  probes and transitions
@@ -50,11 +49,14 @@ def _load_site_formated_raster(site, contexts, probes, meta, recache_rec=False):
     goodcells = goodcells.tolist()
 
     # get the full data raster Context x Probe x Rep x Neuron x Time
-    raster = src.data.rasters.raster_from_sig(sig, probes=probes, channels=goodcells, contexts=contexts,
+    raster = raster_from_sig(sig, probes=probes, channels=goodcells, contexts=contexts,
                                               smooth_window=meta['smoothing_window'], raster_fs=meta['raster_fs'],
                                               zscore=meta['zscore'], part='probe')
 
-    return raster, goodcells
+    # trialR shape: Trial x Cell x Context x Probe x Time; R shape: Cell x Context x Probe x Time
+    trialR, R, _ = cdPCA.format_raster(raster)
+
+    return trialR, R, goodcells
 
 
 # these functionse should operate over site, and a probe, and return a pairwise dprime between contexts, plus the shuffled
@@ -71,11 +73,10 @@ def single_cell_dprimes(site, contexts, probes, meta):
              shuffled_dprimes (ndarray with shape Montecarlo x Unit x Ctx_pair x Probe x Time),
              goocells (list of strings)
     """
-    raster, goodcells = _load_site_formated_raster(site, contexts, probes, meta)
+    trialR, R, goodcells = _load_site_formated_raste(site, contexts, probes, meta)
 
-    # trialR shape: Trial x Cell x Context x Probe x Time; R shape: Cell x Context x Probe x Time
-    trialR, _, _ = cdPCA.format_raster(raster)
     rep, chn, ctx, prb, tme = trialR.shape
+    transition_pairs = list(itt.combinations(contexts, 2))
 
     dprime = cDP.pairwise_dprimes(trialR, observation_axis=0, condition_axis=2,
                                   flip=meta['dprime_absolute'])  # shape Cell x CtxPair x Probe x Time
@@ -122,17 +123,8 @@ def probewise_dPCA_dprimes(site, contexts, probes, meta):
              shuffled_dprimes (ndarray with shape Montecarlo x PC x Ctx_pair x Probe x Time),
              goocells (list of strings)
     """
-    raster, goodcells = _load_site_formated_raster(site, contexts, probes, meta)
+    trialR, R, goodcells = _load_site_formated_raste(site, contexts, probes, meta)
 
-    # turns keywords into comprehensive list of contexts and probes
-    if contexts == 'all':
-        contexts = list(range(0, raster.shape[0]))
-    if probes == 'all':
-        probes = list(range(1, raster.shape[1]+1))
-
-
-    # trialR shape: Trial x Cell x Context x Probe x Time; R shape: Cell x Context x Probe x Time
-    trialR, R, _ = cdPCA.format_raster(raster)
     rep, unt, ctx, prb, tme = trialR.shape
     transition_pairs = list(itt.combinations(contexts, 2))
 
@@ -202,16 +194,8 @@ def probewise_LDA_dprimes(site, contexts, probes, meta):
              shuffled_dprimes (ndarray with shape Montecarlo x Ctx_pair x Probe x Time),
              goocells (list of strings)
     """
-    raster, goodcells = _load_site_formated_raster(site, contexts, probes, meta)
+    trialR, R, goodcells = _load_site_formated_raste(site, contexts, probes, meta)
 
-    # turns keywords into comprehensive list of contexts and probes
-    if contexts == 'all':
-        contexts = list(range(0, raster.shape[0]))
-    if probes == 'all':
-        probes = list(range(1, raster.shape[1]+1))
-
-    # trialR shape: Trial x Cell x Context x Probe x Time; R shape: Cell x Context x Probe x Time
-    trialR, R, _ = cdPCA.format_raster(raster)
     rep, unt, ctx, prb, tme = trialR.shape
     transition_pairs = list(itt.combinations(contexts, 2))
 
@@ -259,17 +243,7 @@ def probewise_LDA_dprimes(site, contexts, probes, meta):
 
 @memory.cache
 def full_dPCA_dprimes(site, contexts, probes, meta):
-    raster, goodcells = _load_site_formated_raster(site, contexts, probes, meta)
-
-    # turns keywords into comprehensive list of contexts and probes
-    if contexts == 'all':
-        contexts = list(range(0, raster.shape[0]))
-    if probes == 'all':
-        probes = list(range(1, raster.shape[1]+1))
-
-
-    # trialR shape: Trial x Cell x Context x Probe x Time; R shape: Cell x Context x Probe x Time
-    trialR, R, _ = cdPCA.format_raster(raster)
+    trialR, R, goodcells = _load_site_formated_raste(site, contexts, probes, meta)
 
     # calculates full dPCA. i.e. considering all 4 categories
     _, trialZ, dpca = cdPCA._cpp_dPCA(R, trialR)
@@ -315,32 +289,4 @@ def full_dPCA_dprimes(site, contexts, probes, meta):
     shuff_dprime_quantiles = _signif_quantiles(shuffled_dprime)
 
     return dprime, shuff_dprime_quantiles, goodcells, var_capt
-
-# site = 'CRD004a'
-# probes = [1, 2, 3, 4] #permutations
-# # probes = [2, 3, 5, 6] #triplets
-# contexts = [0, 1, 2, 3, 4]
-# # contexts = ['silence', 'continuous', 'similar', 'sharp']
-#
-# meta = {'reliability': 0.1,  # r value
-#         'smoothing_window': 0,  # ms
-#         'raster_fs': 30,
-#         'montecarlo': 1000,
-#         'zscore': True,
-#         'dprime_absolute': None,
-#         'stim_type': 'permutations'}
-#
-# # meta = {'reliability': 0.1,  # r value
-# #         'smoothing_window': 0,  # ms
-# #         'raster_fs': 30,
-# #         'montecarlo': 1000,
-# #         'zscore': True,
-# #         'dprime_absolute': None,
-# #         'stim_type': 'triplets'}
-#
-# dprime, shuffled_dprime, _, _ = single_cell_dprimes(site, contexts, probes, meta)
-# dprime, shuffled_dprime, _, _ = probewise_dPCA_dprimes(site, contexts, probes, meta)
-# dprime, shuffled_dprime, _, _ = probewise_LDA_dprimes(site, contexts, probes, meta)
-# dprime, shuffled_dprime, _, _ = full_dPCA_dprimes(site, contexts, probes, meta)
-
 

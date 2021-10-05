@@ -22,10 +22,10 @@ for site in all_sites.keys():
     else:
         area = raw_area.split(',')[0]
         if area == '':
-            print(f'site {site} has undefined region')
+            print(f'importing region_map: site {site} has undefined region')
             continue
         elif area not in ('A1', 'PEG'):
-            print(f'site {site} has unrecognized region:{area}')
+            print(f'importing region_map: site {site} has unrecognized region:{area}')
             continue
 
     region_map[site] = area

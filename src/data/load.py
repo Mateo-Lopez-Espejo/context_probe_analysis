@@ -61,31 +61,28 @@ def load(site, boxload=True, **kwargs):
     recordings  = split_recording(CPN_rec)
     return recordings
 
-# recs = load('ARM031a', recache=True)
-
 def load_with_parms(site, **kwargs):
     # defaults
+
     options = {'batch': 316,
                'cellid': site,
                'stimfmt': 'envelope',
                'rasterfs': 100,
                'runclass': 'CPN',
-               'recache': False,
                'stim': False,
-               'resp':True}
+               'resp':True,
+               'recache': False}
 
     options.update(**kwargs)
 
     manager = BAPHYExperiment(cellid=site, batch=options['batch'])
 
-    # Loads recording plus parameters to identify which recordings are AllPermutations or Triplets
     loaded_rec = manager.get_recording(**options)
     parameters = manager.get_baphy_exptparams()
 
-    recordings  = split_recording(loaded_rec)
-    return recordings, parameters
+    recordings  = split_recording(loaded_rec, parameters)
 
-# recs, params = load_with_parms('ARM031a', recache=True)
+    return recordings, parameters
 
 def get_site_ids(batch):
     '''
@@ -103,3 +100,5 @@ def get_site_ids(batch):
         site_IDs[site_ID].append(cell)
 
     return dict(site_IDs)
+
+#### More complex loading functions with some preprocessing ####

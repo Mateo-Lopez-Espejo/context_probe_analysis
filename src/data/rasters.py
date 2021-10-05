@@ -1,15 +1,17 @@
 import itertools as itt
 
 import numpy as np
-
 from nems import epoch as nep
-from src.utils import tools as tools
 
+from src.data.dPCA import format_raster
+from src.data.load import load_with_parms
+from src.metrics.reliability import signal_reliability
+from src.utils import tools as tools
 from src.utils.cpp_parameter_handlers import _channel_handler
 from src.utils.tools import raster_smooth
 
 
-def make_full_array(signal, channels='all', smooth_window=None, raster_fs=None, zscore=False):
+def _make_full_array(signal, channels='all', smooth_window=None, raster_fs=None, zscore=False):
     '''
     given a CPP/CPN signal, extract rasters and organizes in a 5D array with axes Context x Probe x Repetition x Unit x Time
     :param signal: nems signal. It should have the context probe epochs defined.
@@ -31,7 +33,7 @@ def make_full_array(signal, channels='all', smooth_window=None, raster_fs=None, 
     else:
         raise ValueError('meta zscore must be boolean')
 
-    reg_ex = r'\AC\d_P\d\Z'
+    reg_ex = r'\AC\d{2}_P\d{2}'
 
     epoch_names = nep.epoch_names_matching(signal.epochs, (reg_ex))
     context_names = list(set([cp.split('_')[0] for cp in epoch_names]))
@@ -54,7 +56,7 @@ def make_full_array(signal, channels='all', smooth_window=None, raster_fs=None, 
     for pp, cc in itt.product(range(len(probe_names)), range(len(context_names))):
         cpp = '{}_{}'.format(context_names[cc], probe_names[pp])
         try:
-            full_array[cc, pp, :, :, :] = signal.extract_epoch(cpp)[:,channels,:]
+            full_array[cc, pp, :, :, :] = signal.extract_epoch(cpp)[:, channels, :]
             valid_cp.append(cpp)
         except:
             invalid_cp.append(cpp)
@@ -62,13 +64,14 @@ def make_full_array(signal, channels='all', smooth_window=None, raster_fs=None, 
 
     # gaussian window smooth
     if smooth_window is not None and smooth_window != 0:
-        print('warning: smooting the data so early might lead to questionable results. Preferably smooth before plotting')
+        print(
+            'warning: smooting the data so early might lead to questionable results. Preferably smooth before plotting')
         full_array = raster_smooth(full_array, signal.fs, smooth_window, axis=4)
 
     return full_array, invalid_cp, valid_cp, context_names, probe_names
 
 
-def _extract_triplets_sub_arr(probes, context_types, full_array, context_names, probe_names, squeeze=True):
+def __extract_triplets_sub_arr__(probes, context_types, full_array, context_names, probe_names, squeeze=True):
     '''
     short function to extract the adequate slices of the full array given a probe and the specified context transitions
     returns a copy not a view.
@@ -111,7 +114,6 @@ def _extract_triplets_sub_arr(probes, context_types, full_array, context_names, 
         if ct not in ['silence', 'continuous', 'similar', 'sharp']:
             raise ValueError(f'{ct} is not a valid keyword')
 
-
     # hardcodes a map between transition names e.g. Silence, and numerated context probes e.g C0_P2
     transitions = {'P2': {'silence': 0,
                           'continuous': 1,
@@ -130,11 +132,10 @@ def _extract_triplets_sub_arr(probes, context_types, full_array, context_names, 
                           'similar': 4,
                           'sharp': 2}}
 
-
     # create an empty array to populate with the probes slices, with contexts ordered by transition type
     # and not by contexte identity
 
-    C, P, R, U, T = full_array.shape # Context x Probe x Repetition x Unit x Time
+    C, P, R, U, T = full_array.shape  # Context x Probe x Repetition x Unit x Time
 
     sliced_array = np.empty([len(context_types), len(probes), R, U, T])
 
@@ -152,7 +153,8 @@ def _extract_triplets_sub_arr(probes, context_types, full_array, context_names, 
 
     return sliced_array  # array with shape Context_transition x Probe x Repetitions x Unit x Time
 
-def _extract_permutations_sub_arr(probes, contexts, full_array, context_names, probe_names, squeeze=True):
+
+def __extract_permutations_sub_arr__(probes, contexts, full_array, context_names, probe_names, squeeze=True):
     """
     Simple function to get a slice from the full array for an all_permutations experiment.
     :param probes: list of probe numbers to hold
@@ -168,16 +170,15 @@ def _extract_permutations_sub_arr(probes, contexts, full_array, context_names, p
         probes = [probes]
 
     elif isinstance(probes, (list, tuple, set)):
-        if all(isinstance(x, int) for x in probes) and set(probes).issubset(set(range(11))):
+        if all(isinstance(x, int) for x in probes) and set(probes).issubset(set(range(1, 11))):
             probes = list(probes)
         else:
-            raise ValueError('all values in probe must be int between 1 and 4')
+            raise ValueError('all values in probe must be int between 1 and 10')
     else:
         raise ValueError('probe must be an int or a list of ints')
 
-
-    probe_indices = np.asarray([probe_names.index(f'P{p}') for p in probes])
-    context_indices = np.asarray([context_names.index(f'C{c}') for c in contexts])
+    probe_indices = np.asarray([probe_names.index(f'P{p:02d}') for p in probes])
+    context_indices = np.asarray([context_names.index(f'C{c:02d}') for c in contexts])
 
     sliced_array = np.take(full_array, context_indices, axis=0).copy()
     sliced_array = np.take(sliced_array, probe_indices, axis=1).copy()
@@ -187,48 +188,40 @@ def _extract_permutations_sub_arr(probes, contexts, full_array, context_names, p
     return sliced_array
 
 
-def extract_sub_arr(probes, contexts, full_array, context_names, probe_names, squeeze=True):
+def _extract_sub_arr(probes, contexts, full_array, context_names, probe_names, squeeze=True):
     """
     Calls the right function depending on the context_type
     """
 
-    triplet_contexts = {'silence', 'continuous', 'similar', 'sharp'} # clasified triplet transitions
-    permutation_contexts = set(range(11)) # simple contexts id numbers. 0 is silence
+    triplet_contexts = {'silence', 'continuous', 'similar', 'sharp'}  # clasified triplet transitions
+    permutation_contexts = set(range(0, 11))  # simple contexts id numbers. 0 is silence
 
     if set(contexts).issubset(triplet_contexts):
-        sliced_array = _extract_triplets_sub_arr(probes, contexts, full_array, context_names, probe_names, squeeze)
+        sliced_array = __extract_triplets_sub_arr__(probes, contexts, full_array, context_names, probe_names, squeeze)
 
     elif set(contexts).issubset(permutation_contexts):
-        sliced_array = _extract_permutations_sub_arr(probes, contexts, full_array, context_names, probe_names, squeeze)
+        sliced_array = __extract_permutations_sub_arr__(probes, contexts, full_array, context_names, probe_names,
+                                                        squeeze)
 
     else:
-        raise ValueError ('unknonw values in contexts')
+        raise ValueError('unknonw values in contexts')
 
     return sliced_array
 
 
 def raster_from_sig(signal, probes, channels, contexts, smooth_window, raster_fs, part='probe', zscore=False):
-
-
     full_array, invalid_cp, valid_cp, all_contexts, all_probes = \
-        make_full_array(signal, channels=channels, smooth_window=smooth_window, raster_fs=raster_fs, zscore=zscore)
+        _make_full_array(signal, channels=channels, smooth_window=smooth_window, raster_fs=raster_fs, zscore=zscore)
 
-    # excludese silence as a probe
-    if probes == 'all':
-        probes = [int(pp[1:]) for pp in all_probes if pp != 'P0']
-
-    if contexts == 'all':
-        contexts = [int(cc[1:]) for cc in all_contexts]
-
-    raster = extract_sub_arr(probes=probes, contexts=contexts, full_array=full_array,
-                             context_names=all_contexts, probe_names=all_probes, squeeze=False)
+    raster = _extract_sub_arr(probes=probes, contexts=contexts, full_array=full_array,
+                              context_names=all_contexts, probe_names=all_probes, squeeze=False)
 
     # selects raster for context, probe or both (all)
     if part == 'probe':
-        trans_idx = int(np.floor(raster.shape[-1]/2))
+        trans_idx = int(np.floor(raster.shape[-1] / 2))
         raster = raster[..., trans_idx:]
     elif part == 'context':
-        trans_idx = int(np.floor(raster.shape[-1]/2))
+        trans_idx = int(np.floor(raster.shape[-1] / 2))
         raster = raster[..., :trans_idx]
     elif part == 'all':
         pass
@@ -236,3 +229,44 @@ def raster_from_sig(signal, probes, channels, contexts, smooth_window, raster_fs
         raise ValueError("unknonw value for 'part' parameter")
 
     return raster
+
+
+def load_site_formated_raster(site, contexts, probes, part, meta, recache_rec=False):
+    """
+    wrapper of wrappers. Load a recording, selects the subset of data (triplets, or permutations), generates raster using
+    selected  probes and transitions and swaps dimentions into default order
+    :param site:
+    :contexts:
+    :probes:
+    :param meta:
+    :param recache_rec:
+    :return:
+    """
+
+    recs, _ = load_with_parms(site, rasterfs=meta['raster_fs'], recache=recache_rec)
+    if len(recs) > 2:
+        print(f'\n\n{recs.keys()}\n\n')
+
+    # pulls the right recording depending on stimulus type and pulls the signal from it.
+    if meta['stim_type'] == 'triplets':
+        type_key = 'trip0'
+    elif meta['stim_type'] == 'permutations':
+        type_key = 'perm0'
+    else:
+        raise ValueError(f"unknown stim type, use 'triplets' or 'permutations'")
+
+    sig = recs[type_key]['resp']
+
+    # calculates response realiability and select only good cells to improve analysis
+    r_vals, goodcells = signal_reliability(sig, r'\ASTIM_sequence*', threshold=meta['reliability'])
+    goodcells = goodcells.tolist()
+
+    # get the full data raster Context x Probe x Rep x Neuron x Time
+    raster = raster_from_sig(sig, probes=probes, channels=goodcells, contexts=contexts,
+                             smooth_window=meta['smoothing_window'], raster_fs=meta['raster_fs'],
+                             zscore=meta['zscore'], part=part)
+
+    # trialR shape: Trial x Cell x Context x Probe x Time; R shape: Cell x Context x Probe x Time
+    trialR, R, _ = format_raster(raster)
+
+    return trialR, R, goodcells
