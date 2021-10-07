@@ -1,3 +1,4 @@
+import collections
 from collections import defaultdict
 import itertools as itt
 import pathlib as pl
@@ -20,7 +21,7 @@ config.read_file(open(pl.Path(__file__).parents[2] / 'config' / 'settings.ini'))
 memory = Memory(str(pl.Path(config['paths']['analysis_cache']) / 'consolidated_dprimes'))
 
 # private functions of snipets of code common to all dprime calculations
-def _load_site_formated_raste(site, contexts, probes, meta, recache_rec=False):
+def _load_site_formated_raster(site, contexts, probes, meta, recache_rec=False):
     """
     wrapper of wrappers. Load a recording, selects the subset of data (triplets, or permutations), generates raster using
     selected  probes and transitions
@@ -62,7 +63,7 @@ def _load_site_formated_raste(site, contexts, probes, meta, recache_rec=False):
 # these functionse should operate over site, and a probe, and return a pairwise dprime between contexts, plus the shuffled
 # and simulated montecarlos and  good cells
 @memory.cache
-def single_cell_dprimes(site, contexts, probes, meta):
+def single_cell_dprimes(site, contexts, probes, meta, load_fn):
     """
     calculated the dprime between context for all probes and for all cells in a site. Calculates significance using
     montecarlo shuffling of the context identity
@@ -73,7 +74,8 @@ def single_cell_dprimes(site, contexts, probes, meta):
              shuffled_dprimes (ndarray with shape Montecarlo x Unit x Ctx_pair x Probe x Time),
              goocells (list of strings)
     """
-    trialR, R, goodcells = _load_site_formated_raste(site, contexts, probes, meta)
+    # trialR, R, goodcells = _load_site_formated_raster(site, contexts, probes, meta)
+    trialR, R, goodcells = load_fn(site, contexts, probes, meta)
 
     rep, chn, ctx, prb, tme = trialR.shape
     transition_pairs = list(itt.combinations(contexts, 2))
@@ -109,9 +111,36 @@ def single_cell_dprimes(site, contexts, probes, meta):
     shuff_dprime_quantiles = {alpha: np.stack(qntls, axis=1) for alpha, qntls in shuff_dprime_quantiles.items()}
     return dprime, shuff_dprime_quantiles, goodcells, None
 
+@memory.cache
+def _load_probewise_dPCA_raster(site, contexts, probes, meta, load_fn):
+    # trialR, R, goodcells = _load_site_formated_raste(site, contexts, probes, meta)
+    trialR, R, goodcells = load_fn(site, contexts, probes, meta)
+    var_capt = list()
+    trialZ = defaultdict(list)
+    Z = defaultdict(list)
+    pdpca = list()
+    for pp in probes:
+        probe_idx = probes.index(pp)
+        probe_trialR = trialR[..., probe_idx, :]
+        probe_R = R[..., probe_idx, :]
+
+        # calculates dPCA considering all context categories
+        probe_Z, probe_trialZ, dpca = cdPCA._cpp_dPCA(probe_R, probe_trialR)
+        pdpca.append(dpca)
+        var_capt.append(cdPCA.variance_captured(dpca, probe_R))
+
+        for marg in dpca.marginalizations:
+            trialZ[marg].append(probe_trialZ[marg])
+            Z[marg].append(probe_Z[marg])
+
+    for marg in dpca.marginalizations:
+        trialZ[marg] = np.stack(trialZ[marg], axis=-2)
+        trialZ[marg] = np.stack(Z[marg], axis=-2)
+
+    return trialZ, Z, goodcells, pdpca, var_capt
 
 @memory.cache
-def probewise_dPCA_dprimes(site, contexts, probes, meta):
+def probewise_dPCA_dprimes(site, contexts, probes, meta, load_fn):
     """
     performs dimensionality reduction with dPCA done independently for each probe. Then uses the first context dependent
     demixed principal component to calculated the dprime between context for all probes in the site. Calculates
@@ -123,7 +152,11 @@ def probewise_dPCA_dprimes(site, contexts, probes, meta):
              shuffled_dprimes (ndarray with shape Montecarlo x PC x Ctx_pair x Probe x Time),
              goocells (list of strings)
     """
-    trialR, R, goodcells = _load_site_formated_raste(site, contexts, probes, meta)
+
+    # trialR, R, goodcells = _load_site_formated_raster(site, contexts, probes, meta)
+    trialR, R, goodcells = load_fn(site, contexts, probes, meta)
+    trialZ, Z, goodcells, _, var_capt = _load_probewise_dPCA_raster(site, contexts, probes, meta, load_fn)
+
 
     rep, unt, ctx, prb, tme = trialR.shape
     transition_pairs = list(itt.combinations(contexts, 2))
@@ -132,17 +165,12 @@ def probewise_dPCA_dprimes(site, contexts, probes, meta):
     dprime = np.empty([len(transition_pairs), prb, tme])
     shuffled_dprime = np.empty([meta['montecarlo'], len(transition_pairs), prb, tme])
 
-    var_capt = list()
     for pp in probes:
-        probe_idx = probes.index(pp)
-        probe_trialR = trialR[..., probe_idx, :]
-        probe_R = R[..., probe_idx, :]
+        probe_trialR = trialR[..., pp, :]
+        probe_trialZ = trialZ['ct'][:, 0, ...]
 
-        # calculates dPCA considering all 4 categories
-        _, trialZ, dpca = cdPCA._cpp_dPCA(probe_R, probe_trialR)
-        var_capt.append(cdPCA.variance_captured(dpca, probe_R))
-        dPCA_projection = trialZ['ct'][:, 0, ...]
-        dprime[:, probe_idx, :] = cDP.pairwise_dprimes(dPCA_projection, observation_axis=0, condition_axis=1,
+        probe_idx = probes.index(pp)
+        dprime[:, probe_idx, :] = cDP.pairwise_dprimes(probe_trialZ, observation_axis=0, condition_axis=1,
                                                        flip=meta['dprime_absolute'])
 
         # Shuffles the rasters n times and organizes in an array with the same shape as the original raster plus one
@@ -179,6 +207,9 @@ def probewise_dPCA_dprimes(site, contexts, probes, meta):
     shuff_dprime_quantiles = _signif_quantiles(shuffled_dprime)
 
     return dprime, shuff_dprime_quantiles, goodcells, var_capt
+
+def _load_probewise_LDA_raster(site, contexs, probes, meta):
+    return
 
 
 @memory.cache

@@ -13,7 +13,7 @@ from src.utils.tools import raster_smooth
 
 def _make_full_array(signal, channels='all', smooth_window=None, raster_fs=None, zscore=False):
     '''
-    given a CPP/CPN signal, extract rasters and organizes in a 5D array with axes Context x Probe x Repetition x Unit x Time
+    given a CPP/CPN signal, extract rasters and organizes in a 5D array with axes Repetition x Unit x Context x Probe x Time
     :param signal: nems signal. It should have the context probe epochs defined.
     :param channels: str, int, list, 'all'.  Defines what cells to consider
     :param smooth_window: float. gausian kernel size in ms
@@ -47,7 +47,7 @@ def _make_full_array(signal, channels='all', smooth_window=None, raster_fs=None,
     C = len(context_names)
     P = len(probe_names)
 
-    full_array = np.empty([C, P, R, U, T])
+    full_array = np.empty([R, U, C, P, T])
     full_array[:] = np.nan
 
     invalid_cp = list()
@@ -56,7 +56,7 @@ def _make_full_array(signal, channels='all', smooth_window=None, raster_fs=None,
     for pp, cc in itt.product(range(len(probe_names)), range(len(context_names))):
         cpp = '{}_{}'.format(context_names[cc], probe_names[pp])
         try:
-            full_array[cc, pp, :, :, :] = signal.extract_epoch(cpp)[:, channels, :]
+            full_array[:, :, cc, pp, :] = signal.extract_epoch(cpp)[:, channels, :]
             valid_cp.append(cpp)
         except:
             invalid_cp.append(cpp)
@@ -75,13 +75,13 @@ def __extract_triplets_sub_arr__(probes, context_types, full_array, context_name
     '''
     short function to extract the adequate slices of the full array given a probe and the specified context transitions
     returns a copy not a view.
-    :param probes: int. for permutations any of [1,2,3,4]. for triplets any of [2,3,5,6]
+    :param probes: int. list. any of [2,3,5,6]
     :param context_types: str, [str,]. silence, continuous, similar, sharp. 'all' for default order of the four transitions
-    :param full_array: nd array with dimensions Context x Probe x Repetition x Unit x Time
+    :param full_array: nd array with dimensions Repetition x Unit x Context x Probe x Time
     :context_names: list of context names with order consistent with that of full array (output of make make_full_array)
     :probe_names: list of probe names with order consistent with that of full array (output of make make_full_array)
     :squeeze: bool, squeeze single value dimensions of the final array
-    :return: nd array with dimensions Context_type x Probe x Repetition x Unit x Time
+    :return: nd array with dimensions Repetition x Unit x Context_type x Probe x Time
     '''
     ''' 
     Triplets sound order          
@@ -135,9 +135,9 @@ def __extract_triplets_sub_arr__(probes, context_types, full_array, context_name
     # create an empty array to populate with the probes slices, with contexts ordered by transition type
     # and not by contexte identity
 
-    C, P, R, U, T = full_array.shape  # Context x Probe x Repetition x Unit x Time
+    R, U, C, P, T = full_array.shape  # Repetition x Unit x Context x Probe x  Time
 
-    sliced_array = np.empty([len(context_types), len(probes), R, U, T])
+    sliced_array = np.empty([R, U, len(context_types), len(probes), T])
 
     for (pp, probe) in enumerate(probes):
         # find array indexes based on probe and context transition names
@@ -147,41 +147,62 @@ def __extract_triplets_sub_arr__(probes, context_types, full_array, context_name
         C_names = ['C' + str(transitions[p][ct]) for ct in context_types]
         context_indices = np.asarray([context_names.index(c) for c in C_names])
 
-        sliced_array[:, pp, :, :, :] = full_array[context_indices, probe_index, :, :, :].copy()
+        sliced_array[:, :, :, pp, :] = full_array[:, :, context_indices, probe_index, :].copy()
 
     if squeeze == True: sliced_array = np.squeeze(sliced_array)
 
-    return sliced_array  # array with shape Context_transition x Probe x Repetitions x Unit x Time
+    return sliced_array  # array with shape Repetitions x Unit x Context_transition x Probe x Time
 
 
 def __extract_permutations_sub_arr__(probes, contexts, full_array, context_names, probe_names, squeeze=True):
     """
     Simple function to get a slice from the full array for an all_permutations experiment.
-    :param probes: list of probe numbers to hold
-    :param contexts: list of context numbers to hold
-    :param full_array: nd array with dimensions Context x Probe x Repetition x Unit x Time
+    :param probes: 'all', int or tuple of ints, probe numbers to hold
+    :param contexts: 'all', int or tuple of ints, context numbers to hold
+    :param full_array: nd array with dimensions Repetition x Unit x Context x Probe x Time
     :context_names: list of context names with order consistent with that of full array (output of make make_full_array)
     :probe_names: list of probe names with order consistent with that of full array (output of make make_full_array)
     :squeeze: bool, squeeze single value dimensions of the final array
-    :return:  nd array with dimensions Context_type x Probe x Repetition x Unit x Time
+    :return:  nd array with dimensions Repetition x Unit x Context x Probe x Time
     """
 
+    # sanitize context input
+    if isinstance(contexts, int):
+        contexts = [contexts]
+    elif contexts == 'all':
+        contexts = [int(c) for c in contexts]
+    elif isinstance(contexts, (list, tuple, set)):
+        pass
+    else:
+        raise ValueError("contexts must be 'all', int or a list of ints")
+
+    if all(isinstance(x, int) for x in contexts) and set(contexts).issubset(set(range(0, 11))):
+        pass
+    else:
+        raise ValueError('all values in contexts must be int between 0 and 10 inclusive')
+
+
+    # sanitize probe input
     if isinstance(probes, int):
         probes = [probes]
-
+    elif probes == 'all':
+        probes = [int(p) for p in probe_names if int(p)!=0] # since silence does not have silence as contexts, leave it out
     elif isinstance(probes, (list, tuple, set)):
-        if all(isinstance(x, int) for x in probes) and set(probes).issubset(set(range(1, 11))):
-            probes = list(probes)
-        else:
-            raise ValueError('all values in probe must be int between 1 and 10')
+        pass
     else:
-        raise ValueError('probe must be an int or a list of ints')
+        raise ValueError("probe must be 'all' int or a list of ints")
+
+    if all(isinstance(x, int) for x in probes) and set(probes).issubset(set(range(1, 11))):
+        pass
+    else:
+        raise ValueError('all values in probe must be int between 1 and 10 inclusive')
+
 
     probe_indices = np.asarray([probe_names.index(f'P{p:02d}') for p in probes])
     context_indices = np.asarray([context_names.index(f'C{c:02d}') for c in contexts])
 
-    sliced_array = np.take(full_array, context_indices, axis=0).copy()
-    sliced_array = np.take(sliced_array, probe_indices, axis=1).copy()
+    sliced_array = np.take(full_array, context_indices, axis=2).copy()
+    sliced_array = np.take(sliced_array, probe_indices, axis=3).copy()
 
     if squeeze: sliced_array = np.squeeze(sliced_array)
 
@@ -231,7 +252,7 @@ def raster_from_sig(signal, probes, channels, contexts, smooth_window, raster_fs
     return raster
 
 
-def load_site_formated_raster(site, contexts, probes, part, meta, recache_rec=False):
+def load_site_formated_raster(site, contexts='all', probes='all', part='probe', meta={}, recache_rec=False):
     """
     wrapper of wrappers. Load a recording, selects the subset of data (triplets, or permutations), generates raster using
     selected  probes and transitions and swaps dimentions into default order
