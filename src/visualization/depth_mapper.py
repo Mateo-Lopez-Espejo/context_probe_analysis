@@ -44,13 +44,9 @@ class DepthMapUi(QMainWindow):
         self.width = 5
         self.height = 20
         self.dpi = 100
-        # separator info
+
         self.layerBorders = ['1/2', '2/3', '3/4', '4/5', '5/6']
-        self.separatorBoolean = {border: False for border in self.layerBorders}
-        self.separatorPosition = {border: 0 for border in self.layerBorders}
-        # draw lines info
-        self.lines = {border: None for border in self.layerBorders}
-        self.labels = {border: None for border in self.layerBorders}
+
         # general widget info
         # Set the central widget and the general layout
         self.generalLayout = QGridLayout()
@@ -78,20 +74,6 @@ class DepthMapUi(QMainWindow):
         self.slider.setTracking(False)
         self.generalLayout.addWidget(self.slider, 1, 2, 4, 1)
 
-    def _selectSlider(self, index,):
-        name = self.dropDown.itemText(index)
-        position = self.separatorPosition[name]
-        print(f'{index}: border {name} slider set at {position}')
-        self.slider.setDisabled(False)
-        self.slider.setValue(position)
-
-    def _updateSlider(self, value):
-        currentSlider = self.dropDown.currentText()
-        self.separatorPosition[currentSlider] = value
-        for sep, pos in self.separatorPosition.items():
-            print(f'sep{sep} pos{pos}')
-        print('\n')
-
     def _createCheckList(self):
         checkGroup = QGroupBox('Visible layer borders')
         checkLayout = QHBoxLayout()
@@ -106,31 +88,6 @@ class DepthMapUi(QMainWindow):
     def _createDropDown(self):
         self.dropDown = QComboBox()
         self.generalLayout.addWidget(self.dropDown, 2, 3, 1, 1)
-
-    def _updateDropDown(self, sepName, checkbox):
-        print(f'updating dropdown with {sepName}')
-        self.separatorBoolean[sepName] = checkbox.isChecked()
-        self.dropDown.clear()
-        for sepName, state in self.separatorBoolean.items():
-            if state is True:
-                self.dropDown.addItem(sepName)
-
-        # set slider right acording to current dropdown state
-        if not any(self.separatorBoolean.values()):
-            self.slider.setValue(0)
-            self.slider.setDisabled(True)
-        else:
-            self._selectSlider(self.dropDown.currentIndex())
-
-        # erase lines and text if box unchecked
-        for sepName, state in self.separatorBoolean.items():
-            if state is False and self.lines[sepName] is not None:
-                print(f'removing line for {sepName}')
-                self.lines[sepName].remove()
-                self.lines[sepName] = None
-                self.labels[sepName].remove()
-                self.labels[sepName] = None
-                self.canvas.draw()
 
     def _createActionButtons(self):
         buttonGroup = QGroupBox('cellDB actions')
@@ -152,26 +109,45 @@ class DepthMapUi(QMainWindow):
     def _updateDisplay(self):
         return None
 
-    def _drawSeparator(self, value):
-        currentSlider = self.dropDown.currentText()
 
-        # catches when the dropdown is empty
-        if currentSlider == '':
-            return
 
-        # draw or redraw the line
-        if self.lines[currentSlider] is not None:
-            print('erasing old')
-            self.lines[currentSlider].remove()
-            self.labels[currentSlider].remove()
 
-        print(f'drawing {currentSlider} at {value}')
-        self.lines[currentSlider] = self.ax.axhline(value, color='white', linewidth=5)
-        top, bottom = currentSlider.split('/')
-        labelText = f'{top}\n{bottom}'
-        self.labels[currentSlider] = self.ax.text(0, value-4, labelText, color='white', fontsize=40)
+class DepthMapModel():
+    def __init__(self):
+        # separator info
+        self.landmarks = ['1/2', '2/3', '3/4', '4/5', '5/6']
+        self.landmarkPosition = {border: 0 for border in self.landmarks}
+        self.landmarkBoolean = {border: False for border in self.landmarks}
+        self.lines = list()
+        self.file = ''
+        self.csd = []
 
-        self.canvas.draw()
+    def _drawCSD(self, ax):
+        # ax.imshow(np.random.rand(100, 25), aspect='equal', origin='lower', cmap='inferno')
+        ax.imshow(np.zeros((100, 25)), aspect='equal', origin='lower', cmap='inferno')
+        ax.get_xaxis().set_visible(False)
+        ax.figure.tight_layout(pad=0)
+
+    def errase_lines(self):
+        print('errasing lines...')
+        while len(self.lines) != 0:
+            art = self.lines.pop()
+            art.remove()
+        print('done')
+
+    def draw_lines(self, ax):
+        self.errase_lines()
+        print('drawing lines...')
+        for sName in self.landmarks:
+            sBool = self.landmarkBoolean[sName]
+            sPos = self.landmarkPosition[sName]
+            if sBool:
+                self.lines.append(ax.axhline(sPos, color='white', linewidth=5))
+                top, bottom = sName.split('/')
+                labelText = f'{top}\n{bottom}'
+                text_ypos = sPos - 4 # ToDo find smarter way of labeling lines
+                self.lines.append(ax.text(0, text_ypos, labelText, color='white', fontsize=40))
+        print('done')
 
 
 class DepthMapCtrl():
@@ -181,59 +157,51 @@ class DepthMapCtrl():
         self._model._drawCSD(self._view.ax)
         self._connectSignals()
 
-    def testState(self, boxName):
-        checkBox  = self._view.layerCheckBoxes[boxName]
-        if checkBox.isChecked() == True:
-            t = f'{boxName} on'
-        else:
-            t = f'{boxName} off'
+    def _updateDropDown(self, sepName, checkbox):
+        print(f'updating dropdown with {sepName}...')
+        self._model.landmarkBoolean[sepName] = checkbox.isChecked()
+        self._view.dropDown.clear()
+        for sepName, sBool in self._model.landmarkBoolean.items():
+            if sBool:
+                self._view.dropDown.addItem(sepName)
 
-        print(t)
-        self._view.display.setText(t)
-        return boxName
+        # set slider right according to current dropdown state
+        if not any(self._model.landmarkBoolean.values()):
+            self._view.slider.setValue(0)
+            self._view.slider.setDisabled(True)
+        else:
+            self._selectSlider(self._view.dropDown.currentIndex())
+
+        # erase lines and text if box unchecked
+        self._model.draw_lines(self._view.ax)
+        self._view.canvas.draw()
+        print('done')
+
+    def _selectSlider(self, index,):
+        name = self._view.dropDown.itemText(index)
+        position = self._model.landmarkPosition[name]
+        print(f'{index}: border {name} slider set at {position}')
+        self._view.slider.setDisabled(False)
+        self._view.slider.setValue(position)
+
+    def _updateSlider(self, value):
+        currentSlider = self._view.dropDown.currentText()
+        self._model.landmarkPosition[currentSlider] = value
+        for sep, pos in self._model.landmarkPosition.items():
+            print(f'sep:{sep}, pos:{pos}')
+
+        self._model.draw_lines(self._view.ax)
+        self._view.canvas.draw()
 
     def _connectSignals(self):
         # set the subset of separators to consider
         for boxName, checkBox in  self._view.layerCheckBoxes.items():
-            checkBox.stateChanged.connect(partial(self._view._updateDropDown,
+            checkBox.stateChanged.connect(partial(self._updateDropDown,
                                                   boxName, checkBox))
 
-        self._view.dropDown.activated.connect(self._view._selectSlider)
+        self._view.dropDown.activated.connect(self._selectSlider)
+        self._view.slider.valueChanged.connect(self._updateSlider)
 
-        self._view.slider.valueChanged.connect(self._view._updateSlider)
-        self._view.slider.valueChanged.connect(self._view._drawSeparator)
-
-
-class DepthMapModel():
-    def __init__(self):
-        self.layerBorders = ['1/2', '2/3', '3/4', '4/5', '5/6']
-        self.separatorBoolean = {border: False for border in self.layerBorders}
-        self.separatorPosition = {border: 0 for border in self.layerBorders}
-        self.lines = {}
-        self.labels = {}
-        self.file = ''
-        self.csd = []
-        self.currenteSeparator=''
-
-
-    def _drawCSD(self, ax):
-        # ax.imshow(np.random.rand(100, 25), aspect='equal', origin='lower', cmap='inferno')
-        ax.imshow(np.zeros((100, 25)), aspect='equal', origin='lower', cmap='inferno')
-        ax.get_xaxis().set_visible(False)
-        ax.figure.tight_layout(pad=0)
-
-
-    # def _drawSeparators(self, ax, separators):
-    #     lines = list()
-    #     labels = list()
-    #     for separator,  position in separators.values():
-    #         lines.append(ax.axhline(position))
-    #         labels.append(ax.text(0, position, separator))
-    #
-    # def _clearSeparators(self, lines, lables):
-    #     for line, label in zip(lines, lables):
-    #         line.remove()
-    #         label.remove()
 
 # Client code
 def main():
@@ -246,7 +214,7 @@ def main():
     # get model functions
     model = DepthMapModel()
     # create instance of the controller
-    DepthMapCtrl(model=model, view=view)
+    ctrl = DepthMapCtrl(model=model, view=view)
     # Execute the calculator's main loop
     sys.exit(pycalc.exec_())
 
