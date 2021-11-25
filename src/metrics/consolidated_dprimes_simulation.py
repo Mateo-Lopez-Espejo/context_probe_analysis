@@ -82,7 +82,7 @@ def single_cell_dprimes(site, contexts, probes, meta):
     raster, goodcells = _load_site_formated_raster(site, contexts, probes, meta)
 
     # trialR shape: Trial x Cell x Context x Probe x Time; R shape: Cell x Context x Probe x Time
-    trialR, _, _ = cdPCA.format_raster(raster)
+    trialR, _, _ = cdPCA.get_centered_means(raster)
     rep, chn, ctx, prb, tme = trialR.shape
     transition_pairs = list(itt.combinations(contexts, 2))
 
@@ -134,7 +134,7 @@ def probewise_dPCA_dprimes(site, contexts, probes, meta):
     raster, goodcells = _load_site_formated_raster(site, contexts, probes, meta)
 
     # trialR shape: Trial x Cell x Context x Probe x Time; R shape: Cell x Context x Probe x Time
-    trialR, R, _ = cdPCA.format_raster(raster)
+    trialR, R, _ = cdPCA.get_centered_means(raster)
     rep, unt, ctx, prb, tme = trialR.shape
     transition_pairs = list(itt.combinations(contexts, 2))
 
@@ -207,7 +207,7 @@ def probewise_LDA_dprimes(site, contexts, probes, meta):
     raster, goodcells = _load_site_formated_raster(site, contexts, probes, meta)
 
     # trialR shape: Trial x Cell x Context x Probe x Time; R shape: Cell x Context x Probe x Time
-    trialR, R, _ = cdPCA.format_raster(raster)
+    trialR, R, _ = cdPCA.get_centered_means(raster)
     rep, unt, ctx, prb, tme = trialR.shape
     transition_pairs = list(itt.combinations(contexts, 2))
 
@@ -258,7 +258,7 @@ def full_dPCA_dprimes(site, contexts, probes, meta):
     raster, goodcells = _load_site_formated_raster(site, contexts, probes, meta)
 
     # trialR shape: Trial x Cell x Context x Probe x Time; R shape: Cell x Context x Probe x Time
-    trialR, R, _ = cdPCA.format_raster(raster)
+    trialR, R, _ = cdPCA.get_centered_means(raster)
 
     # calculates full dPCA. i.e. considering all 4 categories
     _, trialZ, dpca = cdPCA._cpp_dPCA(R, trialR)

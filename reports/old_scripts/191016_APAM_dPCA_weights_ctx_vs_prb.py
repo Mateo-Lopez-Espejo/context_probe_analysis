@@ -60,7 +60,7 @@ def fit_transform(site, probe, meta, part):
                                               part=part, zscore=meta['zscore'])
 
     # trialR shape: Trial x Cell x Context x Probe x Time; R shape: Cell x Context x Probe x Time
-    trialR, R, _ = cdPCA.format_raster(raster)
+    trialR, R, _ = cdPCA.get_centered_means(raster)
     trialR, R = trialR.squeeze(), R.squeeze()  # squeezes out probe
 
     _, dPCA_projection, _, dpca = cdPCA._cpp_dPCA(R, trialR, significance=False, dPCA_parms={})
@@ -90,7 +90,7 @@ def transform(site, probe, meta, part, dpca):
                                               part=part, zscore=meta['zscore'])
 
     # trialR shape: Trial x Cell x Context x Probe x Time; R shape: Cell x Context x Probe x Time
-    trialR, R, _ = cdPCA.format_raster(raster)
+    trialR, R, _ = cdPCA.get_centered_means(raster)
     trialR, R = trialR.squeeze(), R.squeeze()  # squeezes out probe
 
     # transforms context trials withe probe fit

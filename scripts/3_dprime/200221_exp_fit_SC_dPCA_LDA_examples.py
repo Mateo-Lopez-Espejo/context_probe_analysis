@@ -105,7 +105,7 @@ def analysis_steps_plot(id, probe, source):
                                               smooth_window=meta['smoothing_window'], raster_fs=meta['raster_fs'],
                                               zscore=meta['zscore'], part='probe')
     # trialR shape: Trial x Cell x Context x Probe x Time; R shape: Cell x Context x Probe x Time
-    trialR, R, _ = cdPCA.format_raster(raster)
+    trialR, R, _ = cdPCA.get_centered_means(raster)
     trialR, R = trialR.squeeze(axis=3), R.squeeze(axis=2)  # squeezes out probe
 
     if source == 'dPCA':
@@ -493,7 +493,7 @@ def dPCA_site_summary(site, probe):
                                               zscore=meta['zscore'], part='probe')
 
     # trialR shape: Trial x Cell x Context x Probe x Time; R shape: Cell x Context x Probe x Time
-    trialR, R, _ = cdPCA.format_raster(raster)
+    trialR, R, _ = cdPCA.get_centered_means(raster)
     trialR, R = trialR.squeeze(axis=3), R.squeeze(axis=2)  # squeezes out probe
     Z, trialZ, dpca = cdPCA._cpp_dPCA(R, trialR)
 

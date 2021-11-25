@@ -60,7 +60,7 @@ def fit_transform(site, probe, meta, part):
                                               part=part, zscore=meta['zscore'])
 
     # trialR shape: Trial x Cell x Context x Probe x Time; R shape: Cell x Context x Probe x Time
-    trialR, _, _ = cdPCA.format_raster(raster)
+    trialR, _, _ = cdPCA.get_centered_means(raster)
     trialR = trialR.squeeze()  # squeezes out probe
 
     # calculates full LDA. i.e. considering all 4 categories

@@ -3,7 +3,7 @@ import itertools as itt
 import numpy as np
 from nems import epoch as nep
 
-from src.data.dPCA import format_raster
+from src.data.dPCA import get_centered_means
 from src.data.load import load_with_parms
 from src.metrics.reliability import signal_reliability
 from src.utils import tools as tools
@@ -170,7 +170,7 @@ def __extract_permutations_sub_arr__(probes, contexts, full_array, context_names
     if isinstance(contexts, int):
         contexts = [contexts]
     elif contexts == 'all':
-        contexts = [int(c) for c in contexts]
+        contexts = [int(c[1:]) for c in context_names]
     elif isinstance(contexts, (list, tuple, set)):
         pass
     else:
@@ -186,7 +186,7 @@ def __extract_permutations_sub_arr__(probes, contexts, full_array, context_names
     if isinstance(probes, int):
         probes = [probes]
     elif probes == 'all':
-        probes = [int(p) for p in probe_names if int(p)!=0] # since silence does not have silence as contexts, leave it out
+        probes = [int(p[1:]) for p in probe_names if int(p[1:])!=0] # since silence does not have silence as contexts, leave it out
     elif isinstance(probes, (list, tuple, set)):
         pass
     else:
@@ -209,33 +209,30 @@ def __extract_permutations_sub_arr__(probes, contexts, full_array, context_names
     return sliced_array
 
 
-def _extract_sub_arr(probes, contexts, full_array, context_names, probe_names, squeeze=True):
+def _extract_sub_arr(probes, contexts, full_array, context_names, probe_names, stim_type, squeeze=True):
     """
     Calls the right function depending on the context_type
     """
 
-    triplet_contexts = {'silence', 'continuous', 'similar', 'sharp'}  # clasified triplet transitions
-    permutation_contexts = set(range(0, 11))  # simple contexts id numbers. 0 is silence
-
-    if set(contexts).issubset(triplet_contexts):
+    if stim_type == 'triplets':
         sliced_array = __extract_triplets_sub_arr__(probes, contexts, full_array, context_names, probe_names, squeeze)
 
-    elif set(contexts).issubset(permutation_contexts):
+    elif stim_type == 'permutations':
         sliced_array = __extract_permutations_sub_arr__(probes, contexts, full_array, context_names, probe_names,
                                                         squeeze)
 
     else:
-        raise ValueError('unknonw values in contexts')
+        raise ValueError(f"stim_type must be 'triplets' or 'permutations' but {stim_type} was given")
 
     return sliced_array
 
 
-def raster_from_sig(signal, probes, channels, contexts, smooth_window, raster_fs, part='probe', zscore=False):
+def raster_from_sig(signal, probes, channels, contexts, smooth_window, raster_fs, stim_type, part='probe', zscore=False):
     full_array, invalid_cp, valid_cp, all_contexts, all_probes = \
         _make_full_array(signal, channels=channels, smooth_window=smooth_window, raster_fs=raster_fs, zscore=zscore)
 
     raster = _extract_sub_arr(probes=probes, contexts=contexts, full_array=full_array,
-                              context_names=all_contexts, probe_names=all_probes, squeeze=False)
+                              context_names=all_contexts, probe_names=all_probes, stim_type=stim_type, squeeze=False)
 
     # selects raster for context, probe or both (all)
     if part == 'probe':
@@ -288,6 +285,6 @@ def load_site_formated_raster(site, contexts='all', probes='all', part='probe', 
                              zscore=meta['zscore'], part=part)
 
     # trialR shape: Trial x Cell x Context x Probe x Time; R shape: Cell x Context x Probe x Time
-    trialR, R, _ = format_raster(raster)
+    trialR, R, _ = get_centered_means(raster)
 
     return trialR, R, goodcells

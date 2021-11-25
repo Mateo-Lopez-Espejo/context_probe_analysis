@@ -62,7 +62,7 @@ code_to_name = {'t': 'Probe', 'ct': 'Context'}
 ########################################################################################################################
 def nway_analysis(full_raster, meta):
     # trialR shape: Trial x Cell x Context x Probe x Time; R shape: Cell x Context x Probe x Time
-    trialR, _, _ = cdPCA.format_raster(full_raster)
+    trialR, _, _ = cdPCA.get_centered_means(full_raster)
     trialR = trialR.squeeze()  # squeezes out probe
     R, C, S, T = trialR.shape
 
