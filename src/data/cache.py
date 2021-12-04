@@ -8,7 +8,6 @@ import nems.signal as nsig
 from numpy import ndarray
 
 
-# ToDo Restructure cache in two functios, create and load.
 def set_name(name_args, signal_name=None, onlysig=False):
     '''
     creates a uniqe name using the key vals in name_args and an optional signal name. name_args sould be a dictionary
@@ -97,7 +96,7 @@ def make_cache(function, func_args, classobj_name, recache=False, cache_folder='
     else:
         os.makedirs(cache_folder)
 
-    # creates a unique name by hashing together the function, its argument (Todo and the git version)
+    # creates a unique name by hashing together the function, its argument
     # gets all function parameters, updates with specified parameters, orders and makes into a string.
     signature = inspect.signature(function)
     funct_defaults = {k: v.default for k, v in signature.parameters.items()

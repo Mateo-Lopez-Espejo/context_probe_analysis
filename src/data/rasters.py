@@ -2,13 +2,21 @@ import itertools as itt
 
 import numpy as np
 from nems import epoch as nep
+from joblib import Memory
+from configparser import ConfigParser
+import pathlib as pl
 
-from src.data.dPCA import get_centered_means
 from src.data.load import load_with_parms
 from src.metrics.reliability import signal_reliability
 from src.utils import tools as tools
 from src.utils.cpp_parameter_handlers import _channel_handler
 from src.utils.tools import raster_smooth
+from src.root_path import config_path
+
+
+config = ConfigParser()
+config.read_file(open(config_path / 'settings.ini'))
+memory = Memory(str(pl.Path(config['paths']['recording_cache']) / 'rasters'))
 
 
 def _make_full_array(signal, channels='all', smooth_window=None, raster_fs=None, zscore=False):
@@ -248,17 +256,19 @@ def raster_from_sig(signal, probes, channels, contexts, smooth_window, raster_fs
 
     return raster
 
-
-def load_site_formated_raster(site, contexts='all', probes='all', part='probe', meta={}, recache_rec=False):
+@memory.cache
+def load_site_formated_raster(site, contexts, probes, meta, part='probe', recache_rec=False):
     """
     wrapper of wrappers. Load a recording, selects the subset of data (triplets, or permutations), generates raster using
-    selected  probes and transitions and swaps dimentions into default order
-    :param site:
-    :contexts:
-    :probes:
-    :param meta:
-    :param recache_rec:
-    :return:
+    selected  probes and transitions
+    :param site: str e.g. "TNC050"
+    :param contexts: list[int] or "all",
+    :param probes: list[int] or "all",
+    :param meta: dict with fields: "raster_fs": samps/s, "reliability" r^2, "smooth_window":ms ,
+    "stim_Type": 'triplets' or 'permutations', "zscore": boolean.
+    :param part: "context", "probe", "all" default "probe"
+    :param recache_rec: boolean, Default False
+    :return: raster with shape Repetitions x Cells x Contexts x Probes x Time_bins
     """
 
     recs, _ = load_with_parms(site, rasterfs=meta['raster_fs'], recache=recache_rec)
@@ -282,9 +292,9 @@ def load_site_formated_raster(site, contexts='all', probes='all', part='probe', 
     # get the full data raster Context x Probe x Rep x Neuron x Time
     raster = raster_from_sig(sig, probes=probes, channels=goodcells, contexts=contexts,
                              smooth_window=meta['smoothing_window'], raster_fs=meta['raster_fs'],
+                             stim_type=meta['stim_type'],
                              zscore=meta['zscore'], part=part)
+    return raster, goodcells
 
-    # trialR shape: Trial x Cell x Context x Probe x Time; R shape: Cell x Context x Probe x Time
-    trialR, R, _ = get_centered_means(raster)
 
-    return trialR, R, goodcells
+

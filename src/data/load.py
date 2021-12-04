@@ -1,19 +1,23 @@
 import collections as col
 from configparser import ConfigParser
-import joblib as jl
+from joblib import Memory
 import pathlib as pl
-from src.data.cache import set_name
+
 import nems.recording as recording
 import nems_lbhb.baphy as nb
+from nems import db as nd
 from nems_lbhb.baphy_experiment import BAPHYExperiment
+
 from src.data import epochs as cpe
 from src.data.stim_paradigm import split_recording
-from nems import db as nd
+from src.root_path import config_path
+from src.data.cache import set_name
 
 "I am lazy, this is a one liner to load a formated cpp/cpn signal"
 
 config = ConfigParser()
-config.read_file(open(pl.Path(__file__).parents[2] / 'config' / 'settings.ini'))
+config.read_file(open(config_path / 'settings.ini'))
+memory = Memory(str(pl.Path(config['paths']['recording_cache']) / 'rasters'))
 
 
 def load(site, boxload=True, **kwargs):
@@ -61,6 +65,7 @@ def load(site, boxload=True, **kwargs):
     recordings  = split_recording(CPN_rec)
     return recordings
 
+@memory.cache
 def load_with_parms(site, **kwargs):
     # defaults
 

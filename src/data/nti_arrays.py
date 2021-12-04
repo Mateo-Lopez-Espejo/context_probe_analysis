@@ -18,7 +18,7 @@ def raster_from_sig(signal, regex, channels, smooth_window=None, raster_fs=None,
     P = 1  # number of probes
     R = np.min(
         [val.shape[0] for val in
-         extracted.values()])  # number of repetitions ToDo solve the need to drop repetitions
+         extracted.values()])  # number of repetitions
     U = len(channels)  # number of units
     T = np.max([val.shape[2] for val in extracted.values()])  # number of time bins
 
