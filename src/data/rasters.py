@@ -2,21 +2,12 @@ import itertools as itt
 
 import numpy as np
 from nems import epoch as nep
-from joblib import Memory
-from configparser import ConfigParser
-import pathlib as pl
 
-from src.data.load import load_with_parms
+from src.data.load import load
 from src.metrics.reliability import signal_reliability
 from src.utils import tools as tools
 from src.utils.cpp_parameter_handlers import _channel_handler
 from src.utils.tools import raster_smooth
-from src.root_path import config_path
-
-
-config = ConfigParser()
-config.read_file(open(config_path / 'settings.ini'))
-memory = Memory(str(pl.Path(config['paths']['recording_cache']) / 'rasters'))
 
 
 def _make_full_array(signal, channels='all', smooth_window=None, raster_fs=None, zscore=False):
@@ -256,7 +247,6 @@ def raster_from_sig(signal, probes, channels, contexts, smooth_window, raster_fs
 
     return raster
 
-@memory.cache
 def load_site_formated_raster(site, contexts, probes, meta, part='probe', recache_rec=False):
     """
     wrapper of wrappers. Load a recording, selects the subset of data (triplets, or permutations), generates raster using
@@ -271,7 +261,7 @@ def load_site_formated_raster(site, contexts, probes, meta, part='probe', recach
     :return: raster with shape Repetitions x Cells x Contexts x Probes x Time_bins
     """
 
-    recs, _ = load_with_parms(site, rasterfs=meta['raster_fs'], recache=recache_rec)
+    recs, _ = load(site, rasterfs=meta['raster_fs'], recache=recache_rec)
     if len(recs) > 2:
         print(f'\n\n{recs.keys()}\n\n')
 
