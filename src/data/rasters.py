@@ -247,15 +247,19 @@ def raster_from_sig(signal, probes, channels, contexts, smooth_window, raster_fs
 
     return raster
 
-def load_site_formated_raster(site, contexts, probes, meta, part='probe', recache_rec=False):
+def load_site_formated_raster(site, contexts='all', probes='all',
+                              meta={'raster_fs':30, 'reliability':0.1, 'smoothing_window':0,
+                                    'stim_type': 'permutations', 'zscore':True},
+                              part='probe', recache_rec=False):
     """
     wrapper of wrappers. Load a recording, selects the subset of data (triplets, or permutations), generates raster using
     selected  probes and transitions
+    defaults are the most sensitive after lots of fiddling
     :param site: str e.g. "TNC050"
     :param contexts: list[int] or "all",
     :param probes: list[int] or "all",
     :param meta: dict with fields: "raster_fs": samps/s, "reliability" r^2, "smooth_window":ms ,
-    "stim_Type": 'triplets' or 'permutations', "zscore": boolean.
+    "stim_type": 'triplets' or 'permutations', "zscore": boolean.
     :param part: "context", "probe", "all" default "probe"
     :param recache_rec: boolean, Default False
     :return: raster with shape Repetitions x Cells x Contexts x Probes x Time_bins
