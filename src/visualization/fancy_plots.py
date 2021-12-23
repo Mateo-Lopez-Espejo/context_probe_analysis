@@ -17,13 +17,15 @@ import scipy.ndimage.filters as sf
 import scipy.signal as ssig
 import scipy.stats as sst
 
+from nems.signal import PointProcess
+
 from src.utils.cpp_parameter_handlers import _epoch_name_handler, _channel_handler, _fs_handler
 from src.utils import fits as fts
 from src.data.dPCA import variance_captured as var_capt
-from nems.signal import PointProcess
+from src.root_path import config_path
 
 config = ConfigParser()
-config.read_file(open(pl.Path(__file__).parents[2] / 'config' / 'settings.ini'))
+config.read_file(open(config_path / 'settings.ini'))
 
 # todo redo the distribution of axes in figures for psth, there is not purpose in plotig multiple signals as different
 # rows, rather the subplotse should correspond to individual cells, and elements within each axis should correspond to
@@ -1281,5 +1283,56 @@ def weight_pdf(dpca, marginalization=None, axes=None, cellnames=None, only_first
                     # todo diferenciate betwee minor and mayor ticks
                     axes[mm].set_xticks(ticks)
                     axes[mm].set_xticklabels(tick_lables, rotation='vertical')
+
+    return fig, axes
+
+
+def squarefy(t,y):
+    """
+    Takes a vector or 2d array meant to be plotted as lines, and transforms into a format what when plotted, displays
+    square time bins, like a histogram or PSTH.
+    :param y: vector, or 2d array
+    :param t:
+    :return:
+    """
+    # duplicates y values to define left and right edges of square
+    # duplicates and rolls t values so  y values are connected by either horizontal or vertical lines
+    yy = np.repeat(y,2, axis=0)
+    tt = np.roll(np.repeat(t, 2), -1)
+    tt[-1] = tt[-2] + t[-1] - t[-2]
+    return tt, yy
+
+
+def quantified_dprime(dprime, confidence_interval, significance, raster_fs, show_legend=True):
+
+    signif_mask = significance>0
+    t =  np.linspace(0, 1, dprime.shape[-1],endpoint=False) * raster_fs
+
+    # calculates center of mass and integral
+    significant_abs_mass_center = np.sum(np.abs(dprime[signif_mask]) * t[signif_mask]) / np.sum(np.abs(dprime[signif_mask]))
+    significant_abs_sum = np.sum(np.abs(dprime[signif_mask])) * np.mean(np.diff(t))
+
+    fig, axes = plt.subplots()
+
+    # plots dprime plus fit
+    tt, mmdd = squarefy(t, dprime)
+    axes.plot(tt, mmdd, color='black', linewidth=2)
+    _, CCII = squarefy(t, confidence_interval.T)
+    axes.fill_between(tt, CCII[:,0], CCII[:,1], color='black', alpha=0.3)
+    _ = axes.axhline(0, color='white', linewidth=1, linestyle='--', alpha=0.5)
+
+    p1 = axes.fill_between(tt, 0, mmdd, where=np.repeat(signif_mask,2), color='C2', alpha=0.8,
+                           label=f"integral\n{significant_abs_sum:.2f} d'*ms")
+
+    p2 = axes.axvline(significant_abs_mass_center, color='C4', linewidth=4, linestyle='--',
+                 label=f'center of mass\n{significant_abs_mass_center:.2f} ms')
+
+    if show_legend:
+        axes.legend(handles=[p1, p2], loc='upper right')
+    # plt.legend(handles=[p1, p2], bbox_to_anchor=(1.05, 1), loc='upper left')
+
+    # formats axis, legend and so on.
+    axes.set_ylabel(f"contextual effects discriminability (d')")
+    axes.set_xlabel('time (ms)')
 
     return fig, axes

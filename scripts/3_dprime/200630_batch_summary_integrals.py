@@ -162,7 +162,7 @@ for analysis, source, parameter, compare in itt.product(analyses, sources, param
 
 
 ########################################################################################################################
-# Comparisons between ingegral and significant integral for the subsets of probes mean... ?? ToDo complete
+# Comparisons between ingegral and significant integral for the subsets of probes mean... ??
 analyses = ['SC', 'dPCA']
 sources = ['dprime']
 parameters = ['integral', 'significant_integral']

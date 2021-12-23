@@ -50,7 +50,7 @@ for site in all_sites:
         # get a specific probe after a set of different transitions
         trialR = full_array[:, probe, :, :, 100:][:, None, :, :, :]  # only includes response to probe
         # reorders dimentions from Context x Probe x Trial x Neuron x Time  to  Trial x Neuron x Context x Probe x Time
-        trialR, R, _ = cdPCA.format_raster(trialR)
+        trialR, R, _ = cdPCA.get_centered_means(trialR)
         Tr, N, C, P, T = trialR.shape
 
         trialR, R = trialR.squeeze(), R.squeeze()

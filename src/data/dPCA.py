@@ -6,22 +6,20 @@ import numpy as np
 from dPCA import dPCA
 
 
-def format_raster(raster):
+def get_centered_means(raster):
     '''
-    formats a CPP/CPN raster into the trial and mean arrays required for dPCA
-    :param raster: np.array. with dimensions Context x Probe x Trial x Neuron x Time
-    :return:
+    get the zero centered tiral average for a raster array
+    :param raster: np.array. with dimensions Repetition x Neuron x Context x Probe x Time
+    :return: np.array with dimensions Neuron x Context x Probe x time
     '''
-    # reorders dimentions from Context x Probe x Trial x Neuron x Time  to  Trial x Neuron x Context x Probe x Time
-    trialR = raster.transpose([2, 3, 0, 1, 4])
-    Tr, N, C, P, T = trialR.shape
+
+    Tr, N, C, P, T = raster.shape
     # trial-average data
-    R = np.mean(trialR, 0)
+    R = np.mean(raster, 0)
     # center data
     centers = np.mean(R.reshape((N, -1)), 1)[:, None, None, None]
     R -= centers
-
-    return trialR, R, centers
+    return R
 
 
 def _cpp_dPCA(R, trialR, dPCA_parms={}):

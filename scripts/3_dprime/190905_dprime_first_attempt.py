@@ -117,7 +117,7 @@ for site, probe in zip(['AMT029a', 'ley070a'],[5,2]):
                                               smooth_window=meta['smoothing_window'], raster_fs=meta['raster_fs'])
 
     # trialR shape: Trial x Cell x Context x Probe x Time; R shape: Cell x Context x Probe x Time
-    trialR, R, centers = cdPCA.format_raster(raster)
+    trialR, R, centers = cdPCA.get_centered_means(raster)
     trialR, R = trialR.squeeze(), R.squeeze()
 
 

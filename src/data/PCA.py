@@ -43,7 +43,6 @@ def signal_PCA(signal, center=True):
 
 
 def recording_PCA(recording, signal_names='all', inplace=False, center=True):
-    # todo, what is the risk of making independent PCAs for different signals in the recordign?
 
     if signal_names == 'all':
         # if 'all' makes PCA for all the sig that are not a product of PCA

@@ -80,7 +80,7 @@ def dPCA_fourway_analysis(site, probe, meta):
                                               zscore=meta['zscore'])
 
     # trialR shape: Trial x Cell x Context x Probe x Time; R shape: Cell x Context x Probe x Time
-    trialR, R, _ = cdPCA.format_raster(raster)
+    trialR, R, _ = cdPCA.get_centered_means(raster)
     trialR, R = trialR.squeeze(), R.squeeze()  # squeezes out probe
     Re, C, S, T = trialR.shape
 
@@ -141,7 +141,7 @@ def dPCA_twoway_analysis(site, probe, meta):
                                                   zscore=meta['zscore'])
 
         # trialR shape: Trial x Cell x Context x Probe x Time; R shape: Cell x Context x Probe x Time
-        trialR, R, _ = cdPCA.format_raster(raster)
+        trialR, R, _ = cdPCA.get_centered_means(raster)
         trialR, R = trialR.squeeze(), R.squeeze()  # squeezes out probe
         Re, C, S, T = trialR.shape
 

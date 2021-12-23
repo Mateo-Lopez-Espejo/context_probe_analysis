@@ -51,7 +51,7 @@ for site in all_sites:
     all_probes.pop(0)
 
     # reorders dimentions from Context x Probe x Trial x Neuron x Time  to  Trial x Neuron x Context x Probe x Time
-    trialR, R, _= cdPCA.format_raster(trialR)
+    trialR, R, _= cdPCA.get_centered_means(trialR)
     Tr, N, C, P, T = trialR.shape
 
     n_components = N if N < 10 else 10

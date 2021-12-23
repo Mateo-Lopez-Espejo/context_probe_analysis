@@ -280,7 +280,7 @@ raster = src.data.rasters.raster_from_sig(sig, probe, channels=goodcells, contex
                                           smooth_window=meta['smoothing_window'], raster_fs=meta['raster_fs'])
 
 # trialR shape: Trial x Cell x Context x Probe x Time; R shape: Cell x Context x Probe x Time
-trialR, R, _ = cdPCA.format_raster(raster)
+trialR, R, _ = cdPCA.get_centered_means(raster)
 trialR = trialR.squeeze() # squeezes out probe
 R, C, S, T = trialR.shape
 
