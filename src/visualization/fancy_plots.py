@@ -1303,7 +1303,7 @@ def squarefy(t,y):
     return tt, yy
 
 
-def quantified_dprime(dprime, confidence_interval, significance, raster_fs, show_legend=True):
+def quantified_dprime(dprime, confidence_interval, significance, raster_fs, show_legend=True, ax=None):
 
     signif_mask = significance>0
     t =  np.linspace(0, 1, dprime.shape[-1],endpoint=False) * raster_fs
@@ -1312,27 +1312,31 @@ def quantified_dprime(dprime, confidence_interval, significance, raster_fs, show
     significant_abs_mass_center = np.sum(np.abs(dprime[signif_mask]) * t[signif_mask]) / np.sum(np.abs(dprime[signif_mask]))
     significant_abs_sum = np.sum(np.abs(dprime[signif_mask])) * np.mean(np.diff(t))
 
-    fig, axes = plt.subplots()
+    if ax is None:
+        fig, ax = plt.subplots()
+    else:
+        fig = ax.figure
+
 
     # plots dprime plus fit
     tt, mmdd = squarefy(t, dprime)
-    axes.plot(tt, mmdd, color='black', linewidth=2)
+    ax.plot(tt, mmdd, color='black', linewidth=2)
     _, CCII = squarefy(t, confidence_interval.T)
-    axes.fill_between(tt, CCII[:,0], CCII[:,1], color='black', alpha=0.3)
-    _ = axes.axhline(0, color='white', linewidth=1, linestyle='--', alpha=0.5)
+    ax.fill_between(tt, CCII[:,0], CCII[:,1], color='black', alpha=0.3)
+    _ = ax.axhline(0, color='white', linewidth=1, linestyle='--', alpha=0.5)
 
-    p1 = axes.fill_between(tt, 0, mmdd, where=np.repeat(signif_mask,2), color='C2', alpha=0.8,
+    p1 = ax.fill_between(tt, 0, mmdd, where=np.repeat(signif_mask,2), color='C2', alpha=0.8,
                            label=f"integral\n{significant_abs_sum:.2f} d'*ms")
 
-    p2 = axes.axvline(significant_abs_mass_center, color='C4', linewidth=4, linestyle='--',
+    p2 = ax.axvline(significant_abs_mass_center, color='C4', linewidth=4, linestyle='--',
                  label=f'center of mass\n{significant_abs_mass_center:.2f} ms')
 
     if show_legend:
-        axes.legend(handles=[p1, p2], loc='upper right')
+        ax.legend(handles=[p1, p2], loc='upper right')
     # plt.legend(handles=[p1, p2], bbox_to_anchor=(1.05, 1), loc='upper left')
 
     # formats axis, legend and so on.
-    axes.set_ylabel(f"contextual effects discriminability (d')")
-    axes.set_xlabel('time (ms)')
+    ax.set_ylabel(f"contextual effects discriminability (d')")
+    ax.set_xlabel('time (ms)')
 
-    return fig, axes
+    return fig, ax

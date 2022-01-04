@@ -1,6 +1,7 @@
 import pathlib as pl
 from configparser import ConfigParser
 from math import pi
+import itertools as itt
 
 import numpy as np
 import scipy.stats as sst
@@ -11,9 +12,10 @@ import pandas as pd
 import  joblib as jl
 
 from src.data.rasters import load_site_formated_raster
-from src.metrics.consolidated_dprimes import _load_full_dPCA_raster
+from src.metrics.consolidated_dprimes import _load_full_dPCA_raster, single_cell_dprimes
+from src.metrics.significance import _significance
 
-from src.visualization.fancy_plots import squarefy
+from src.visualization.fancy_plots import squarefy, quantified_dprime
 
 
 # list of sequences, manually prepended zeros
@@ -27,11 +29,23 @@ colors = ['blue', 'orange', 'green', 'purple', 'brown']
 dummy_wave = np.sin(np.linspace(0,pi*4,n_samps)) # todo, pull some real example waves??
 waves = [np.zeros(n_samps)] + [dummy_wave, ] * 5 + [np.zeros(n_samps)]
 verrical_offset = -2
-prb_idx = 3 # sound around wich draw rectangles
+prb_idx = 3 - 1# selected probe. the -1 is to acount for 0 not being used
 ctx_pair = [0,1] # pair of contexts to compare and exemplify d'
 cellid = 'ARM021b-36-8'
 
-# sound sequences plus selected examples
+##############################################################################
+########## figure and subplots locations #####################################
+##############################################################################
+
+
+
+
+
+
+##############################################################################
+# sound sequences plus selected examples #####################################
+##############################################################################
+
 fig, ax = plt.subplots()
 for ss, seq in enumerate(sequences):
     for ww, wave_idx in enumerate(seq):
@@ -55,8 +69,10 @@ for ss, seq in enumerate(sequences):
             ax.add_patch(rect)
 
 
+##############################################################################
+# stimulus selected examples and context type clasification ##################
+##############################################################################
 
-# stimulus selected examples and context type clasification
 fig, ax = plt.subplots()
 for ww, (wave, color) in enumerate(zip(waves, colors)):
     # context
@@ -68,12 +84,13 @@ for ww, (wave, color) in enumerate(zip(waves, colors)):
     y = waves[prb_idx] + ww * verrical_offset
     ax.plot(x, y, colors[prb_idx])
 
+ax.axvline(0, color='black', linestyle=':')
 
-# example response
+##############################################################################
+# example response ###########################################################
+##############################################################################
 site_raster, goodcellse = load_site_formated_raster(cellid[:7], part='all', smoothing_window=50)
-
 eg_raster = site_raster[:, goodcellse.index(cellid),:, prb_idx, :]
-
 fig, ax = plt.subplots()
 
 
@@ -98,12 +115,34 @@ for cxt_idx in ctx_pair:
         else:
             ax.fill_between(x, y-ystd, y+ystd, facecolor=color, edgecolor=part_color[0], hatch='xxx', alpha=0.5)
 
+ax.axvline(0, color='black', linestyle=':')
+
+##############################################################################
+######## dprime and significant metrics from the example context pair ########
+##############################################################################
+
+meta = {'reliability': 0.1,  # r value
+        'smoothing_window': 0,  # ms
+        'raster_fs': 30,
+        'montecarlo': 1000,
+        'zscore': True,
+        'dprime_absolute': None,
+        'stim_type': 'permutations',
+        'alpha':0.05}
+
+dprime, shuff_dprime_quantiles, goodcells, var_capt = single_cell_dprimes(cellid[:7], contexts='all', probes='all', meta=meta)
+significance, confidence_interval = _significance(dprime, shuff_dprime_quantiles,
+                                                  multiple_comparisons_axis=[3], consecutive=3, alpha=meta['alpha'])
+cell_idx = goodcells.index(cellid) if len(cellid) > 7 else 0
+pair_idx = [f'{t0}_{t1}' for t0, t1 in itt.combinations(range(dprime.shape[2]), 2)].index(f'{ctx_pair[0]}_{ctx_pair[1]}')
 
 
-
-
-
-
+fig, ax = plt.subplots()
+# this specific example is flipped,
+fig, ax = quantified_dprime(dprime[cell_idx, pair_idx, prb_idx, :] * -1,
+                            confidence_interval[:, cell_idx, pair_idx, prb_idx, :] * -1,
+                            significance[cell_idx, pair_idx, prb_idx, :],
+                            raster_fs=meta['raster_fs'], ax=ax)
 
 
 

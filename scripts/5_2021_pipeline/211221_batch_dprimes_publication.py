@@ -27,18 +27,16 @@ it is meant to run the streamlined analysis after choosing some of the relevant 
 config = ConfigParser()
 config.read_file(open(config_path / 'settings.ini'))
 
-signif_tails = 'both'
-alpha=0.05
-
 meta = {'reliability': 0.1,  # r value
         'smoothing_window': 0,  # ms
         'raster_fs': 30,
         'montecarlo': 1000,
         'zscore': True,
         'dprime_absolute': None,
-        'stim_type': 'permutations'}
+        'stim_type': 'permutations',
+        'alpha':0.05}
 
-summary_DF_file = pl.Path(config['paths']['analysis_cache']) / f'211221_cxt_metrics_summary_DF_alpha_{alpha}'
+summary_DF_file = pl.Path(config['paths']['analysis_cache']) / f'211221_cxt_metrics_summary_DF_alpha_{meta}'
 summary_DF_file.parent.mkdir(parents=True, exist_ok=True)
 
 analysis_functions = {'SC': single_cell_dprimes, #'LDA':probewise_LDA_dprimes,
@@ -97,7 +95,7 @@ for site, (fname, func) in itt.product(sites, analysis_functions.items()):
     for corr_name, (corr, cons) in multiple_corrections.items():
         print(f'    comp_corr: {corr_name}')
 
-        significance, confidence_interval = _significance(dprime, shuff_dprime_quantiles, corr, cons, alpha=alpha)
+        significance, confidence_interval = _significance(dprime, shuff_dprime_quantiles, corr, cons, alpha=meta['alpha'])
         fliped, _ = flip_dprimes(dprime, flip='sum')
 
         masked_dprime_means = ma.array(fliped, mask=significance == 0)
