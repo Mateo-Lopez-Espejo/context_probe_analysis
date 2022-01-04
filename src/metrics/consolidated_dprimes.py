@@ -33,7 +33,7 @@ def single_cell_dprimes(site, contexts, probes, meta, load_fn=load_site_formated
              goocells (list of strings)
     """
     # trialR, R, goodcells = load_site_formated_raster(site, contexts, probes, meta)
-    trialR, goodcells = load_fn(site, contexts, probes, meta)
+    trialR, goodcells = load_fn(site, contexts, probes, **meta)
 
     rep, chn, ctx, prb, tme = trialR.shape
 
@@ -71,7 +71,7 @@ def single_cell_dprimes(site, contexts, probes, meta, load_fn=load_site_formated
 
 @memory.cache
 def _load_probewise_dPCA_raster(site, contexts, probes, meta, load_fn=load_site_formated_raster):
-    trialR, goodcells = load_fn(site, contexts, probes, meta)
+    trialR, goodcells = load_fn(site, contexts, probes, **meta)
 
     rep, unt, ctx, prb, tme = trialR.shape
     if contexts == 'all':
@@ -119,7 +119,7 @@ def probewise_dPCA_dprimes(site, contexts, probes, meta, load_fn=load_site_forma
              goocells (list of strings)
     """
 
-    trialR, goodcells = load_fn(site, contexts, probes, meta)
+    trialR, goodcells = load_fn(site, contexts, probes, **meta)
 
 
 
@@ -179,7 +179,7 @@ def probewise_dPCA_dprimes(site, contexts, probes, meta, load_fn=load_site_forma
 
 @memory.cache
 def _load_probewise_LDA_raster(site, contexts, probes, meta, load_fn=load_site_formated_raster):
-    trialR, goodcells = load_fn(site, contexts, probes, meta)
+    trialR, goodcells = load_fn(site, contexts, probes, **meta)
 
     rep, unt, ctx, prb, tme = trialR.shape
     if contexts == 'all':
@@ -222,7 +222,7 @@ def probewise_LDA_dprimes(site, contexts, probes, meta, load_fn=load_site_format
              shuffled_dprimes (ndarray with shape Montecarlo x Ctx_pair x Probe x Time),
              goocells (list of strings)
     """
-    trialR, goodcells = load_fn(site, contexts, probes, meta)
+    trialR, goodcells = load_fn(site, contexts, probes, **meta)
 
     trialZ, _, _, transformations, _ = _load_probewise_LDA_raster(site, contexts, probes, meta, load_fn)
 
@@ -275,7 +275,7 @@ def probewise_LDA_dprimes(site, contexts, probes, meta, load_fn=load_site_format
 
 @memory.cache
 def _load_full_dPCA_raster(site, contexts, probes, meta, load_fn=load_site_formated_raster):
-    trialR, goodcells = load_fn(site, contexts, probes, meta)
+    trialR, goodcells = load_fn(site, contexts, probes, **meta)
     R = cdPCA.get_centered_means(trialR)
 
     # calculates full dPCA. i.e. considering all 4 categories
@@ -290,7 +290,7 @@ def _load_full_dPCA_raster(site, contexts, probes, meta, load_fn=load_site_forma
 
 @memory.cache
 def full_dPCA_dprimes(site, contexts, probes, meta, load_fn=load_site_formated_raster):
-    trialR, goodcells = load_fn(site, contexts, probes, meta)
+    trialR, goodcells = load_fn(site, contexts, probes, **meta)
     R = cdPCA.get_centered_means(trialR)
 
     trialZ, Z, goodcells, dpca, var_capt = _load_full_dPCA_raster(site, contexts, probes, meta, load_fn)

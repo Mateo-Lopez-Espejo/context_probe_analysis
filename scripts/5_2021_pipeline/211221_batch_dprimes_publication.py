@@ -27,9 +27,6 @@ it is meant to run the streamlined analysis after choosing some of the relevant 
 config = ConfigParser()
 config.read_file(open(config_path / 'settings.ini'))
 
-rec_recache = False
-dprime_recache = False
-
 signif_tails = 'both'
 alpha=0.05
 
