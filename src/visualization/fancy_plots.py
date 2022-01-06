@@ -1306,7 +1306,7 @@ def squarefy(t,y):
 def quantified_dprime(dprime, confidence_interval, significance, raster_fs, show_legend=True, ax=None):
 
     signif_mask = significance>0
-    t =  np.linspace(0, 1, dprime.shape[-1],endpoint=False) * raster_fs
+    t =  np.linspace(0, dprime.shape[-1]/raster_fs, dprime.shape[-1],endpoint=False) * 1000
 
     # calculates center of mass and integral
     significant_abs_mass_center = np.sum(np.abs(dprime[signif_mask]) * t[signif_mask]) / np.sum(np.abs(dprime[signif_mask]))
@@ -1340,3 +1340,5 @@ def quantified_dprime(dprime, confidence_interval, significance, raster_fs, show
     ax.set_xlabel('time (ms)')
 
     return fig, ax
+
+
