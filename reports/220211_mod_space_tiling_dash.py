@@ -11,6 +11,25 @@ from dash import Dash, dcc, html, Input, Output
 from src.root_path import config_path
 from src.visualization.palette import *
 
+#
+# from math import pi
+# import itertools as itt
+#
+# import numpy as np
+#
+# import plotly.graph_objs as go
+# from plotly.subplots import make_subplots
+# from webcolors import name_to_rgb, hex_to_rgb
+# from src.root_path import root_path
+#
+# from src.data.rasters import load_site_formated_raster
+# from src.metrics.consolidated_dprimes import single_cell_dprimes
+# from src.metrics.significance import _significance
+#
+# from src.visualization.fancy_plots import squarefy
+# from src.visualization.palette import *
+
+
 #### general configuration to import the right data and caches
 config = ConfigParser()
 config.read_file(open(config_path / 'settings.ini'))
@@ -194,6 +213,91 @@ def _plot_neuron_tiling(picked_neuron):
                       )
 
     return fig
+
+
+# def plot_paired_psths():
+#     # cellid = cellid
+#     # prb_idx = prb_idx
+#     # ctx_pair = ctx_pair
+#     colors = [Grey, Yellow, Red, Teal, Brown]
+#
+#     # rasters
+#     site_raster, goodcellse = load_site_formated_raster(cellid[:7], part='all', smoothing_window=50)
+#     eg_raster = site_raster[:, goodcellse.index(cellid), :, prb_idx, :]
+#
+#     fig = go.Figure()
+#
+#     # dprimes
+#
+#     for cxt_idx in ctx_pair:
+#         nsamps = eg_raster.shape[-1]
+#         time = np.linspace(-1, 1, nsamps)
+#         mean_resp = np.mean(eg_raster[:, cxt_idx, :], axis=0)
+#         std_resp = np.std(eg_raster[:, cxt_idx, :], axis=0)
+#
+#         halfs = [np.s_[:int(nsamps / 2)], np.s_[int(nsamps / 2):]]
+#         part_color = [colors[cxt_idx], colors[prb_idx]]
+#
+#         for nn, (half, color) in enumerate(zip(halfs, part_color)):
+#
+#             x, y = squarefy(time[half], mean_resp[half])
+#             _, ystd = squarefy(time[half], std_resp[half])
+#
+#             # off set half a bin to the left
+#             halfbin = np.mean(np.diff(time)) / 2
+#             x -= halfbin
+#             y -= halfbin
+#             ystd -= halfbin
+#
+#             if nn == 0:
+#                 # ax.fill_between(x, y-ystd, y+ystd, color=color, alpha=0.5)
+#                 _ = fig.add_scatter(x=x, y=y + ystd, mode='lines', line_color=color, line_width=1)
+#                 _ = fig.add_scatter(x=x, y=y - ystd, mode='lines', line_color=color, line_width=1,
+#                                              fill='tonexty')
+#
+#             else:
+#                 # to set a transparent fillcolor changes the 'rgb(x,y,z)' into 'rgba(x,y,z,a)'
+#                 rgb = hex_to_rgb(part_color[0])  # tupple
+#                 fill_opacity = 0.5
+#                 rgba = f'rgba({rgb[0]}, {rgb[1]}, {rgb[2]}, {fill_opacity})'
+#
+#                 _ = fig.add_scatter(x=x, y=y + ystd, mode='lines', line_color=color, line_width=1)
+#                 _ = fig.add_scatter(x=x, y=y - ystd, mode='lines', line_color=color, line_width=1,
+#                                              fill='tonexty', fillcolor=rgba)
+#
+#             # set the mean lines second so they lie on top of the colored areas
+#             _ = fig.add_scatter(x=x, y=y, mode='lines', line_color=color, line_width=3)
+#
+#     _ = fig.add_vline(x=0, line_width=2, line_color='black', line_dash='dot', opacity=1)
+#
+#     _ = fig.update_xaxes(title_text='time from probe onset (s)', title_standoff=0)
+#     _ = fig.update_yaxes(title_text='firing rate (z-score)', title_standoff=0)
+#
+#
+#
+#
+#
+#     return None
+#
+# def plot_quantified_dprime():
+#     meta = {'reliability': 0.1,  # r value
+#             'smoothing_window': 0,  # ms
+#             'raster_fs': 30,
+#             'montecarlo': 1000,
+#             'zscore': True,
+#             'dprime_absolute': None,
+#             'stim_type': 'permutations',
+#             'alpha': 0.05}
+#
+#     dprime, shuff_dprime_quantiles, goodcells, var_capt = single_cell_dprimes(cellid[:7], contexts='all', probes='all',
+#                                                                               meta=meta)
+#     significance, confidence_interval = _significance(dprime, shuff_dprime_quantiles,
+#                                                       multiple_comparisons_axis=[3], consecutive=3, alpha=meta['alpha'])
+#     cell_idx = goodcells.index(cellid) if len(cellid) > 7 else 0
+#     pair_idx = [f'{t0}_{t1}' for t0, t1 in itt.combinations(range(dprime.shape[2]), 2)].index(
+#         f'{ctx_pair[0]}_{ctx_pair[1]}')
+#
+#     return None
 
 
 #### dashboard general layout
