@@ -9,7 +9,7 @@ from joblib import Memory
 from src.data.rasters import load_site_formated_raster
 from src.data import LDA as cLDA, dPCA as cdPCA
 from src.metrics import dprime as cDP
-from src.metrics.significance import _signif_quantiles
+from src.metrics.significance import _signif_quantiles, _raw_pvalue
 from src.utils.tools import shuffle_along_axis as shuffle
 from src.root_path import config_path
 
@@ -23,14 +23,15 @@ memory = Memory(str(pl.Path(config['paths']['analysis_cache']) / 'consolidated_d
 @memory.cache
 def single_cell_dprimes(site, contexts, probes, meta, load_fn=load_site_formated_raster):
     """
-    calculated the dprime between context for all probes and for all cells in a site. Calculates significance using
-    montecarlo shuffling of the context identity
+    calculated the dprime between context for all probes and for all cells in a site. Calculates dprime using
+    montecarlo shuffling of the context identity, also keeps one shuffled example for other statistical analysis
     :param site: string  identifying the site
     :param probes: list of probe numbers
     :param meta: dict with meta parameters
     :return: dprime (ndarray with shape Unit x Ctx_pair x Probe x Time),
-             shuffled_dprimes (ndarray with shape Montecarlo x Unit x Ctx_pair x Probe x Time),
+             pval_quantiles. dict of arrays of pval(same shape as dprime) or quantiles (upper-lower + dprime.shape)
              goocells (list of strings)
+             shuffled_eg: dict with dprime and pvalue arrays for an example shuffled value (same shape as dprime)
     """
     # trialR, R, goodcells = load_site_formated_raster(site, contexts, probes, meta)
     trialR, goodcells = load_fn(site, contexts, probes, **meta)
@@ -46,27 +47,49 @@ def single_cell_dprimes(site, contexts, probes, meta, load_fn=load_site_formated
     print(f"\nshuffling {meta['montecarlo']} times")
     rng = np.random.default_rng(42)
 
-    # does shuffling on a cell by cell basis to deal with memory limits
-    shuff_dprime_quantiles = defaultdict(list)
+    # shuffling on a context pair basis for consistancy with the pairwise dprime, and as a bonus, to deal with memory issues
+    ctx_pairs = list(itt.combinations(range(ctx),2))
 
-    for cc in range(chn):
+    qnt_shape = (2, ) + dprime.shape
+    quantiles = defaultdict(lambda : np.zeros(qnt_shape))
+    pvalue = np.zeros_like(dprime)
 
-        shuf_trialR = np.empty((meta['montecarlo'], rep, ctx, prb, tme))
-        ctx_shuffle = trialR[:, cc, :, :, :].copy()
+    shuf_eg_dprime = np.zeros_like(dprime)
+    shuf_eg_pvalue = np.zeros_like(dprime)
+
+    for cpn, (c0, c1) in enumerate(ctx_pairs):
+        print(f"    context pair {c0:02d}_{c1:02d}")
+        shuf_trialR = np.empty((meta['montecarlo'], rep, chn, 2, prb, tme))
+        ctx_shuffle = trialR[:, :, (c0,c1), :, :].copy() # tria, context, probe, time
 
         for rr in range(meta['montecarlo']):
-            shuf_trialR[rr, ...] = shuffle(ctx_shuffle, shuffle_axis=1, indie_axis=0, rng=rng)
+            shuf_trialR[rr, ...] = shuffle(ctx_shuffle, shuffle_axis=2, indie_axis=0, rng=rng)
 
-        neur_shuff_dprime = cDP.pairwise_dprimes(shuf_trialR, observation_axis=1, condition_axis=2,
+        neur_shuff_dprime = cDP.pairwise_dprimes(shuf_trialR, observation_axis=1, condition_axis=3,
                                                flip=meta['dprime_absolute'])
 
+        # saves neuron pval for refined multiple comparisons with flexible alphas
+        real_dprime = dprime[:,ctx_pairs.index((c0, c1)),...][:,None,...]
+        pvalue[:,cpn,:,:] = _raw_pvalue(real_dprime, neur_shuff_dprime).squeeze(axis=1)
+
+        # saves quantiles mostly for display, i.e. gray confidense intervale on dprime plots
         neur_shuff_quantils = _signif_quantiles(neur_shuff_dprime)
-
         for alpha, qntls in neur_shuff_quantils.items():
-            shuff_dprime_quantiles[alpha].append(qntls)
+            quantiles[alpha][:,:,cpn,:,:] = qntls.squeeze(axis=2)
 
-    shuff_dprime_quantiles = {alpha: np.stack(qntls, axis=1) for alpha, qntls in shuff_dprime_quantiles.items()}
-    return dprime, shuff_dprime_quantiles, goodcells, None
+
+        # saves onle last single random shuffle example and its corresponding pvlaue
+        sf_eg = shuffle(ctx_shuffle, shuffle_axis=2, indie_axis=0, rng=rng)
+        sf_eg_dprime = cDP.pairwise_dprimes(sf_eg, observation_axis=0, condition_axis=2,
+                                                       flip=meta['dprime_absolute'])
+        shuf_eg_dprime[:,cpn,:,:] = sf_eg_dprime.squeeze(axis=1)
+        shuf_eg_pvalue[:,cpn,:,:] = _raw_pvalue(sf_eg_dprime, neur_shuff_dprime).squeeze(axis=1)
+
+    # neat little output packages.
+    pval_quantiles = {'pvalue':pvalue, **quantiles}
+    shuffled_eg=dict(dprime=shuf_eg_dprime, pvalue=shuf_eg_pvalue)
+
+    return dprime, pval_quantiles, goodcells, shuffled_eg
 
 
 @memory.cache
@@ -118,7 +141,7 @@ def probewise_dPCA_dprimes(site, contexts, probes, meta, load_fn=load_site_forma
              shuffled_dprimes (ndarray with shape Montecarlo x PC x Ctx_pair x Probe x Time),
              goocells (list of strings)
     """
-
+    raise NotImplementedError('BROKEN STATISTICS!: ensure that you are calculating shuffles on a context-pair basis')
     trialR, goodcells = load_fn(site, contexts, probes, **meta)
 
 
@@ -222,6 +245,7 @@ def probewise_LDA_dprimes(site, contexts, probes, meta, load_fn=load_site_format
              shuffled_dprimes (ndarray with shape Montecarlo x Ctx_pair x Probe x Time),
              goocells (list of strings)
     """
+    raise NotImplementedError('BROKEN STATISTICS!: ensure that you are calculating shuffles on a context-pair basis')
     trialR, goodcells = load_fn(site, contexts, probes, **meta)
 
     trialZ, _, _, transformations, _ = _load_probewise_LDA_raster(site, contexts, probes, meta, load_fn)
@@ -290,6 +314,7 @@ def _load_full_dPCA_raster(site, contexts, probes, meta, load_fn=load_site_forma
 
 @memory.cache
 def full_dPCA_dprimes(site, contexts, probes, meta, load_fn=load_site_formated_raster):
+    raise NotImplementedError('BROKEN STATISTICS!: ensure that you are calculating shuffles on a context-pair basis')
     trialR, goodcells = load_fn(site, contexts, probes, **meta)
     R = cdPCA.get_centered_means(trialR)
 
@@ -337,4 +362,29 @@ def full_dPCA_dprimes(site, contexts, probes, meta, load_fn=load_site_formated_r
     shuff_dprime_quantiles = _signif_quantiles(shuffled_dprime)
 
     return dprime, shuff_dprime_quantiles, goodcells, var_capt
+
+
+if __name__ == "__main__":
+
+    id = 'TNC010a' # A1 10 sounds
+    # id = 'ARM022a' # PEG 4 sounds
+
+    out = single_cell_dprimes(site=id,contexts='all',probes='all',
+                        meta={'reliability': 0.1,  # r value
+                              'smoothing_window': 0,  # ms
+                              'raster_fs': 30,
+                              'montecarlo': 1000,
+                              'zscore': True,
+                              'dprime_absolute': None,
+                              'stim_type': 'permutations',
+                              'alpha': 0.05}, )
+
+    for ii in out:
+        print(type(ii))
+
+    pass
+
+
+
+
 

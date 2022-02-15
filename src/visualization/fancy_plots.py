@@ -9,8 +9,6 @@ from matplotlib import pyplot as plt
 import seaborn as sns
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 from seaborn.utils import remove_na
-from statannot import add_stat_annotation as original_stat_annotation
-
 
 import numpy as np
 import scipy.ndimage.filters as sf
@@ -1054,49 +1052,6 @@ def paired_comparisons (ax, data=None, x=None, y=None, hue=None, units=None, ord
     ax.plot(box_x_position, box_data_array, **linekwargs)
 
     return ax
-
-
-def add_stat_annotation(ax, plot='boxplot',
-                        data=None, x=None, y=None, hue=None, units=None, order=None,
-                        hue_order=None, box_pairs=None, width=0.8,
-                        perform_stat_test=True,
-                        pvalues=None, test_short_name=None,
-                        test=None, text_format='star',
-                        text_annot_custom=None,
-                        loc='inside', show_test_name=True,
-                        stats_params=dict(),
-                        comparisons_correction='bonferroni',
-                        use_fixed_offset=False, line_offset_to_box=None,
-                        line_offset=None, line_height=0.02, text_offset=1,
-                        color='0.2', linewidth=1.5,
-                        fontsize='medium', verbose=0):
-
-    """
-    a hack to make add_stat_anotation only draw significant bars
-    Calls twice the original statsanot, the first time to get all the significant pairs, without drawing
-    and the second time to draw only the statistic comparison between the predefined significantly different pairs
-    """
-    arguments = locals()
-
-    # first runns all comparinsons
-    tempfig, tempax = plt.subplots()
-    arg_copy = arguments.copy()
-    arg_copy['ax'] = tempax
-    _, stat_resutls = original_stat_annotation(**arg_copy)
-    plt.close(tempfig)
-
-    # from the results select the box pairs with significant differences
-    significant_pairs = list()
-    for result in stat_resutls:
-        if result.pval < 0.05:
-            significant_pairs.append((result.box1, result.box2))
-
-    if significant_pairs:
-        arguments['box_pairs'] = significant_pairs
-        arguments['verbose'] = 1
-        ax, stat_resutls = original_stat_annotation(**arguments)
-
-    return ax, stat_resutls
 
 
 ##### Other functions

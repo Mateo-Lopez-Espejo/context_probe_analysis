@@ -68,6 +68,38 @@ def where_contiguous_chunks(array, axis, length, func='>='):
 
     return chunk_idx
 
+
+def _raw_pvalue(real_val, mont_array, tails='both'):
+    mont_num = mont_array.shape[0]  # number of montecarlo repetitions
+    if tails == 'both':
+        pvalues = np.sum(np.abs(mont_array) >= np.abs(real_val), axis=0) / mont_num
+    elif tails == 'greater':
+        pvalues = np.sum((mont_array >= real_val), axis=0) / mont_num
+    elif tails == 'lesser':
+        pvalues = np.sum((mont_array >= real_val), axis=0) / mont_num
+    else:
+        raise ValueError("tails must be 'greater' 'lesser' or 'both'")
+
+    return pvalues
+
+def _signif_quantiles(mont_array, alpha=(0.05, 0.01, 0.001)):
+    """
+    returns a dictionary of quantiles from the input montecarlo. These quantiles are effectively the thresholds
+    for significance difference from the Montecarlo distribution on a two tailed test.
+    :param mont_array: array with shape MontecarloReps x ...
+    :param alpha: int, list. alpha or list of alpha values
+    :return: dict of quatiles for each alpha
+    """
+    if not isinstance(alpha, (list, tuple)):
+        alpha = [alpha]
+
+    quantil_dict = dict()
+
+    for alp in alpha:
+        quantil_dict[alp] = np.quantile(mont_array, [alp/2, 1-alp/2], axis=0)
+
+    return quantil_dict
+
 def  _significance(array, mont_array, multiple_comparisons_axis=None, consecutive=None, alpha=0.01, tails='both'):
     """
     calculates significance (boolean) for the values of array using the montecarlo method e.g. n simulations or shuffles of the
@@ -95,15 +127,7 @@ def  _significance(array, mont_array, multiple_comparisons_axis=None, consecutiv
     elif isinstance(mont_array, np.ndarray):
         warnings.warn('Deprecated, instead of passing full montecarlo array instead pass a dict of quantiles')
 
-        mont_num = mont_array.shape[0]  # number of montecarlo repetitions
-        if tails == 'both':
-            pvalues = np.sum(np.abs(mont_array) >= np.abs(array), axis=0) / mont_num
-        elif tails == 'greater':
-            pvalues = np.sum((mont_array >= array), axis=0) / mont_num
-        elif tails == 'lesser':
-            pvalues = np.sum((mont_array >= array), axis=0) / mont_num
-        else:
-            raise ValueError("tails must be 'greater' 'lesser' or 'both'")
+        pvalues = _raw_pvalue(array, mont_array, tails=tails)
         significance = pvalues <= alpha
         # defines the confidence intervals as the top and bottom percentiles summing to alpha
         confidence_interval = np.quantile(mont_array, [alpha / 2, 1 - alpha / 2], axis=0)
@@ -138,25 +162,6 @@ def  _significance(array, mont_array, multiple_comparisons_axis=None, consecutiv
             significance = np.where(sig_count > n_chance_comp, significance, np.full(significance.shape, False))
 
     return significance, confidence_interval
-
-
-def _signif_quantiles(mont_array, alpha=(0.05, 0.01, 0.001)):
-    """
-    returns a dictionary of quantiles from the input montecarlo. These quantiles are effectively the thresholds
-    for significance difference from the Montecarlo distribution on a two tailed test.
-    :param mont_array: array with shape MontecarloReps x ...
-    :param alpha: int, list. alpha or list of alpha values
-    :return: dict of quatiles for each alpha
-    """
-    if not isinstance(alpha, (list, tuple)):
-        alpha = [alpha]
-
-    quantil_dict = dict()
-
-    for alp in alpha:
-        quantil_dict[alp] = np.quantile(mont_array, [alp/2, 1-alp/2], axis=0)
-
-    return quantil_dict
 
 def _mask_with_significance(dprime, significance, label_dictionary, mean_type='zeros', mean_signif_arr=None):
     """
