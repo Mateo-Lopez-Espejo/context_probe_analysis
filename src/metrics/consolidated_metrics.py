@@ -113,8 +113,8 @@ def metrics_to_DF(array, label_dictionary, metrics):
     metrics = {metric: all_metrics[metric] for metric in metrics}
     site_DF = pd.DataFrame()
     for metric_name, func in metrics.items():
-        sig_abs_sum, sas_lab = func(array, label_dictionary)
-        df = arr2df(sig_abs_sum, sas_lab)
+        metric_array, up_lab_dict = func(array, label_dictionary)
+        df = arr2df(metric_array, up_lab_dict)
         df['metric'] = metric_name
         site_DF = site_DF.append(df)
     return site_DF

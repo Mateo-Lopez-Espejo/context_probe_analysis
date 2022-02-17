@@ -233,13 +233,13 @@ def raster_from_sig(signal, probes, channels, contexts, smooth_window, raster_fs
     raster = _extract_sub_arr(probes=probes, contexts=contexts, full_array=full_array,
                               context_names=all_contexts, probe_names=all_probes, stim_type=stim_type, squeeze=False)
 
-    # selects raster for context, probe or both (all)
+    # selects raster for context, probe or both (all), note the copies to save memory space
     if part == 'probe':
         trans_idx = int(np.floor(raster.shape[-1] / 2))
-        raster = raster[..., trans_idx:]
+        raster = raster[..., trans_idx:].copy()
     elif part == 'context':
         trans_idx = int(np.floor(raster.shape[-1] / 2))
-        raster = raster[..., :trans_idx]
+        raster = raster[..., :trans_idx].copy()
     elif part == 'all':
         pass
     else:

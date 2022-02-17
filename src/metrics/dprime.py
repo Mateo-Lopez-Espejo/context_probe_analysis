@@ -1,9 +1,10 @@
 import itertools as itt
 
 import numpy as np
+from math import factorial
 
 
-def ndarray_dprime(array0, array1, axis, flip=None, keepdims=False):
+def ndarray_dprime(array0, array1, axis, keepdims=False):
     """
     general function to calculate the d prime between two arrays with the same shape. the d prime is calculated in
     a dimension wise manner but for the specified axis, which is treated as observations/repetitions
@@ -28,31 +29,14 @@ def ndarray_dprime(array0, array1, axis, flip=None, keepdims=False):
         dprime[np.where(np.isinf(dprime))] = (array0.mean(axis=axis, keepdims=keepdims)
                                               - array1.mean(axis=axis, keepdims=keepdims))[np.isinf(dprime)]
 
-    # due to floating point error, variances that should be zero are really small numbers, which lead to really big
+    # due to floating point error, variances that should be zero are tiny numbers, which lead to huge
     # dprimes, this happens most of the time due zero spikes counted
     dprime[dprime > 100000] = 0
-
-    # multiple options to flip the dprime
-    if flip == 'absolute':
-        dprime = np.abs(dprime)
-
-    elif flip == 'max':
-        # flip value signs so the highest absolute dprime value is positive
-        toflip = (np.abs(np.min(dprime, axis=-1)) > np.max(dprime, axis=-1))[..., None]  # assume last dimension is time
-        dprime = np.negative(dprime, where=toflip, out=dprime)
-
-    elif flip == 'first':
-        # flips value signs so the first value in time is positive.
-        toflip = (dprime[..., 0] < 0)[..., None]  # assumes last dimension is time
-        dprime = np.negative(dprime, where=toflip, out=dprime)
-
-    elif flip is None:
-        pass
 
     return dprime
 
 
-def pairwise_dprimes(array, observation_axis, condition_axis, flip=None, keepdims=False):
+def pairwise_dprimes(array, observation_axis, condition_axis, keepdims=False):
     """
     calculates the dprime in an array where different conditions and different observations correspond to two of the
     dimension of the array.
@@ -62,15 +46,23 @@ def pairwise_dprimes(array, observation_axis, condition_axis, flip=None, keepdim
     :return: array of pairwise correlations whith the paired dprimes along the same dimension as the coditions compared
      e.g. (MOntecarlos) x (Repetitions) x Units x Context_Pairs x (Probes) x Time
     """
+    # drop observations and uses the same axis of conditions as pairs of conditionss
+    newshape = list(array.shape)
+    newshape[observation_axis] = 1
+    newshape[condition_axis] = int(factorial(newshape[condition_axis]) /
+                                  (factorial(newshape[condition_axis]-2)* factorial(2)))
+    dprimes = np.empty(newshape, dtype=float)
 
-    dprimes = list()
-    for c0, c1 in itt.combinations(range(array.shape[condition_axis]), 2):
-        arr0 = np.expand_dims(array.take(c0, axis=condition_axis), axis=condition_axis)
-        arr1 = np.expand_dims(array.take(c1, axis=condition_axis), axis=condition_axis)
-        dprimes.append(ndarray_dprime(arr0, arr1, axis=observation_axis, flip=flip, keepdims=True))
+    for cpn, (c0, c1) in enumerate(itt.combinations(range(array.shape[condition_axis]), 2)):
+        # this slicing, while more complicated that array.take, but it gives views and not copies thus is more memory efficient
+        c0idx =(slice(None),) * condition_axis + (c0,) + (slice(None),) * (array.ndim - condition_axis - 1)
+        c1idx =(slice(None),) * condition_axis + (c1,) + (slice(None),) * (array.ndim - condition_axis - 1)
 
-    # stack the condition pairs along the same dimension of the original conditions
-    dprimes = np.stack(dprimes, axis=condition_axis).squeeze(axis=condition_axis+1)
+        arr0 = np.expand_dims(array[c0idx], axis=condition_axis)
+        arr1 = np.expand_dims(array[c1idx], axis=condition_axis)
+
+        didx = (slice(None),) * condition_axis + (cpn,) + (slice(None),) * (array.ndim - condition_axis - 1)
+        dprimes[didx]=ndarray_dprime(arr0, arr1, axis=observation_axis, keepdims=True).squeeze(axis=condition_axis)
 
     if keepdims is False:
         dprimes = dprimes.squeeze(axis=observation_axis)

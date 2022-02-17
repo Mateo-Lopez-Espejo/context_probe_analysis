@@ -117,7 +117,7 @@ def  _significance(array, mont_array, multiple_comparisons_axis=None, consecutiv
     :param tails: str, 'lesser', 'Greater', 'Both', only used with full montecarlo array.
     :return:
     """
-
+    # todo: rewrite and simplify so it only needs pvalues, some choice of multiple comparisons and an alpha (?)
     # defines signficance based on calculated pvalues or passed quantile thresholds
     if isinstance(mont_array, dict):
         quantiles = mont_array[alpha]
