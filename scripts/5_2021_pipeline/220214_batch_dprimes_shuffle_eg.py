@@ -1,6 +1,5 @@
 from src.metrics.significance import _significance
 from src.metrics.consolidated_dprimes import single_cell_dprimes, probewise_dPCA_dprimes, full_dPCA_dprimes
-from src.metrics.dprime import flip_dprimes
 from src.data.load import get_site_ids
 from src.metrics.consolidated_metrics import metrics_to_DF
 from src.data.region_map import region_map
@@ -27,16 +26,16 @@ it is meant to run the streamlined analysis after choosing some of the relevant 
 config = ConfigParser()
 config.read_file(open(config_path / 'settings.ini'))
 
-meta = {'reliability': 0.1,  # r value
-        'smoothing_window': 0,  # ms
-        'raster_fs': 30,
+meta = {'alpha': 0.05,
         'montecarlo': 1000,
-        'zscore': True,
-        'dprime_absolute': None,
+        'raster_fs': 30,
+        'reliability': 0.1,
+        'smoothing_window': 0,
         'stim_type': 'permutations',
-        'alpha':0.05}
+        'zscore': True}
 
-summary_DF_file = pl.Path(config['paths']['analysis_cache']) / f'220214_ctx_mod_metric_DF_{meta}'
+summary_DF_file = pl.Path(config['paths']['analysis_cache']) / f'220214_ctx_mod_metric_DF'
+summary_DF_file = pl.Path(config['paths']['analysis_cache']) / f'220214_ctx_mod_metric_DF_MCC'
 summary_DF_file.parent.mkdir(parents=True, exist_ok=True)
 
 # analysis_functions = {'SC': single_cell_dprimes, #'LDA':probewise_LDA_dprimes,
@@ -48,7 +47,10 @@ expt = {'contexts': 'all',
 
 # multiple_corrections = {'consecutive_3': ([3], 3),
 #                         'consecutive_4': ([3], 4)}
-multiple_corrections = {'consecutive_3': ([3], 3)}
+multiple_corrections = {'bf_cpt': ([1,2,3], 0),
+                        'bf_ncpt': ([0,1,2,3], 0),
+                        'bf_t': ([3], 0),
+                        'consecutive_3': ([3], 3)}
 
 metrics = ['significant_abs_mass_center', 'significant_abs_sum']
 
@@ -57,15 +59,15 @@ badsites = {'AMT031a', 'DRX008b','DRX021a', 'DRX023a', 'ley074a' } # empirically
 no_perm = {'ley058d'}
 sites = sites.difference(badsites).difference(no_perm)
 print(f'all sites: \n{sites}\n')
-sites = ('TNC014a', 'TNC008a', 'TNC010a')
+sites = set(('TNC010a',))
 
-if summary_DF_file.exists():
-    DF = jl.load(summary_DF_file)
-    ready_sites = set(DF.siteid.unique())
-    sites = sites.difference(ready_sites)
-    print('appening new sites to existing DF', sites)
-else:
-    DF = pd.DataFrame()
+# if summary_DF_file.exists():
+#     DF = jl.load(summary_DF_file)
+#     ready_sites = set(DF.siteid.unique())
+#     sites = sites.difference(ready_sites)
+#     print('appening new sites to existing DF', sites)
+# else:
+#     DF = pd.DataFrame()
 
 
 for site, (fname, func) in itt.product(sites, analysis_functions.items()):
@@ -73,7 +75,10 @@ for site, (fname, func) in itt.product(sites, analysis_functions.items()):
           f'\noutmost loop, working on site {site}, {fname}\n'
           f'########################\n')
 
-    dprime, pval_quantiles, goodcells, shuff_eg = func(site, **expt, meta=meta)
+    dprime, pval_quantiles, goodcells, shuff_eg = func(site, contexts='all', probes='all', meta=meta)
+
+    # pvalue = pval_quantiles['pvalue']
+    # quantiles = {key:val for key,val in pval_quantiles.items() if key != 'pvalue'}
 
     # for analysis with dimensionality reduction, changes the cellname to nan for proper dimension labeling.
     if fname != 'SC':
@@ -98,18 +103,26 @@ for site, (fname, func) in itt.product(sites, analysis_functions.items()):
     for corr_name, (corr, cons) in multiple_corrections.items():
         print(f'    comp_corr: {corr_name}')
 
-        significance, confidence_interval = _significance(dprime, pval_quantiles, corr, cons, alpha=meta['alpha'])
-        fliped, _ = flip_dprimes(dprime, flip='sum')
+        # iterates over real data and shuffled example
 
-        masked_dprime_means = ma.array(fliped, mask=significance == 0)
+        for source in ['real', 'shuffled_eg']:
+            if source == 'real':
+                dp = dprime
+            elif source == 'shuffled_eg':
+                dp = shuff_eg['dprime']
 
-        df = metrics_to_DF(masked_dprime_means, dim_labl_dict, metrics=metrics)
-        df['mult_comp_corr'] = corr_name
-        df['analysis'] = fname
-        df['siteid'] = site
-        df['region'] = region_map[site]
+            significance, confidence_interval = _significance(dp, pval_quantiles, corr, cons, alpha=meta['alpha'])
 
-        DF = DF.append(df,ignore_index=True)
+            masked_dprime = ma.array(dp, mask=significance == 0)
+
+            df = metrics_to_DF(masked_dprime, dim_labl_dict, metrics=metrics)
+            df['mult_comp_corr'] = corr_name
+            df['analysis'] = fname
+            df['siteid'] = site
+            df['region'] = region_map[site]
+            df['source'] = source
+
+            DF = DF.append(df,ignore_index=True)
 
 DF.drop_duplicates(inplace=True)
 

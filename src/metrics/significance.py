@@ -100,7 +100,7 @@ def _signif_quantiles(mont_array, alpha=(0.05, 0.01, 0.001)):
 
     return quantil_dict
 
-def  _significance(array, mont_array, multiple_comparisons_axis=None, consecutive=None, alpha=0.01, tails='both'):
+def  _significance(array, mont_array, multiple_comparisons_axis=None, consecutive=0, alpha=0.01, tails='both', ):
     """
     calculates significance (boolean) for the values of array using the montecarlo method e.g. n simulations or shuffles of the
     original data in array. These n repetitions are specified in the mont_array, therefore mont_array should have the
@@ -118,50 +118,61 @@ def  _significance(array, mont_array, multiple_comparisons_axis=None, consecutiv
     :return:
     """
     # todo: rewrite and simplify so it only needs pvalues, some choice of multiple comparisons and an alpha (?)
-    # defines signficance based on calculated pvalues or passed quantile thresholds
-    if isinstance(mont_array, dict):
-        quantiles = mont_array[alpha]
-        significance = np.logical_or(array < quantiles[0, ...], quantiles[1, ...] < array)
-        confidence_interval = quantiles
 
-    elif isinstance(mont_array, np.ndarray):
-        warnings.warn('Deprecated, instead of passing full montecarlo array instead pass a dict of quantiles')
+    # using quantiles deprecated method. difficult to run bonferroni on it.
+    quantiles = mont_array[alpha]
+    quant_signif = np.logical_or(array < quantiles[0, ...], quantiles[1, ...] < array)
 
-        pvalues = _raw_pvalue(array, mont_array, tails=tails)
-        significance = pvalues <= alpha
-        # defines the confidence intervals as the top and bottom percentiles summing to alpha
-        confidence_interval = np.quantile(mont_array, [alpha / 2, 1 - alpha / 2], axis=0)
-
+    # chose what axis to consider for the correction, e.g only time, or time-ctx_pair-prb (best option)
+    if multiple_comparisons_axis == None:
+        n_comparisons = 1
     else:
-        raise ValueError(f'mont_array must be a dict of arrays or an array but is type {type(mont_array)}')
+        n_comparisons = np.prod(np.asarray(mont_array['pvalue'].shape)[np.asarray(multiple_comparisons_axis)])
 
-    # does corrections, otherwise passe the raw significance
-    if multiple_comparisons_axis is not None:
-        # counts consecutive True values
-        if isinstance(consecutive, int):
-            if len(multiple_comparisons_axis) != 1:
-                raise ValueError('when counting consecutive True, multiple_comparisons_axis must be singleton')
+    # using pvalue
+    corrected_alpha = alpha/n_comparisons
+    pval_signif = mont_array['pvalue'] < corrected_alpha
 
-            chunk_idx = where_contiguous_chunks(significance, multiple_comparisons_axis[0], consecutive, func='>=')
-            chunk_signif = np.full_like(significance, False)
-            chunk_signif[chunk_idx] = True
-            significance = chunk_signif
+    if 1:
+        # quant_signif = np.logical_or(this_dprime < quantiles[0, ...], quantiles[1, ...] < this_dprime)
+        # pval_signif = pvalue[:, cpn, :, :][:, None, :, :] < 0.05
+        bads = np.argwhere(pval_signif != quant_signif)
 
-        # corrects for multiple comparisons
-        elif consecutive is None:
+        bads_nt = np.unique(bads[:, :3], axis=0)
 
-            n_comparisons = np.prod(np.asarray(significance.shape)[np.asarray(multiple_comparisons_axis)])
-            n_chance_comp = np.ceil(n_comparisons * alpha)
+        # bad = bads [0]
+        for bad in bads_nt:
+            print(bad)
+            slice = np.s_[bad[0], bad[1], bad[2], :]
 
-            # count the number of significant bins pooling acrooss the multiple comparisons axis, this is done independently
-            # across all the other non specified axis, e.g. the Unit dimension
-            sig_count = np.sum(significance, axis=tuple(multiple_comparisons_axis), keepdims=True)
+            plt.close('all')
+            fig, ax = plt.subplots()
+            ax.plot(array[slice], color='orange', label='dprime')
+            ax.plot(quant_signif[slice], color='magenta', linestyle=':', label='signif_quant', alpha=0.5)
+            ax.plot(pval_signif[slice], color='cyan', linestyle='--', label='signif_pval', alpha=0.5)
+            ax.plot(mont_array['pvalue'][slice], color='black', label='pvalue')
 
-            # creates a corrected significance by taking the significant bins of a groups of multiple comparisons, if the sum
-            # of significant bins is over the chance comparisons threshold
-            significance = np.where(sig_count > n_chance_comp, significance, np.full(significance.shape, False))
+            ax.fill_between(np.arange(quantiles.shape[-1]),
+                            quantiles[0, bad[0], bad[1], bad[2], :],
+                            quantiles[1, bad[0], bad[1], bad[2], :], color='gray', alpha=0.3, label='cint')
+            ax.axhline(0.05)
+            ax.legend()
 
-    return significance, confidence_interval
+            plt.show()
+
+    significance = pval_signif
+
+    # sketchy consecutive criterium
+    if consecutive > 0:
+        if len(multiple_comparisons_axis) != 1:
+            raise ValueError('when counting consecutive True, multiple_comparisons_axis must be singleton')
+
+        chunk_idx = where_contiguous_chunks(significance, multiple_comparisons_axis[0], consecutive, func='>=')
+        chunk_signif = np.full_like(significance, False)
+        chunk_signif[chunk_idx] = True
+        significance = chunk_signif
+
+    return significance, mont_array[alpha], pval_signif, quant_signif
 
 def _mask_with_significance(dprime, significance, label_dictionary, mean_type='zeros', mean_signif_arr=None):
     """
@@ -199,4 +210,27 @@ def _mask_with_significance(dprime, significance, label_dictionary, mean_type='z
         raise ValueError(f'Unrecognized mean_type: {mean_type}')
 
     return masked_dprime_means, mean_lable_dict
+
+
+if __name__ == '__main__':
+    from src.metrics.consolidated_dprimes import single_cell_dprimes
+    import plotly.express as px
+    import matplotlib.pyplot as plt
+
+    meta = {'alpha': 0.05,
+            'montecarlo': 1000,
+            'raster_fs': 30,
+            'reliability': 0.1,
+            'smoothing_window': 0,
+            'stim_type': 'permutations',
+            'zscore': True}
+    site = 'TNC010a'
+    dprime, pval_quantiles, goodcells, shuff_eg = single_cell_dprimes(site, contexts='all', probes='all', meta=meta)
+
+    multiple_corrections = {'bf_cpt': ([1, 2, 3], 0),
+                            'bf_ncpt': ([0, 1, 2, 3], 0),
+                            'bf_t': ([3], 0),
+                            'consecutive_3': ([3], 3)}
+
+    _significance(dprime, pval_quantiles, None, 0, alpha=meta['alpha'])
 
