@@ -48,29 +48,6 @@ def pairwise_utest(array, observation_axis, condition_axis):
     return uvalues
 
 
-    # # Prealocates output with shape Neuron x Context-pair x Probe x Time
-    # newshape = np.asarray(array.shape)
-    # newshape[2] = int(factorial(newshape[2]) / (factorial(newshape[2]-2)* factorial(2)))
-    # newshape = newshape[1:]
-    # uvalues = np.empty(newshape, dtype=float)
-    #
-    # for cpn, (c0, c1) in enumerate(itt.combinations(range(array.shape[2]), 2)):
-    #     arr0 = array[:,:,c0,:,:]
-    #     arr1 = array[:,:,c1,:,:]
-    #
-    #     uval, pval = sst.mannwhitneyu(arr0, arr1, alternative='two-sided', axis=0)
-    #
-    #     uvalues[:,cpn,:,:] = uval
-    #
-    # return uvalues
-
-
-
-
-
-
-
-
 
 if __name__ == '__main__':
     import matplotlib.pyplot as plt
@@ -81,4 +58,16 @@ if __name__ == '__main__':
 
     raster, goodcells = load_site_formated_raster(id)
 
+    uvalue = pairwise_utest(raster, observation_axis=0, condition_axis=2)
+    resh = uvalue.reshape([-1, uvalue.shape[-1]], order='F')
+    abs = np.abs(resh-200)
+
+    fig, ax = plt.subplots()
+    _ = ax.plot(abs.T, color='gray', alpha=0.5)
+    _ = ax.plot(abs.mean(axis=0), color='black')
+
+    fig, ax = plt.subplots()
+    _ = ax.hist(resh.flatten(),bins=50)
+
+    fig.show()
     pass

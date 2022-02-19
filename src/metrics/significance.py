@@ -100,7 +100,7 @@ def _signif_quantiles(mont_array, alpha=(0.05, 0.01, 0.001)):
 
     return quantil_dict
 
-def  _significance(array, mont_array, multiple_comparisons_axis=None, consecutive=0, alpha=0.01, tails='both', ):
+def  _significance(array, mont_array, multiple_comparisons_axis=None, consecutive=0, alpha=0.01, verbose=False):
     """
     calculates significance (boolean) for the values of array using the montecarlo method e.g. n simulations or shuffles of the
     original data in array. These n repetitions are specified in the mont_array, therefore mont_array should have the
@@ -128,19 +128,31 @@ def  _significance(array, mont_array, multiple_comparisons_axis=None, consecutiv
         n_comparisons = 1
     else:
         n_comparisons = np.prod(np.asarray(mont_array['pvalue'].shape)[np.asarray(multiple_comparisons_axis)])
+        print(f'correcting for {n_comparisons} multiple comparisons, alpha: {alpha} -> {alpha/n_comparisons}')
 
     # using pvalue
     corrected_alpha = alpha/n_comparisons
-    pval_signif = mont_array['pvalue'] < corrected_alpha
+    pval_signif = mont_array['pvalue'] < alpha
+    pval_signif_corr = mont_array['pvalue'] < corrected_alpha
 
-    if 1:
-        # quant_signif = np.logical_or(this_dprime < quantiles[0, ...], quantiles[1, ...] < this_dprime)
-        # pval_signif = pvalue[:, cpn, :, :][:, None, :, :] < 0.05
+    significance = pval_signif_corr
+
+    # sketchy consecutive criterium
+    if consecutive > 0:
+        if len(multiple_comparisons_axis) != 1:
+            raise ValueError('when counting consecutive True, multiple_comparisons_axis must be singleton')
+
+        print(f'considering contiguous chunks, overrides multiple comparisons')
+        chunk_idx = where_contiguous_chunks(quant_signif, multiple_comparisons_axis[0], consecutive, func='>=')
+        chunk_signif = np.full_like(quant_signif, False)
+        chunk_signif[chunk_idx] = True
+        significance = chunk_signif
+
+
+    if verbose:
         bads = np.argwhere(pval_signif != quant_signif)
 
         bads_nt = np.unique(bads[:, :3], axis=0)
-
-        # bad = bads [0]
         for bad in bads_nt:
             print(bad)
             slice = np.s_[bad[0], bad[1], bad[2], :]
@@ -148,31 +160,21 @@ def  _significance(array, mont_array, multiple_comparisons_axis=None, consecutiv
             plt.close('all')
             fig, ax = plt.subplots()
             ax.plot(array[slice], color='orange', label='dprime')
-            ax.plot(quant_signif[slice], color='magenta', linestyle=':', label='signif_quant', alpha=0.5)
-            ax.plot(pval_signif[slice], color='cyan', linestyle='--', label='signif_pval', alpha=0.5)
+            ax.plot(quant_signif[slice], color='red', linestyle='dashed', label='quant_signif', alpha=0.5)
+            # ax.plot(chunk_signif[slice], color='orange', linestyle='dotted', label='chunk_signif', alpha=0.5)
+            ax.plot(pval_signif[slice], color='blue', linestyle='dashed', label='pval_signif', alpha=0.5)
+            ax.plot(pval_signif_corr[slice], color='cyan', linestyle='dotted', label='pval_signif_corr', alpha=0.5)
             ax.plot(mont_array['pvalue'][slice], color='black', label='pvalue')
 
             ax.fill_between(np.arange(quantiles.shape[-1]),
                             quantiles[0, bad[0], bad[1], bad[2], :],
-                            quantiles[1, bad[0], bad[1], bad[2], :], color='gray', alpha=0.3, label='cint')
-            ax.axhline(0.05)
+                            quantiles[1, bad[0], bad[1], bad[2], :], color='gray', alpha=0.1, label='cint')
+            ax.axhline(alpha, linestyle=':', color='black')
+            ax.axhline(corrected_alpha, linestyle=':', color='red')
             ax.legend()
-
             plt.show()
 
-    significance = pval_signif
-
-    # sketchy consecutive criterium
-    if consecutive > 0:
-        if len(multiple_comparisons_axis) != 1:
-            raise ValueError('when counting consecutive True, multiple_comparisons_axis must be singleton')
-
-        chunk_idx = where_contiguous_chunks(significance, multiple_comparisons_axis[0], consecutive, func='>=')
-        chunk_signif = np.full_like(significance, False)
-        chunk_signif[chunk_idx] = True
-        significance = chunk_signif
-
-    return significance, mont_array[alpha], pval_signif, quant_signif
+    return significance, mont_array[alpha]
 
 def _mask_with_significance(dprime, significance, label_dictionary, mean_type='zeros', mean_signif_arr=None):
     """
@@ -232,5 +234,14 @@ if __name__ == '__main__':
                             'bf_t': ([3], 0),
                             'consecutive_3': ([3], 3)}
 
-    _significance(dprime, pval_quantiles, None, 0, alpha=meta['alpha'])
+    multiple_corrections = {'bf_cpt': ([1, 2, 3], 0),
+                            'bf_ncpt': ([0, 1, 2, 3], 0),
+                            'bf_t': ([3], 0),
+                            'consecutive_3': ([3], 3)}
+
+    # signif, quant = _significance(dprime, pval_quantiles, None, 0, alpha=meta['alpha'])
+
+    for key, (mult, cont) in multiple_corrections.items():
+        signif, quant = _significance(dprime, pval_quantiles, mult, cont, alpha=meta['alpha'])
+
 

@@ -81,10 +81,6 @@ def flip_dprimes(dprime_array, montecarlo=None, flip='first'):
     :param flip: str. 'first' flips dprimes in time so the first time point is positive
     :return: flipped dpriem_array,  flipped montecarlo array
     """
-
-
-
-
     # defines a boolean mask of what signs are to be flipped in dprime_array
     if flip == 'first':
         # first value is positive
@@ -126,3 +122,19 @@ def flip_dprimes(dprime_array, montecarlo=None, flip='first'):
         raise ValueError(f'montecarlo must be a dict of arrays, an array or non but is of {type(montecarlo)}')
 
     return flipped_dprime, flipped_montecarlo
+
+
+
+def cluster_mass():
+    # defines threshold
+    # find values with abs greater than threshold
+    # find clusters
+    # calculate metric for clusters
+    # relate cluster postions to metric
+    return
+
+
+if __name__ == '__main__':
+
+
+    pass

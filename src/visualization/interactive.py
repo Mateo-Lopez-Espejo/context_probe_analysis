@@ -70,7 +70,8 @@ def plot_psth_pair(cellid, contexts, probe):
     return fig
 
 
-def plot_dprime_quant(cellid, contexts, probe, source='real'):
+def plot_dprime_quant(cellid, contexts, probe, source='real',
+                      multiple_comparisons_axis=[3], consecutive=3):
     meta = {'alpha': 0.05,
             'montecarlo': 1000,
             'raster_fs': 30,
@@ -87,7 +88,9 @@ def plot_dprime_quant(cellid, contexts, probe, source='real'):
         dprime = shuffled_eg['dprime']
 
     significance, confidence_interval = _significance(dprime, shuff_dprime_quantiles,
-                                                      multiple_comparisons_axis=[3], consecutive=3, alpha=meta['alpha'])
+                                                      multiple_comparisons_axis=multiple_comparisons_axis,
+                                                      consecutive=consecutive,
+                                                      alpha=meta['alpha'])
     cell_idx = goodcells.index(cellid) if len(cellid) > 7 else 0
 
     pair_idx = [f'{t0}_{t1}' for t0, t1 in itt.combinations(range(dprime.shape[2] + 1), 2)].index(

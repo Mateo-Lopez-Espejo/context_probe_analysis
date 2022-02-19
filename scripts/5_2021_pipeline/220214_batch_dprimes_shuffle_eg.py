@@ -38,15 +38,11 @@ summary_DF_file = pl.Path(config['paths']['analysis_cache']) / f'220214_ctx_mod_
 summary_DF_file = pl.Path(config['paths']['analysis_cache']) / f'220214_ctx_mod_metric_DF_MCC'
 summary_DF_file.parent.mkdir(parents=True, exist_ok=True)
 
-# analysis_functions = {'SC': single_cell_dprimes, #'LDA':probewise_LDA_dprimes,
-#                       'pdPCA': probewise_dPCA_dprimes, 'fdPCA': full_dPCA_dprimes}
 analysis_functions = {'SC': single_cell_dprimes}
 
 expt = {'contexts': 'all',
         'probes': 'all'}
 
-# multiple_corrections = {'consecutive_3': ([3], 3),
-#                         'consecutive_4': ([3], 4)}
 multiple_corrections = {'bf_cpt': ([1,2,3], 0),
                         'bf_ncpt': ([0,1,2,3], 0),
                         'bf_t': ([3], 0),
@@ -59,15 +55,15 @@ badsites = {'AMT031a', 'DRX008b','DRX021a', 'DRX023a', 'ley074a' } # empirically
 no_perm = {'ley058d'}
 sites = sites.difference(badsites).difference(no_perm)
 print(f'all sites: \n{sites}\n')
-sites = set(('TNC010a',))
+# sites = set(('TNC010a',))
 
-# if summary_DF_file.exists():
-#     DF = jl.load(summary_DF_file)
-#     ready_sites = set(DF.siteid.unique())
-#     sites = sites.difference(ready_sites)
-#     print('appening new sites to existing DF', sites)
-# else:
-#     DF = pd.DataFrame()
+if summary_DF_file.exists():
+    DF = jl.load(summary_DF_file)
+    ready_sites = set(DF.siteid.unique())
+    sites = sites.difference(ready_sites)
+    print('appening new sites to existing DF', sites)
+else:
+    DF = pd.DataFrame()
 
 
 for site, (fname, func) in itt.product(sites, analysis_functions.items()):
@@ -98,7 +94,7 @@ for site, (fname, func) in itt.product(sites, analysis_functions.items()):
                     'time': np.linspace(0, dprime.shape[-1] / meta['raster_fs'], dprime.shape[-1],
                                         endpoint=False) * 1000}
 
-    # calculats different significaces/corrections
+    # calculates different significance corrections
     # calculate significant time bins, both raw and corrected for multiple comparisons
     for corr_name, (corr, cons) in multiple_corrections.items():
         print(f'    comp_corr: {corr_name}')
