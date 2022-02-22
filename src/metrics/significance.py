@@ -6,7 +6,7 @@ import numpy as np
 import numpy.ma as ma
 import operator
 
-def where_contiguous_chunks(array, axis, length, func='>='):
+def where_contiguous_chunks(array, axis, length, func='>=', return_idx=False):
     """
     find the indices where a contiguous number of True values along axis are. finds True chunks equal or longer than the
     specified number
@@ -214,10 +214,32 @@ def _mask_with_significance(dprime, significance, label_dictionary, mean_type='z
     return masked_dprime_means, mean_lable_dict
 
 
+def get_clusters_mass(metric, threshold):
+    # defines threshold
+    # find values with abs greater than threshold
+    # does it in high and lows as the method requires clusters of the same sign
+    high_vals = metric > threshold
+    low_vals = metric > threshold
+    # find clusters
+    # hardcoding last axis, asumes its time.
+    high_chunks  = where_contiguous_chunks(high_vals, axis=-1, length=2, func='>')
+    low_chunks  = where_contiguous_chunks(low_vals, axis=-1, length=2, func='>')
+
+    for chunk in high_chunks + low_chunks:
+        # relate cluster postions to metric
+        cluster_sum_arr = np.zeros_like(metric)
+        # calculate metric for clusters
+        cluster_sum_arr[chunk]= metric[chunk].sum()
+
+    return cluster_sum_arr
+
+
 if __name__ == '__main__':
+    import itertools as itt
     from src.metrics.consolidated_dprimes import single_cell_dprimes
-    import plotly.express as px
+    from src.utils.tools import shuffle_along_axis as shuffle
     import matplotlib.pyplot as plt
+    from src.data.rasters import load_site_formated_raster
 
     meta = {'alpha': 0.05,
             'montecarlo': 1000,
@@ -229,19 +251,33 @@ if __name__ == '__main__':
     site = 'TNC010a'
     dprime, pval_quantiles, goodcells, shuff_eg = single_cell_dprimes(site, contexts='all', probes='all', meta=meta)
 
+    # check vanila bonferrony corrections and old chunk correction
     multiple_corrections = {'bf_cpt': ([1, 2, 3], 0),
                             'bf_ncpt': ([0, 1, 2, 3], 0),
                             'bf_t': ([3], 0),
                             'consecutive_3': ([3], 3)}
-
-    multiple_corrections = {'bf_cpt': ([1, 2, 3], 0),
-                            'bf_ncpt': ([0, 1, 2, 3], 0),
-                            'bf_t': ([3], 0),
-                            'consecutive_3': ([3], 3)}
-
-    # signif, quant = _significance(dprime, pval_quantiles, None, 0, alpha=meta['alpha'])
 
     for key, (mult, cont) in multiple_corrections.items():
         signif, quant = _significance(dprime, pval_quantiles, mult, cont, alpha=meta['alpha'])
 
 
+    # chekc new cluster mass analsysi
+    # trialR, goodcells = load_site_formated_raster(site, 'all', 'all', **meta)
+
+
+    cluster_arr = get_clusters_mass(dprime, 1)
+
+    print(cluster_arr.shape)
+    print(cluster_arr[0,0,0,:])
+
+    # ctx_pairs = list(itt.combinations(range(ctx), 2))
+    # # shuffle of clusters
+    # for cpn, (c0, c1) in enumerate(ctx_pairs):
+    #     print(f"    context pair {c0:02d}_{c1:02d}")
+    #     shuf_trialR = np.empty((meta['montecarlo'], rep, chn, 2, prb, tme))
+    #     ctx_shuffle = trialR[:, :, (c0, c1), :, :].copy()  # trial, context, probe, time
+    #
+    #     for rr in range(meta['montecarlo']):
+    #         shuf_trialR[rr, ...] = shuffle(ctx_shuffle, shuffle_axis=2, indie_axis=0, rng=rng)
+    #
+    #

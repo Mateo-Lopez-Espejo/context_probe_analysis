@@ -123,18 +123,3 @@ def flip_dprimes(dprime_array, montecarlo=None, flip='first'):
 
     return flipped_dprime, flipped_montecarlo
 
-
-
-def cluster_mass():
-    # defines threshold
-    # find values with abs greater than threshold
-    # find clusters
-    # calculate metric for clusters
-    # relate cluster postions to metric
-    return
-
-
-if __name__ == '__main__':
-
-
-    pass
