@@ -14,13 +14,7 @@ import pathlib as pl
 import joblib as jl
 
 """
-this is the batch running script after a lot of refactoring, still should be runned by the cluster... work in progress
-it is meant to run the streamlined analysis after choosing some of the relevant meta parameters
-    4 and 10 sound
-    permutations
-    3 and 4 contiguous mutiple comparisons
-    absolute significant integral
-    absolute significatn center of mass
+similar to prior examples, here it parses an extra random shuffle example for
 """
 
 config = ConfigParser()

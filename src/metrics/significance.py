@@ -6,7 +6,7 @@ import numpy as np
 import numpy.ma as ma
 import operator
 
-def where_contiguous_chunks(array, axis, length, func='>=', return_idx=False):
+def where_contiguous_chunks(array, axis, length, func='>=', individual_chunks=False):
     """
     find the indices where a contiguous number of True values along axis are. finds True chunks equal or longer than the
     specified number
@@ -22,49 +22,42 @@ def where_contiguous_chunks(array, axis, length, func='>=', return_idx=False):
 
     # find the start and end of True chunks
     d = np.diff(array.astype(int), axis=axis, prepend=0, append=0)
-    starts = np.where(d == 1)
-    stops = np.where(d == -1)
+    starts = np.argwhere(d == 1)
+    stops = np.argwhere(d == -1)
 
     # counts the True chunks and select those with adecuate length
     ops = {'>': operator.gt, '<': operator.lt, '>=': operator.ge, '<=': operator.le, '==': operator.eq}
-    good_chunks = ops[func](stops[axis] - starts[axis], length)
+    good_chunks = ops[func](stops[:, axis] - starts[:, axis], length)
 
-    # skips everything if there are not good chunks
-    if not np.any(good_chunks):
-        chunk_idx = tuple([np.empty(shape=(0,0), dtype=int) for dim in starts])
-        return chunk_idx
 
-    # save the indices from the other dimensions
-    if array.ndim > 1:
-        other_dims_idx = list(starts)
-        other_dims_idx.pop(axis)
-        other_dims_idx =  np.asarray(other_dims_idx)
+    if np.any(good_chunks):
+        # iterates over the selected chunks and defines indices for the chunk dimension and the extra dimensions
+        dim_idxs = list()
+        for gc in np.argwhere(good_chunks).squeeze(axis=1):
+            start = starts[gc, axis]
+            stop = stops[gc, axis]
 
-    # iterates over the selected chunks and defines indices for the chunk dimension and the extra dimensions
-    chunk_dim_idx = list()
-    extra_dim_idx = list()
-    for gc in np.where(good_chunks)[0]:
-        start = starts[axis][gc]
-        stop = stops[axis][gc]
+            chunk_all_dim = np.empty((stop - start, array.ndim), dtype=int)
 
-        # make contiguous indices for the chunk dimension
-        chunk_dim_idx.append(np.arange(start, stop))
+            # make contiguous indices for the chunk dimension
+            chunk_all_dim[:, axis] = np.arange(start, stop)
 
-        # repeat chunk length times the indices for the other dimensions
-        if array.ndim > 1:
-            extra_dim_idx.append(np.repeat(other_dims_idx[:,[gc]], repeats=stop-start, axis=1))
+            if array.ndim > 1:
+                # places the indices axis indices back in the right dimension position
+                odidx = tuple(d for d in range(array.ndim) if d != axis)  # index into other dimension
+                chunk_all_dim[:, odidx] = starts[gc, odidx]
+                dim_idxs.append(chunk_all_dim)
 
-    chunk_dim_idx = np.concatenate(chunk_dim_idx, axis=0)
-
-    if array.ndim > 1:
-        extra_dim_idx = np.concatenate(extra_dim_idx, axis=1)
-
-        # places the chunk dimension indices alongside the other dimensions in a tuple in the original position
-        chunk_idx = list(extra_dim_idx.__iter__())
-        chunk_idx.insert(axis, chunk_dim_idx)
-        chunk_idx = tuple(chunk_idx)
     else:
-        chunk_idx = (chunk_dim_idx,)
+        # a tuple of empty arrays can still be used as indices. the output of such slicing is an empty array too.
+        dim_idxs = [np.empty(shape=(0,array.ndim), dtype=int)]
+
+    # either returns a list of individual clusters or all clusters together.
+    # numpy fancy indexing should be tuples of n arrays for n dimensions
+    if individual_chunks:
+        chunk_idx = [tuple(chunk.T) for chunk in dim_idxs]
+    else:
+        chunk_idx = tuple(np.concatenate(dim_idxs, axis=0).T)
 
     return chunk_idx
 
@@ -72,7 +65,8 @@ def where_contiguous_chunks(array, axis, length, func='>=', return_idx=False):
 def _raw_pvalue(real_val, mont_array, tails='both'):
     mont_num = mont_array.shape[0]  # number of montecarlo repetitions
     if tails == 'both':
-        pvalues = np.sum(np.abs(mont_array) >= np.abs(real_val), axis=0) / mont_num
+        # pvalues = np.sum(np.abs(mont_array) >= np.abs(real_val), axis=0) / mont_num
+        pvalues = (np.sum(np.abs(mont_array) >= np.abs(real_val), axis=0)+1) / (mont_num+1)
     elif tails == 'greater':
         pvalues = np.sum((mont_array >= real_val), axis=0) / mont_num
     elif tails == 'lesser':
@@ -119,10 +113,6 @@ def  _significance(array, mont_array, multiple_comparisons_axis=None, consecutiv
     """
     # todo: rewrite and simplify so it only needs pvalues, some choice of multiple comparisons and an alpha (?)
 
-    # using quantiles deprecated method. difficult to run bonferroni on it.
-    quantiles = mont_array[alpha]
-    quant_signif = np.logical_or(array < quantiles[0, ...], quantiles[1, ...] < array)
-
     # chose what axis to consider for the correction, e.g only time, or time-ctx_pair-prb (best option)
     if multiple_comparisons_axis == None:
         n_comparisons = 1
@@ -139,6 +129,10 @@ def  _significance(array, mont_array, multiple_comparisons_axis=None, consecutiv
 
     # sketchy consecutive criterium
     if consecutive > 0:
+        # using quantiles deprecated method. difficult to run bonferroni on it.
+        quantiles = mont_array[alpha]
+        quant_signif = np.logical_or(array < quantiles[0, ...], quantiles[1, ...] < array)
+
         if len(multiple_comparisons_axis) != 1:
             raise ValueError('when counting consecutive True, multiple_comparisons_axis must be singleton')
 
@@ -174,7 +168,7 @@ def  _significance(array, mont_array, multiple_comparisons_axis=None, consecutiv
             ax.legend()
             plt.show()
 
-    return significance, mont_array[alpha]
+    return significance
 
 def _mask_with_significance(dprime, significance, label_dictionary, mean_type='zeros', mean_signif_arr=None):
     """
@@ -214,22 +208,39 @@ def _mask_with_significance(dprime, significance, label_dictionary, mean_type='z
     return masked_dprime_means, mean_lable_dict
 
 
-def get_clusters_mass(metric, threshold):
+def get_clusters_mass(metric, threshold, axis, min_size=1, verbose=False):
     # defines threshold
     # find values with abs greater than threshold
     # does it in high and lows as the method requires clusters of the same sign
     high_vals = metric > threshold
-    low_vals = metric > threshold
-    # find clusters
-    # hardcoding last axis, asumes its time.
-    high_chunks  = where_contiguous_chunks(high_vals, axis=-1, length=2, func='>')
-    low_chunks  = where_contiguous_chunks(low_vals, axis=-1, length=2, func='>')
+    low_vals = metric < threshold*-1
+    # find clusters, currently it can only look for cluster along a single axis
+    high_chunks  = where_contiguous_chunks(high_vals, axis=axis, length=min_size, func='>=', individual_chunks=True)
+    low_chunks  = where_contiguous_chunks(low_vals, axis=axis, length=min_size, func='>=', individual_chunks=True)
 
+    # for each cluster calculates the sum of metric and stores in an array with the same shape as the original metric
+    cluster_sum_arr = np.zeros_like(metric)
     for chunk in high_chunks + low_chunks:
-        # relate cluster postions to metric
-        cluster_sum_arr = np.zeros_like(metric)
         # calculate metric for clusters
         cluster_sum_arr[chunk]= metric[chunk].sum()
+
+    if verbose:
+        fig, axes= plt.subplots(1,2)
+        eg_hi_idx = np.unravel_index(np.argmax(metric), metric.shape)
+        eg_lo_idx = np.unravel_index(np.argmin(metric), metric.shape)
+
+        for idx, ax in zip([eg_hi_idx, eg_lo_idx], axes):
+
+            idx = np.s_[idx[0],idx[1],idx[2], :]
+
+            ax.plot(metric[idx], label='metric')
+            ax.plot(cluster_sum_arr[idx], label='cluster sum')
+            ax.axhline(threshold, linestyle='--', color='black', label='threshold')
+            ax.axhline(threshold*-1, linestyle='--', color='black')
+
+        ax.legend()
+
+        fig.show()
 
     return cluster_sum_arr
 
@@ -240,6 +251,7 @@ if __name__ == '__main__':
     from src.utils.tools import shuffle_along_axis as shuffle
     import matplotlib.pyplot as plt
     from src.data.rasters import load_site_formated_raster
+    from src.metrics.dprime import pairwise_dprimes
 
     meta = {'alpha': 0.05,
             'montecarlo': 1000,
@@ -248,7 +260,8 @@ if __name__ == '__main__':
             'smoothing_window': 0,
             'stim_type': 'permutations',
             'zscore': True}
-    site = 'TNC010a'
+    # site = 'TNC010a'
+    site = 'ARM021b'
     dprime, pval_quantiles, goodcells, shuff_eg = single_cell_dprimes(site, contexts='all', probes='all', meta=meta)
 
     # check vanila bonferrony corrections and old chunk correction
@@ -258,26 +271,64 @@ if __name__ == '__main__':
                             'consecutive_3': ([3], 3)}
 
     for key, (mult, cont) in multiple_corrections.items():
-        signif, quant = _significance(dprime, pval_quantiles, mult, cont, alpha=meta['alpha'])
+        signif, quant = _significance(dprime, pval_quantiles, mult, cont, alpha=meta['alpha'], verbose=False)
 
 
-    # chekc new cluster mass analsysi
+    # cluster finding fucntion
+    cluster_arr = get_clusters_mass(dprime, 1, axis=-1, min_size=1, verbose=False)
+
+
+    # # clustering algorithm with shuffle test
+    # debug = True
     # trialR, goodcells = load_site_formated_raster(site, 'all', 'all', **meta)
-
-
-    cluster_arr = get_clusters_mass(dprime, 1)
-
-    print(cluster_arr.shape)
-    print(cluster_arr[0,0,0,:])
-
+    # rep, chn, ctx, prb, tme = trialR.shape
+    # rng = np.random.default_rng(42)
+    #
+    # dprime = pairwise_dprimes(trialR, observation_axis=0, condition_axis=2)
+    # threshold = 1
+    # clusters = get_clusters_mass(dprime, threshold, axis=-1)
+    #
     # ctx_pairs = list(itt.combinations(range(ctx), 2))
     # # shuffle of clusters
+    # montecarlo = 100
     # for cpn, (c0, c1) in enumerate(ctx_pairs):
     #     print(f"    context pair {c0:02d}_{c1:02d}")
-    #     shuf_trialR = np.empty((meta['montecarlo'], rep, chn, 2, prb, tme))
+    #     shuf_trialR = np.empty((montecarlo, rep, chn, 2, prb, tme))
     #     ctx_shuffle = trialR[:, :, (c0, c1), :, :].copy()  # trial, context, probe, time
     #
-    #     for rr in range(meta['montecarlo']):
+    #     for rr in range(montecarlo):
     #         shuf_trialR[rr, ...] = shuffle(ctx_shuffle, shuffle_axis=2, indie_axis=0, rng=rng)
     #
+    #     ctp_shuff_dprime = pairwise_dprimes(shuf_trialR, observation_axis=1, condition_axis=3)
+    #     del (shuf_trialR)
     #
+    #     # for the shuffles, get only the value of the biggest cluster
+    #     cpn_shuf_clstr_max = np.max(np.abs(get_clusters_mass(ctp_shuff_dprime, threshold, axis=-1)), axis=-1)
+    #     cpn_shuf_clstr_max = np.expand_dims(cpn_shuf_clstr_max, axis=-1)
+    #
+    #     # calculates pvalus for each cluster based on the permutation biggest cluster distribution
+    #
+    #     real_clstr = clusters[:, ctx_pairs.index((c0, c1)), ...][:, None, ...]
+    #     pvalue = _raw_pvalue(real_clstr, cpn_shuf_clstr_max)
+    #
+    #
+    #     # example plots for debuggin
+    #     if debug:
+    #         eg_idx = np.unravel_index(np.argmax(np.absolute(real_clstr)), shape=real_clstr.shape)
+    #         eg_idx = np.unravel_index(np.argmax(real_clstr*-1), shape=real_clstr.shape)
+    #         eg_idx = np.s_[eg_idx[0], eg_idx[1], eg_idx[2],:]
+    #
+    #         fig, ax = plt.subplots(figsize=[8,8])
+    #         ax.plot(dprime[eg_idx[0],ctx_pairs.index((c0, c1)),eg_idx[2],:], label='dprime')
+    #         max_clust = np.max(np.absolute(real_clstr[eg_idx]))
+    #         norm_clust = real_clstr[eg_idx] / max_clust
+    #         ax.plot(norm_clust, label='cluster')
+    #         ax.plot(pvalue[eg_idx], label='pvalue')
+    #         norm_shuf = cpn_shuf_clstr_max[(np.s_[:], )+eg_idx].squeeze() / max_clust
+    #         ax.hlines(norm_shuf,0,30, alpha=0.1, color='gray', label='shuf_max_clust')
+    #         ax.hlines(norm_shuf*-1,0,30, alpha=0.1, color='gray')
+    #         ax.axhline(threshold, color='red', linestyle=':', label='clust_threshold')
+    #         ax.axhline(threshold*-1, color='red', linestyle=':')
+    #         ax.axhline(meta['alpha'], color='brown', linestyle='--', label='alpha')
+    #         ax.legend()
+    #         fig.show()

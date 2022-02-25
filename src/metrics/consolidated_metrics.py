@@ -111,10 +111,12 @@ def _append_means_to_shuff_array(array, label_dictionary):
 
 def metrics_to_DF(array, label_dictionary, metrics):
     metrics = {metric: all_metrics[metric] for metric in metrics}
-    site_DF = pd.DataFrame()
+    to_concat = list()
     for metric_name, func in metrics.items():
         metric_array, up_lab_dict = func(array, label_dictionary)
         df = arr2df(metric_array, up_lab_dict)
         df['metric'] = metric_name
-        site_DF = site_DF.append(df)
+        to_concat.append(df)
+
+    site_DF = pd.concat(to_concat, axis=0, ignore_index=True)
     return site_DF
