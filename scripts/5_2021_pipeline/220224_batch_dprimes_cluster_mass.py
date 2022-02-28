@@ -37,7 +37,7 @@ meta = {'alpha': 0.05,
 summary_DF_file = pl.Path(config['paths']['analysis_cache']) / f'220224_ctx_mod_metric_DF_cluster_mass'
 summary_DF_file.parent.mkdir(parents=True, exist_ok=True)
 
-analysis_functions = {'SC_cm': single_cell_dprimes_cluster_mass}
+analysis_functions = {'SC': single_cell_dprimes_cluster_mass}
 
 cluster_thresholds = [0.5,1.0,2.0]
 
@@ -52,20 +52,19 @@ metrics = ['significant_abs_mass_center', 'significant_abs_sum']
 sites = set(get_site_ids(316).keys())
 badsites = {'AMT031a', 'DRX008b','DRX021a', 'DRX023a', 'ley074a', 'TNC010a'} # empirically decided
 no_perm = {'ley058d'} # sites without permutations
-not_done = {'TNC016a'}
-sites = sites.difference(badsites).difference(no_perm).difference(not_done)
+sites = sites.difference(badsites).difference(no_perm)
 print(f'all sites: \n{sites}\n')
 # sites = ('AMT021b',) # test site
 
 
 to_concat = list()
 
-# if summary_DF_file.exists():
-#     DF = jl.load(summary_DF_file)
-#     ready_sites = set(DF.siteid.unique())
-#     sites = sites.difference(ready_sites)
-#     print('appening new sites to existing DF', sites)
-#     to_concat.append(DF)
+if summary_DF_file.exists():
+    DF = jl.load(summary_DF_file)
+    ready_sites = set(DF.siteid.unique())
+    sites = sites.difference(ready_sites)
+    print('appening new sites to existing DF', sites)
+    to_concat.append(DF)
 
 for site, (fname, func), clust_thresh in itt.product(
         sites, analysis_functions.items(), cluster_thresholds):
@@ -104,10 +103,12 @@ for site, (fname, func), clust_thresh in itt.product(
         for source in ['real', 'shuffled_eg']:
             if source == 'real':
                 dp = dprime
+                pvals = clust_quant_pval
             elif source == 'shuffled_eg':
                 dp = shuffled_eg['dprime']
+                pvals =  {'pvalue':shuffled_eg['pvalue']}
 
-            significance = _significance(dp, clust_quant_pval, corr, cons, alpha=meta['alpha'])
+            significance = _significance(dp, pvals, corr, cons, alpha=meta['alpha'])
 
             masked_dprime = ma.array(dp, mask=significance == 0)
 

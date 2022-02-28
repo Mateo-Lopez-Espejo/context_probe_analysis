@@ -129,7 +129,7 @@ def  _significance(array, mont_array, multiple_comparisons_axis=None, consecutiv
 
     # sketchy consecutive criterium
     if consecutive > 0:
-        # using quantiles deprecated method. difficult to run bonferroni on it.
+        # using quantiles deprecated method. difficult to run bonferroni on it. Todo replace by quantification using pvalues
         quantiles = mont_array[alpha]
         quant_signif = np.logical_or(array < quantiles[0, ...], quantiles[1, ...] < array)
 

@@ -6,7 +6,7 @@ import plotly.graph_objects as go
 from webcolors import hex_to_rgb
 
 from src.data.rasters import load_site_formated_raster
-from src.metrics.consolidated_dprimes import single_cell_dprimes
+from src.metrics.consolidated_dprimes import single_cell_dprimes, single_cell_dprimes_cluster_mass
 from src.metrics.significance import _significance
 from src.visualization.fancy_plots import squarefy
 from src.visualization.palette import *
@@ -71,15 +71,26 @@ def plot_psth_pair(cellid, contexts, probe):
 
 
 def plot_dprime_quant(cellid, contexts, probe, source='real',
-                      multiple_comparisons_axis=[3], consecutive=3):
-    meta = {'alpha': 0.05,
-            'montecarlo': 1000,
-            'raster_fs': 30,
-            'reliability': 0.1,
-            'smoothing_window': 0,
-            'stim_type': 'permutations',
-            'zscore': True}
-    dprime, shuff_dprime_quantiles, goodcells, shuffled_eg = single_cell_dprimes(cellid[:7], contexts='all',
+                      multiple_comparisons_axis=[3], consecutive=3, cluster_threshold=0, meta={}):
+    defaults_meta = {'montecarlo': 1000,
+                     'raster_fs': 30,
+                     'reliability': 0.1,
+                     'smoothing_window': 0,
+                     'stim_type': 'permutations',
+                     'zscore': True}
+
+    meta.update(defaults_meta)
+
+    if cluster_threshold > 0 :
+        dprime, pval_quantiles, goodcells, shuffled_eg  =single_cell_dprimes_cluster_mass(
+            cellid[:7], contexts='all', probes='all', cluster_threshold=float(cluster_threshold), meta=meta
+        )
+
+        # new alphas corrected by multiple comparisons
+        alpha = f"{meta['alpha'] / np.product(np.asarray(dprime.shape)[[1,2]]):.5f}"
+        confidence_interval = pval_quantiles[alpha]
+    else:
+        dprime, pval_quantiles, goodcells, shuffled_eg = single_cell_dprimes(cellid[:7], contexts='all',
                                                                                  probes='all', meta=meta)
 
     if source == 'real':
@@ -87,7 +98,7 @@ def plot_dprime_quant(cellid, contexts, probe, source='real',
     elif source == 'shuffled_eg':
         dprime = shuffled_eg['dprime']
 
-    significance, confidence_interval = _significance(dprime, shuff_dprime_quantiles,
+    significance = _significance(dprime, pval_quantiles,
                                                       multiple_comparisons_axis=multiple_comparisons_axis,
                                                       consecutive=consecutive,
                                                       alpha=meta['alpha'])
@@ -98,8 +109,21 @@ def plot_dprime_quant(cellid, contexts, probe, source='real',
 
     prb_idx = probe - 1
 
-    DP = dprime[cell_idx, pair_idx, prb_idx, :] * -1
-    CI = confidence_interval[:, cell_idx, pair_idx, prb_idx, :] * -1
+    # figurese out if need flip
+    DP = dprime[cell_idx, pair_idx, prb_idx, :]
+    if np.sum(DP) < 0:
+        flip = -1
+    else:
+        flip = 1
+
+    DP *= flip
+
+    if cluster_threshold > 0:
+        CI = confidence_interval[ cell_idx, pair_idx, prb_idx, :] * flip
+        CT = pval_quantiles['clusters'][ cell_idx, pair_idx, prb_idx, :] * flip
+    else:
+        CI = confidence_interval[:, cell_idx, pair_idx, prb_idx, :] * flip
+
     SIG = significance[cell_idx, pair_idx, prb_idx, :]
     raster_fs = meta['raster_fs']
 
@@ -118,10 +142,21 @@ def plot_dprime_quant(cellid, contexts, probe, source='real',
     _ = fig.add_trace(go.Scatter(x=tt, y=mmdd, mode='lines', line_color='black', line_width=3))
 
     # significance confidence interval
-    _, CCII = squarefy(t, CI.T)
-    _ = fig.add_trace(go.Scatter(x=tt, y=CCII[:, 0], mode='lines', line_color='gray', line_width=1))
-    _ = fig.add_trace(go.Scatter(x=tt, y=CCII[:, 1], mode='lines', line_color='gray', line_width=1,
-                                 fill='tonexty'))
+    if cluster_threshold > 0:
+        y = np.repeat(CI.squeeze(),tt.shape)
+        _ = fig.add_trace(go.Scatter(x=tt, y=y, mode='lines', line_color='gray', line_width=1, fill='tozerox'))
+
+        # in the case of cluster mass also plots the individual cluster size
+        tt, mmcc = squarefy(t, CT)
+        _ = fig.add_trace(go.Scatter(x=tt, y=mmcc, mode='lines', line_color=Green, line_dash='dot', line_width=3))
+
+        # cluster threshold
+        _ = fig.add_hline(cluster_threshold, line=dict(color=Green, dash='dot', width=3))
+    else:
+        _, CCII = squarefy(t, CI.T)
+        _ = fig.add_trace(go.Scatter(x=tt, y=CCII[:, 0], mode='lines', line_color='gray', line_width=1))
+        _ = fig.add_trace(go.Scatter(x=tt, y=CCII[:, 1], mode='lines', line_color='gray', line_width=1,
+                                     fill='tonexty'))
 
     # significant area under the curve
     # little hack to add gaps into the area, set d' value to zero where no significance
@@ -319,17 +354,19 @@ if __name__ == '__main__':
 
         return filtered
 
-
-    longDF = format_dataframe(df)
-
     cellid, contexts, probes = 'ARM021b-36-8', (0, 1), 3  # paper example
-    cellid, contexts, probes = 'TNC010a-40-1', (2, 10), 4
+    cellid, contexts, probes = 'ARM017a-31-1', (0, 3), 3  # odd tail in bf_cp-2.0
+    cellid, contexts, probes = 'TNC008a-05-1', (0, 8), 7  # odd tail in bf_cp-2.0
+    cellid, contexts, probes = 'ARM028b-37-3', (0, 4), 3  # odd tail in bf_cp-2.0
 
-    tile = plot_neuron_tiling(cellid, longDF)
-    tile.show()
+    # longDF = format_dataframe(df)
+    # tile = plot_neuron_tiling(cellid, longDF)
+    # tile.show()
 
     psth = plot_psth_pair(cellid, contexts, probes)
     psth.show()
 
-    dprm_fig = plot_dprime_quant(cellid, contexts, probes)
+    dprm_fig = plot_dprime_quant(cellid, contexts, probes, source='real',
+                                 multiple_comparisons_axis=None, consecutive=0, cluster_threshold=1,
+                                 meta=meta)
     dprm_fig.show()
