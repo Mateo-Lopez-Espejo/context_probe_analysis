@@ -1,5 +1,5 @@
 from src.metrics.significance import _significance
-from src.metrics.consolidated_dprimes import single_cell_dprimes_cluster_mass
+from src.metrics.consolidated_mean_diff import single_cell_mean_diff_cluster_mass
 from src.data.load import get_site_ids
 from src.metrics.consolidated_metrics import metrics_to_DF
 from src.data.region_map import region_map
@@ -26,13 +26,13 @@ meta = {'reliability': 0.1,  # r value
         'zscore': True,
         'stim_type': 'permutations'}
 
-summary_DF_file = pl.Path(config['paths']['analysis_cache']) / f'220224_ctx_mod_metric_DF_cluster_mass'
+summary_DF_file = pl.Path(config['paths']['analysis_cache']) / f'220301_ctx_mod_metric_DF_mean_diff_cluster_mass'
 summary_DF_file.parent.mkdir(parents=True, exist_ok=True)
 
-analysis_functions = {'SC': single_cell_dprimes_cluster_mass}
+analysis_functions = {'SC': single_cell_mean_diff_cluster_mass}
 
+alpha=0.05
 cluster_thresholds = [1,2]
-alpha = 0.05
 multiple_corrections = {'bf_cp': ([1,2], 0),
                         'bf_ncp': ([0,1,2], 0),
                         'none': (None, 0)}
@@ -44,8 +44,6 @@ badsites = {'AMT031a', 'DRX008b','DRX021a', 'DRX023a', 'ley074a', 'TNC010a'} # e
 no_perm = {'ley058d'} # sites without permutations
 sites = sites.difference(badsites).difference(no_perm)
 print(f'all sites: \n{sites}\n')
-
-
 
 to_concat = list()
 
@@ -62,6 +60,7 @@ for site, (fname, func), clust_thresh in itt.product(
           f'\noutmost loop, working on site {site}, {fname}\n'
           f'########################\n')
 
+
     if func.check_call_in_cache(site, contexts='all', probes='all',
                                 cluster_threshold=float(clust_thresh), meta=meta):
         dprime, clust_quant_pval, goodcells, shuffled_eg = func(site, contexts='all', probes='all',
@@ -70,6 +69,7 @@ for site, (fname, func), clust_thresh in itt.product(
     else:
         print(f'{site}, {func}, {clust_thresh} not yet in cache, skipping')
         continue
+
 
     # for analysis with dimensionality reduction, changes the cellname to nan for proper dimension labeling.
     if 'SC' in fname:

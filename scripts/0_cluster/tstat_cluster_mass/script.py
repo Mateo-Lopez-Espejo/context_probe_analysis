@@ -4,7 +4,7 @@ import sys
 import nems.db as nd
 import nems.utils
 import nems.utils
-from src.metrics.consolidated_dprimes import single_cell_dprimes_cluster_mass
+from src.metrics.consolidated_tstat import single_cell_tstat_cluster_mass
 
 if 'QUEUEID' in os.environ:
     queueid = os.environ['QUEUEID']
@@ -27,10 +27,10 @@ meta = {'reliability': 0.1,  # r value
         'zscore': True,
         'stim_type': 'permutations'}
 
-print(f"running single_cell_dprimes for site {site} with meta:{meta} ")
+print(f"running single_cell_dprimes for site {site} with threshold {cluster_threshold} and meta:{meta} ")
 
 
-_ = single_cell_dprimes_cluster_mass(site, contexts='all', probes='all',
+_ = single_cell_tstat_cluster_mass(site, contexts='all', probes='all',
                                      cluster_threshold=cluster_threshold, meta=meta)
 
 # Mark completed in the queue. Note that this should happen last thing!

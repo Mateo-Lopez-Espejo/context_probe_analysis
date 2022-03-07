@@ -65,8 +65,8 @@ def where_contiguous_chunks(array, axis, length, func='>=', individual_chunks=Fa
 def _raw_pvalue(real_val, mont_array, tails='both'):
     mont_num = mont_array.shape[0]  # number of montecarlo repetitions
     if tails == 'both':
-        # pvalues = np.sum(np.abs(mont_array) >= np.abs(real_val), axis=0) / mont_num
-        pvalues = (np.sum(np.abs(mont_array) >= np.abs(real_val), axis=0)+1) / (mont_num+1)
+        pvalues = np.sum(np.abs(mont_array) >= np.abs(real_val), axis=0) / mont_num
+        # pvalues = (np.sum(np.abs(mont_array) >= np.abs(real_val), axis=0)+1) / (mont_num+1)
     elif tails == 'greater':
         pvalues = np.sum((mont_array >= real_val), axis=0) / mont_num
     elif tails == 'lesser':
@@ -94,7 +94,7 @@ def _signif_quantiles(mont_array, alpha=(0.05, 0.01, 0.001)):
 
     return quantil_dict
 
-def  _significance(array, mont_array, multiple_comparisons_axis=None, consecutive=0, alpha=0.01, verbose=False):
+def  _significance(pvalue, multiple_comparisons_axis=None, consecutive=0, alpha=0.01):
     """
     calculates significance (boolean) for the values of array using the montecarlo method e.g. n simulations or shuffles of the
     original data in array. These n repetitions are specified in the mont_array, therefore mont_array should have the
@@ -103,8 +103,7 @@ def  _significance(array, mont_array, multiple_comparisons_axis=None, consecutiv
     If consecutive is an integer and multiple_comparisons_axis is a singleton, counts consecutive True values instead
     of perfoming the multiple comparisons. Tails specify wheter calculate a one tailed (upper or lower) or two tailed
     pvalue.
-    :param array: ndarray e.g. Unit x Context x ...
-    :param mont_array: ndarray e.g. Montecarlo x Unit x Context ...
+    :param pvalue: ndarray e.g. Unit x Context x ...
     :param multiple_comparisons_axis: None, list of ints. default None.
         :param consecutive: int, default None. If int, multiple_comparisons_axis must be a singleton
     :param alpha: float [0:1]
@@ -117,56 +116,25 @@ def  _significance(array, mont_array, multiple_comparisons_axis=None, consecutiv
     if multiple_comparisons_axis == None:
         n_comparisons = 1
     else:
-        n_comparisons = np.prod(np.asarray(mont_array['pvalue'].shape)[np.asarray(multiple_comparisons_axis)])
+        n_comparisons = np.prod(np.asarray(pvalue.shape)[np.asarray(multiple_comparisons_axis)])
         print(f'correcting for {n_comparisons} multiple comparisons, alpha: {alpha} -> {alpha/n_comparisons}')
 
     # using pvalue
     corrected_alpha = alpha/n_comparisons
-    pval_signif = mont_array['pvalue'] < alpha
-    pval_signif_corr = mont_array['pvalue'] < corrected_alpha
+    signif_corr = pvalue < corrected_alpha
 
-    significance = pval_signif_corr
+    significance = signif_corr
 
     # sketchy consecutive criterium
     if consecutive > 0:
-        # using quantiles deprecated method. difficult to run bonferroni on it. Todo replace by quantification using pvalues
-        quantiles = mont_array[alpha]
-        quant_signif = np.logical_or(array < quantiles[0, ...], quantiles[1, ...] < array)
-
         if len(multiple_comparisons_axis) != 1:
             raise ValueError('when counting consecutive True, multiple_comparisons_axis must be singleton')
 
         print(f'considering contiguous chunks, overrides multiple comparisons')
-        chunk_idx = where_contiguous_chunks(quant_signif, multiple_comparisons_axis[0], consecutive, func='>=')
-        chunk_signif = np.full_like(quant_signif, False)
+        chunk_idx = where_contiguous_chunks(significance, multiple_comparisons_axis[0], consecutive, func='>=')
+        chunk_signif = np.full_like(significance, False)
         chunk_signif[chunk_idx] = True
         significance = chunk_signif
-
-
-    if verbose:
-        bads = np.argwhere(pval_signif != quant_signif)
-
-        bads_nt = np.unique(bads[:, :3], axis=0)
-        for bad in bads_nt:
-            print(bad)
-            slice = np.s_[bad[0], bad[1], bad[2], :]
-
-            plt.close('all')
-            fig, ax = plt.subplots()
-            ax.plot(array[slice], color='orange', label='dprime')
-            ax.plot(quant_signif[slice], color='red', linestyle='dashed', label='quant_signif', alpha=0.5)
-            # ax.plot(chunk_signif[slice], color='orange', linestyle='dotted', label='chunk_signif', alpha=0.5)
-            ax.plot(pval_signif[slice], color='blue', linestyle='dashed', label='pval_signif', alpha=0.5)
-            ax.plot(pval_signif_corr[slice], color='cyan', linestyle='dotted', label='pval_signif_corr', alpha=0.5)
-            ax.plot(mont_array['pvalue'][slice], color='black', label='pvalue')
-
-            ax.fill_between(np.arange(quantiles.shape[-1]),
-                            quantiles[0, bad[0], bad[1], bad[2], :],
-                            quantiles[1, bad[0], bad[1], bad[2], :], color='gray', alpha=0.1, label='cint')
-            ax.axhline(alpha, linestyle=':', color='black')
-            ax.axhline(corrected_alpha, linestyle=':', color='red')
-            ax.legend()
-            plt.show()
 
     return significance
 
@@ -253,8 +221,7 @@ if __name__ == '__main__':
     from src.data.rasters import load_site_formated_raster
     from src.metrics.dprime import pairwise_dprimes
 
-    meta = {'alpha': 0.05,
-            'montecarlo': 1000,
+    meta = {'montecarlo': 1000,
             'raster_fs': 30,
             'reliability': 0.1,
             'smoothing_window': 0,
@@ -267,68 +234,13 @@ if __name__ == '__main__':
     # check vanila bonferrony corrections and old chunk correction
     multiple_corrections = {'bf_cpt': ([1, 2, 3], 0),
                             'bf_ncpt': ([0, 1, 2, 3], 0),
+                            'bf_cp': ([1, 2], 0),
                             'bf_t': ([3], 0),
                             'consecutive_3': ([3], 3)}
 
     for key, (mult, cont) in multiple_corrections.items():
-        signif, quant = _significance(dprime, pval_quantiles, mult, cont, alpha=meta['alpha'], verbose=False)
-
+        signif = _significance(pval_quantiles['pvalue'], mult, cont, alpha=0.05)
 
     # cluster finding fucntion
     cluster_arr = get_clusters_mass(dprime, 1, axis=-1, min_size=1, verbose=False)
 
-
-    # # clustering algorithm with shuffle test
-    # debug = True
-    # trialR, goodcells = load_site_formated_raster(site, 'all', 'all', **meta)
-    # rep, chn, ctx, prb, tme = trialR.shape
-    # rng = np.random.default_rng(42)
-    #
-    # dprime = pairwise_dprimes(trialR, observation_axis=0, condition_axis=2)
-    # threshold = 1
-    # clusters = get_clusters_mass(dprime, threshold, axis=-1)
-    #
-    # ctx_pairs = list(itt.combinations(range(ctx), 2))
-    # # shuffle of clusters
-    # montecarlo = 100
-    # for cpn, (c0, c1) in enumerate(ctx_pairs):
-    #     print(f"    context pair {c0:02d}_{c1:02d}")
-    #     shuf_trialR = np.empty((montecarlo, rep, chn, 2, prb, tme))
-    #     ctx_shuffle = trialR[:, :, (c0, c1), :, :].copy()  # trial, context, probe, time
-    #
-    #     for rr in range(montecarlo):
-    #         shuf_trialR[rr, ...] = shuffle(ctx_shuffle, shuffle_axis=2, indie_axis=0, rng=rng)
-    #
-    #     ctp_shuff_dprime = pairwise_dprimes(shuf_trialR, observation_axis=1, condition_axis=3)
-    #     del (shuf_trialR)
-    #
-    #     # for the shuffles, get only the value of the biggest cluster
-    #     cpn_shuf_clstr_max = np.max(np.abs(get_clusters_mass(ctp_shuff_dprime, threshold, axis=-1)), axis=-1)
-    #     cpn_shuf_clstr_max = np.expand_dims(cpn_shuf_clstr_max, axis=-1)
-    #
-    #     # calculates pvalus for each cluster based on the permutation biggest cluster distribution
-    #
-    #     real_clstr = clusters[:, ctx_pairs.index((c0, c1)), ...][:, None, ...]
-    #     pvalue = _raw_pvalue(real_clstr, cpn_shuf_clstr_max)
-    #
-    #
-    #     # example plots for debuggin
-    #     if debug:
-    #         eg_idx = np.unravel_index(np.argmax(np.absolute(real_clstr)), shape=real_clstr.shape)
-    #         eg_idx = np.unravel_index(np.argmax(real_clstr*-1), shape=real_clstr.shape)
-    #         eg_idx = np.s_[eg_idx[0], eg_idx[1], eg_idx[2],:]
-    #
-    #         fig, ax = plt.subplots(figsize=[8,8])
-    #         ax.plot(dprime[eg_idx[0],ctx_pairs.index((c0, c1)),eg_idx[2],:], label='dprime')
-    #         max_clust = np.max(np.absolute(real_clstr[eg_idx]))
-    #         norm_clust = real_clstr[eg_idx] / max_clust
-    #         ax.plot(norm_clust, label='cluster')
-    #         ax.plot(pvalue[eg_idx], label='pvalue')
-    #         norm_shuf = cpn_shuf_clstr_max[(np.s_[:], )+eg_idx].squeeze() / max_clust
-    #         ax.hlines(norm_shuf,0,30, alpha=0.1, color='gray', label='shuf_max_clust')
-    #         ax.hlines(norm_shuf*-1,0,30, alpha=0.1, color='gray')
-    #         ax.axhline(threshold, color='red', linestyle=':', label='clust_threshold')
-    #         ax.axhline(threshold*-1, color='red', linestyle=':')
-    #         ax.axhline(meta['alpha'], color='brown', linestyle='--', label='alpha')
-    #         ax.legend()
-    #         fig.show()

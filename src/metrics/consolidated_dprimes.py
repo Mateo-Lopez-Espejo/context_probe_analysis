@@ -17,7 +17,7 @@ config = ConfigParser()
 config.read_file(open(config_path / 'settings.ini'))
 
 memory = Memory(str(pl.Path(config['paths']['analysis_cache']) / 'consolidated_dprimes'))
-print(f'consolidated_dprimes functions cache at:\n{memory.location}')
+# print(f'consolidated_dprimes functions cache at:\n{memory.location}')
 
 
 # these functionse should operate over site, and a probe, and return a pairwise dprime between contexts, plus the shuffled
@@ -110,6 +110,10 @@ def single_cell_dprimes_cluster_mass(site, contexts, probes, cluster_threshold, 
 
     rep, chn, ctx, prb, tme = trialR.shape
 
+    # shuffling on a context pair basis for consistancy with the pairwise dprime, and as a bonus, to deal with memory issues
+    ctx_pairs = list(itt.combinations(range(ctx), 2))
+
+
     dprime = cDP.pairwise_dprimes(trialR, observation_axis=0, condition_axis=2)
     clusters = get_clusters_mass(dprime, cluster_threshold, axis=-1)
     # shape Cell x CtxPair x Probe x Time
@@ -119,9 +123,6 @@ def single_cell_dprimes_cluster_mass(site, contexts, probes, cluster_threshold, 
 
     print(f"\nshuffling {meta['montecarlo']} times")
     rng = np.random.default_rng(42)
-
-    # shuffling on a context pair basis for consistancy with the pairwise dprime, and as a bonus, to deal with memory issues
-    ctx_pairs = list(itt.combinations(range(ctx), 2))
 
     # we need a single top quantil, and its a single value over all time points
     qnt_shape = list(dprime.shape)
@@ -158,6 +159,7 @@ def single_cell_dprimes_cluster_mass(site, contexts, probes, cluster_threshold, 
         for alpha in [0.05, 0.05/40, 0.05/550]:
             alpha_name = f'{alpha:.5f}'
             quantiles[alpha_name][:, cpn, :, :] = np.quantile(cpn_shuf_clstr_max, 1-alpha, axis=0).squeeze(axis=1)
+        quantiles = {**quantiles}
 
         # saves onle last single random shuffle example and its corresponding pvalue
         sf_eg = shuffle(ctx_shuffle, shuffle_axis=2, indie_axis=0, rng=rng)
@@ -167,6 +169,68 @@ def single_cell_dprimes_cluster_mass(site, contexts, probes, cluster_threshold, 
         shuf_eg_clust[:, cpn, :, :] = sf_eg_clust.squeeze(axis=1)
         shuf_eg_pvalue[:, cpn, :, :] = _raw_pvalue(sf_eg_clust, cpn_shuf_clstr_max).squeeze(axis=1)
         del (cpn_shuff_dprime)
+
+        if False and (ctx_pairs.index((0,1)) == cpn):
+            alpha = 0.05
+            ncomp = prb * len(ctx_pairs)
+            alpha_corr = alpha / ncomp
+
+            from src.visualization.fancy_plots import squarefy
+            eg_idx = np.s_[goodcells.index(cellid), ctx_pairs.index((0,1)), 3-1, :]
+            # eg_idx = np.s_[goodcells.index(cellid), 9, 3-1, :]
+
+            if np.sum(dprime[eg_idx]) < 0:
+                flip = -1
+            else:
+                flip = 1
+
+            t = np.arange(30)
+            d = dprime[eg_idx]*flip
+            c = clusters[eg_idx]*flip
+            s = cpn_shuf_clstr_max[:, eg_idx[0],0, eg_idx[2],0]
+            p = pvalue[eg_idx]
+
+            tt, dd = squarefy(t, d)
+            _, cc = squarefy(t, c)
+            tt , pp = squarefy(t, p)
+
+            ci_c = quantiles[f'{alpha_corr:.5f}'][eg_idx]
+            ci = quantiles[f'{alpha:.5f}'][eg_idx]
+
+            fig, (ax, ax2, ax3) = plt.subplots(3,1, figsize=[8, 8])
+
+            # raw data
+            ax.hlines(s, 0, 30, color='gray', alpha=0.1)
+            ax.plot(tt, dd, label='dprime')
+            ax.plot(tt, cc, label='cluster')
+            ax.axhline(ci_c, color='black', label='shuff_CI_corr')
+            ax.axhline(cluster_threshold, color='red', linestyle=':', label='clust_threshold')
+
+            ax.fill_between(tt, 0, 1, where=pp<alpha_corr,
+                            color='green', alpha=0.5, transform=ax.get_xaxis_transform(), label='significant_corr')
+            ax.legend()
+
+
+            # pval, signif
+            ax2.plot(tt, pp, label='pvalue', color='green')
+            ax2.axhline(alpha_corr, color='brown', linestyle=':', label='alpha_bf')
+            ax2.axhline(alpha, color='brown', linestyle='--', label='alpha')
+            ax2.legend()
+
+            # shuff dist and quantiles
+            ax3.hist(s, bins=100, orientation='vertical')
+            q0 = np.quantile(s, 1-(alpha))
+            q1 = np.quantile(s, 1-(alpha_corr))
+
+            ax3.axvline(ci_c, color='green', label='shuf_ci_corr')
+            ax3.axvline(ci, color='red', linestyle='--', alpha=0.5, label='shuf_ci_raw')
+            ax3.axvline(q0, color='blue', linestyle=':', alpha=0.5, label='shuf_ci_raw_recalc')
+            ax3.axvline(q1, color='orange', linestyle=':', alpha=0.5, label='shuf_ci_corr_recalc')
+            ax3.set_yscale('log')
+            ax3.legend()
+
+            fig.show()
+            print(' ')
 
     # neat little output packages.
     clust_quant_pval = {'clusters':clusters, **quantiles, 'pvalue': pvalue}
@@ -438,6 +502,7 @@ def full_dPCA_dprimes(site, contexts, probes, meta, load_fn=load_site_formated_r
 
 if __name__ == "__main__":
     import matplotlib.pyplot as plt
+    from src.visualization.fancy_plots import squarefy
 
     meta = {'reliability': 0.1,  # r value
             'smoothing_window': 0,  # ms
@@ -446,47 +511,108 @@ if __name__ == "__main__":
             'zscore': True,
             'stim_type': 'permutations'}
 
-    # id = 'TNC010a'  # A1 10 sounds
-    # id = 'ARM022a' # PEG 4 sounds
-    id = 'ARM021b' # breaking cluster mass
     alpha = 0.05
+
+    cellid, contexts, probes = 'ARM021b-36-8', (0, 1), 3  # huge difference between thresholds
+    cellid, contexts, probes = 'CRD012b-13-1', (3, 4), 3  # huge difference between thresholds
 
     # out = single_cell_dprimes(site=id, contexts='all', probes='all',
     #                           meta=meta)
 
-    clust_threshold = 1
-    dprime, clust_quant_pval, goodcells, shuffled_eg = single_cell_dprimes_cluster_mass(site=id, contexts='all', probes='all',
-                                           cluster_threshold=clust_threshold, meta=meta)
+    cluster_threshold = 2
+    (dprime, clust_quant_pval, goodcells, shuffled_eg), _ = single_cell_dprimes_cluster_mass.call(site=cellid, contexts='all', probes='all',
+                                           cluster_threshold=cluster_threshold, meta=meta)
 
     pvalue = clust_quant_pval['pvalue']
     clusters = clust_quant_pval['clusters']
-    ci = clust_quant_pval[f'{alpha:.5f}']
 
-    summed_time = np.sum(np.absolute(clusters), axis=-1)
-    sorted_egs = np.argsort(summed_time.flatten())
-    sorted_egs = np.unravel_index(sorted_egs, summed_time.shape)
+    alpha = 0.05
+    ncomp = dprime.shape[2] * dprime.shape[1]
+    alpha_corr = alpha / ncomp
 
-    sorted_egs = np.asarray(sorted_egs).T[::-1,:]
 
-    for eg_idx in sorted_egs:
-        # eg_idx = np.unravel_index(np.argmax(np.absolute(clusters)), shape=clusters.shape)
-        eg_idx = np.s_[eg_idx[0], eg_idx[1], eg_idx[2], :]
+    if dprime.shape[1] == 10:
+        ctx = 5
+    elif dprime.shape[1] == 55:
+        ctx = 11
+    else:
+        raise ValueError('unknown nuber of context pairs')
 
-        fig, ax = plt.subplots(figsize=[8, 8])
-        ax.plot(dprime[eg_idx], label='dprime')
-        ax2 = ax.twinx()
-        max_clust = np.max(np.absolute(clusters[eg_idx]))
-        # norm_clust = real_clstr[eg_idx] / max_clust
-        ax.plot(clusters[eg_idx], label='cluster')
-        ax2.plot(pvalue[eg_idx], label='pvalue', color='green')
-        print(pvalue[eg_idx])
-        # norm_shuf = cpn_shuf_clstr_max[(np.s_[:], )+eg_idx].squeeze() / max_clust
-        ax.fill_between(np.arange(30), ci[eg_idx] * -1, ci[eg_idx], alpha=0.5, color='gray', label='shuf_max_clust')
-        # ax.axhline(ci[eg_idx] * -1, alpha=0.1, color='gray')
-        ax.axhline(clust_threshold, color='red', linestyle=':', label='clust_threshold')
-        ax.axhline(clust_threshold * -1, color='red', linestyle=':')
-        ax2.axhline(alpha, color='brown', linestyle='--', label='alpha')
-        ax2.set_yscale('log')
-        fig.legend()
-        fig.show()
-        print(' ')
+    ctx_pairs = list(itt.combinations(range(ctx), 2))
+
+    eg_idx = np.s_[goodcells.index(cellid), ctx_pairs.index((0, 1)), 3 - 1, :]
+    # eg_idx = np.s_[goodcells.index(cellid), 9, 3-1, :]
+
+    if np.sum(dprime[eg_idx]) < 0:
+        flip = -1
+    else:
+        flip = 1
+
+
+    eg_idx = np.s_[goodcells.index(cellid), ctx_pairs.index((0, 1)), 3 - 1, :]
+    # eg_idx = np.s_[goodcells.index(cellid), 9, 3-1, :]
+
+    if np.sum(dprime[eg_idx]) < 0:
+        flip = -1
+    else:
+        flip = 1
+
+    t = np.arange(30)
+    d = dprime[eg_idx] * flip
+    c = clusters[eg_idx] * flip
+    # s = cpn_shuf_clstr_max[:, eg_idx[0], 0, eg_idx[2], 0]
+    p = pvalue[eg_idx]
+
+    tt, dd = squarefy(t, d)
+    _, cc = squarefy(t, c)
+    tt, pp = squarefy(t, p)
+
+    ci_c = clust_quant_pval[f'{alpha_corr:.5f}'][eg_idx]
+    ci = clust_quant_pval[f'{alpha:.5f}'][eg_idx]
+
+    fig, (ax, ax2) = plt.subplots(2, 1, figsize=[8, 8])
+
+    # raw data
+    ax.plot(tt, dd, label='dprime')
+    ax.plot(tt, cc, label='cluster')
+    ax.axhline(ci_c, color='black', label='shuff_CI_corr')
+    ax.axhline(cluster_threshold, color='red', linestyle=':', label='clust_threshold')
+
+    ax.fill_between(tt, 0, 1, where=pp < alpha_corr,
+                    color='green', alpha=0.5, transform=ax.get_xaxis_transform(), label='significant_corr')
+    ax.legend()
+
+    # pval, signif
+    ax2.plot(tt, pp, label='pvalue', color='green')
+    ax2.axhline(alpha_corr, color='brown', linestyle=':', label='alpha_bf')
+    ax2.axhline(alpha, color='brown', linestyle='--', label='alpha')
+    ax2.legend()
+
+    fig.show()
+
+    # summed_time = np.sum(np.absolute(clusters), axis=-1)
+    # sorted_egs = np.argsort(summed_time.flatten())
+    # sorted_egs = np.unravel_index(sorted_egs, summed_time.shape)
+    # sorted_egs = np.asarray(sorted_egs).T[::-1,:]
+    # for eg_idx in sorted_egs:
+    #     # eg_idx = np.unravel_index(np.argmax(np.absolute(clusters)), shape=clusters.shape)
+    #     eg_idx = np.s_[eg_idx[0], eg_idx[1], eg_idx[2], :]
+    #
+    #     fig, ax = plt.subplots(figsize=[8, 8])
+    #     ax.plot(dprime[eg_idx], label='dprime')
+    #     ax2 = ax.twinx()
+    #     max_clust = np.max(np.absolute(clusters[eg_idx]))
+    #     # norm_clust = real_clstr[eg_idx] / max_clust
+    #     ax.plot(clusters[eg_idx], label='cluster')
+    #     ax2.plot(pvalue[eg_idx], label='pvalue', color='green')
+    #     print(pvalue[eg_idx])
+    #     # norm_shuf = cpn_shuf_clstr_max[(np.s_[:], )+eg_idx].squeeze() / max_clust
+    #     ax.fill_between(np.arange(30), ci[eg_idx] * -1, ci[eg_idx], alpha=0.5, color='gray', label='shuf_max_clust')
+    #     # ax.axhline(ci[eg_idx] * -1, alpha=0.1, color='gray')
+    #     ax.axhline(cluster_threshold, color='red', linestyle=':', label='clust_threshold')
+    #     ax.axhline(cluster_threshold * -1, color='red', linestyle=':')
+    #     ax2.axhline(alpha, color='brown', linestyle='--', label='alpha')
+    #     ax2.set_yscale('log')
+    #     fig.legend()
+    #     fig.show()
+    #     print(' ')
