@@ -19,7 +19,7 @@ memory = Memory(str(pl.Path(config['paths']['analysis_cache']) / 'consolidated_t
 # print(f'consolidated_tstat functions cache at:\n{memory.location}')
 
 
-@memory.cache
+# @memory.cache
 def single_cell_tstat_cluster_mass(site, contexts, probes, cluster_threshold, meta,
                                        load_fn=load_site_formated_raster):
     """
@@ -101,11 +101,14 @@ def single_cell_tstat_cluster_mass(site, contexts, probes, cluster_threshold, me
         cpn_pval = _raw_pvalue(real_clstr, cpn_shuf_clstr_max)
         pvalue[:, cpn, :, :] = cpn_pval.squeeze(axis=1)
 
-        # saves quantiles for display, multiple comparisons corrections for:
-        # 4 sounds (4 probes, 10 context pairs) and 10 sounds (10 probes, 55 context pairs)
-        for alpha in [0.05, 0.05 / 40, 0.05 / 550]:
-            alpha_name = f'{alpha:.5f}'
-            quantiles[alpha_name][:, cpn, :, :] = np.quantile(cpn_shuf_clstr_max, 1 - alpha, axis=0).squeeze(axis=1)
+        # saves raw quantiles for display alongside multiple comparisons corrections for:
+        # context_pair*probe and neuron*context_pair*probe
+        bf_corrections = dict(none=1,
+                              bf_cp=len(ctx_pairs)*prb,
+                              bf_ncp=chn*len(ctx_pairs)*prb)
+        for corr_name, ncorr in bf_corrections.items(): #[0.05, 0.05 / 40, 0.05 / 550]:
+            alpha = 0.05 / ncorr # asumes initial alpha of 0.05
+            quantiles[corr_name][:, cpn, :, :] = np.quantile(cpn_shuf_clstr_max, 1 - alpha, axis=0).squeeze(axis=1)
         quantiles = {**quantiles}
 
         # saves onle last single random shuffle example and its corresponding pvalue
@@ -224,8 +227,10 @@ if __name__ == "__main__":
     clusters = clust_quant_pval['clusters']
     ct = clust_quant_pval['t-threshold']
 
+    ncomp, fb_corr = dprime.shape[1] * dprime.shape[2], 'bf_cp'
+    ncomp, fb_corr = dprime.shape[0] * dprime.shape[1] * dprime.shape[2], 'bf_ncp'
+
     alpha = 0.05
-    ncomp = dprime.shape[2] * dprime.shape[1]
     alpha_corr = alpha / ncomp
 
     if dprime.shape[1] == 10:
@@ -253,8 +258,8 @@ if __name__ == "__main__":
     _, cc = squarefy(t, c)
     tt, pp = squarefy(t, p)
 
-    ci_c = clust_quant_pval[f'{alpha_corr:.5f}'][eg_idx]
-    ci = clust_quant_pval[f'{alpha:.5f}'][eg_idx]
+    ci_c = clust_quant_pval[fb_corr][eg_idx]
+    ci = clust_quant_pval[fb_corr][eg_idx]
 
     fig, (ax, ax2) = plt.subplots(2, 1, figsize=[8, 8])
 

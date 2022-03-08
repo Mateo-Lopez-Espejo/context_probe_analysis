@@ -14,61 +14,97 @@ from src.metrics.significance import _significance
 from src.visualization.fancy_plots import squarefy
 from src.visualization.palette import *
 
-
-def plot_psth_pair(cellid, contexts, probe):
+def plot_raw_pair(cellid, contexts, probe, type='psth'):
     ctx_pair = contexts
     prb_idx = probe - 1
 
-    site_raster, goodcellse = load_site_formated_raster(cellid[:7], part='all', smoothing_window=50)
+    if type == 'psth':
+        fs = 30 # dont pass as is default
+        smoothing_window = 50
+    elif type == 'raster':
+        fs = 100
+        smoothing_window = 0
+    else:
+        raise ValueError("undefined plot type, choose psht or raster")
+    site_raster, goodcellse = load_site_formated_raster(cellid[:7], part='all',
+                                                        smoothing_window=smoothing_window, raster_fs=fs)
     eg_raster = site_raster[:, goodcellse.index(cellid), :, prb_idx, :]
+
+
+    # fs = 30# here asuming 30Hz sampling rate, as its the default of the raster loader
+    nreps,_,nsamps = eg_raster.shape
+    duration  = nsamps / fs
+    time = np.linspace(0-duration/2, duration/2, nsamps, endpoint=False)
+    halfs = [np.s_[:int(nsamps / 2)], np.s_[int(nsamps / 2):]]
 
     # rotation of colors for the silence + 4 sound examples
     colors = [Grey, Yellow, Red, Teal, Brown]
 
     fig = go.Figure()
-    for cxt_idx in ctx_pair:
-        nsamps = eg_raster.shape[-1]
-        time = np.linspace(-1, 1, nsamps)
-        mean_resp = np.mean(eg_raster[:, cxt_idx, :], axis=0)
-        std_resp = np.std(eg_raster[:, cxt_idx, :], axis=0)
+    for cc, ctx_idx in enumerate(ctx_pair):
 
-        halfs = [np.s_[:int(nsamps / 2)], np.s_[int(nsamps / 2):]]
-        part_color = [colors[cxt_idx % len(colors)], colors[prb_idx % len(colors)]]
+        part_color = [colors[ctx_idx % len(colors)], colors[prb_idx % len(colors)]]
 
         for nn, (half, color) in enumerate(zip(halfs, part_color)):
 
-            x, y = squarefy(time[half], mean_resp[half])
-            _, ystd = squarefy(time[half], std_resp[half])
+            if type == 'psth':
+                # find mean and estandard error of the mean for line and confidence interval
+                mean_resp = np.mean(eg_raster[:, ctx_idx, :], axis=0)
+                std_resp = np.std(eg_raster[:, ctx_idx, :], axis=0)
+                x, y = squarefy(time[half], mean_resp[half])
+                _, ystd = squarefy(time[half], std_resp[half])
 
-            # off set half a bin to the left
-            halfbin = np.mean(np.diff(time)) / 2
-            x -= halfbin
-            y -= halfbin
-            ystd -= halfbin
+                if nn == 0:
+                    # same color of ci border line and fill for left-hand side
+                    _ = fig.add_trace(go.Scatter(x=x, y=y + ystd, mode='lines', line_color=color, line_width=1))
+                    _ = fig.add_trace(go.Scatter(x=x, y=y - ystd, mode='lines', line_color=color, line_width=1,
+                                                 fill='tonexty'))
 
-            if nn == 0:
-                # ax.fill_between(x, y-ystd, y+ystd, color=color, alpha=0.5)
-                _ = fig.add_trace(go.Scatter(x=x, y=y + ystd, mode='lines', line_color=color, line_width=1))
-                _ = fig.add_trace(go.Scatter(x=x, y=y - ystd, mode='lines', line_color=color, line_width=1,
-                                             fill='tonexty'))
+                else:
+                    # different color of ci border line and fill for right-hand side
+                    # to set a transparent fillcolor changes the 'rgb(x,y,z)' into 'rgba(x,y,z,a)'
+                    rgb = hex_to_rgb(part_color[0])  # tuple
+                    fill_opacity = 0.5
+                    rgba = f'rgba({rgb[0]}, {rgb[1]}, {rgb[2]}, {fill_opacity})'
 
+                    _ = fig.add_trace(go.Scatter(x=x, y=y + ystd, mode='lines', line_color=color, line_width=1))
+                    _ = fig.add_trace(go.Scatter(x=x, y=y - ystd, mode='lines', line_color=color, line_width=1,
+                                                 fill='tonexty', fillcolor=rgba))
+
+                # set the mean lines second so they lie on top of the colored areas
+                _ = fig.add_trace(go.Scatter(x=x, y=y, mode='lines', line_color=color, line_width=3))
+
+            elif type == 'raster':
+                y, x = np.where(eg_raster[:, ctx_idx, half] > 0)
+                x_offset = time[half][0]
+                x = (x/fs) + x_offset
+                y_offset = nreps * cc
+                y += y_offset
+
+                # set the mean lines second so they lie on top of the colored areas
+                _ = fig.add_trace(
+                    go.Scatter(x=x, y=y, mode='markers',
+                                             marker=dict(
+                                                 color=color,
+                                                 opacity=0.5,
+                                                 line=dict(
+                                                     color=part_color[0],
+                                                     width=1
+                                                 )
+                                             )
+                               )
+                )
             else:
-                # to set a transparent fillcolor changes the 'rgb(x,y,z)' into 'rgba(x,y,z,a)'
-                rgb = hex_to_rgb(part_color[0])  # tupple
-                fill_opacity = 0.5
-                rgba = f'rgba({rgb[0]}, {rgb[1]}, {rgb[2]}, {fill_opacity})'
+                raise ValueError("undefined plot type, choose psht or raster")
 
-                _ = fig.add_trace(go.Scatter(x=x, y=y + ystd, mode='lines', line_color=color, line_width=1))
-                _ = fig.add_trace(go.Scatter(x=x, y=y - ystd, mode='lines', line_color=color, line_width=1,
-                                             fill='tonexty', fillcolor=rgba))
-
-            # set the mean lines second so they lie on top of the colored areas
-            _ = fig.add_trace(go.Scatter(x=x, y=y, mode='lines', line_color=color, line_width=3))
-
+    _ = fig.update_xaxes(title_text='time from probe onset (s)', title_standoff=0, range=[0-duration/2, duration/2])
     _ = fig.add_vline(x=0, line_width=2, line_color='black', line_dash='dot', opacity=1)
 
-    _ = fig.update_xaxes(title_text='time from probe onset (s)', title_standoff=0)
-    _ = fig.update_yaxes(title_text='firing rate (z-score)', title_standoff=0)
+    if type == 'psth':
+        _ = fig.update_yaxes(title_text='firing rate (z-score)', title_standoff=0)
+    elif type == 'raster':
+        _ = fig.update_yaxes(title_text='trials', title_standoff=0, showticklabels=False, range=[0, nreps*2])
+        fig.update_layout()
 
     return fig
 
@@ -374,8 +410,10 @@ if __name__ == '__main__':
     # tile = plot_neuron_tiling(cellid, longDF)
     # tile.show()
 
-    # psth = plot_psth_pair(cellid, contexts, probes)
-    # psth.show()
+    raw_pair = plot_raw_pair(cellid, contexts, probes, type='psth')
+    raw_pair.show()
+    raw_pair = plot_raw_pair(cellid, contexts, probes, type='raster')
+    raw_pair.show()
 
 
     # fig = make_subplots(1,3)
@@ -397,23 +435,22 @@ if __name__ == '__main__':
     # fig.add_traces(right['data'],rows=[1]*len(right['data']),cols=[3]*len(right['data']))
     #
     # fig.show()
-    picked_eg = {'points': [{'curveNumber': 21, 'pointNumber': 7244, 'pointIndex': 7244, 'x': 185.252606486073, 'y': 3215.425125645705, 'hovertext': 'TNC014a-22-2', 'bbox': {'x0': 302.49, 'x1': 304.49, 'y0': 163.64, 'y1': 165.64}, 'customdata': ['00_03', 2]}]}
-    picked_eg = {'points': [
-        {'curveNumber': 20, 'pointNumber': 15856, 'pointIndex': 15856, 'x': 838.4125227037579, 'y': 1008.7867703423386,
-         'hovertext': 'TNC013a-46-3', 'bbox': {'x0': 873.57, 'x1': 875.57, 'y0': 299.82, 'y1': 301.82},
-         'customdata': ['07_10', 6]}]}
 
 
-    cellid = picked_eg['points'][0]['hovertext']
-    contexts = [int(ss) for ss in picked_eg['points'][0]['customdata'][0].split('_')]
-    probes = picked_eg['points'][0]['customdata'][1]
 
-    fig = make_subplots(1, 2)
-
-    psth = plot_psth_pair(cellid, contexts, probes)
-    quant_diff = plot_time_ser_quant(cellid, contexts, probes,
-                                     multiple_comparisons_axis=[1, 2], consecutive=0, cluster_threshold=0.05,
-                                     fn_name='t_statistic', meta=meta)
-
-    fig.add_traces(psth['data'], rows=[1] * len(psth['data']), cols=[1] * len(psth['data']))
-    fig.add_traces(quant_diff['data'], rows=[1] * len(quant_diff['data']), cols=[2] * len(quant_diff['data']))
+    # # debugging odd examples
+    # picked_eg = {'points': [{'curveNumber': 21, 'pointNumber': 7244, 'pointIndex': 7244, 'x': 185.252606486073, 'y': 3215.425125645705, 'hovertext': 'TNC014a-22-2', 'bbox': {'x0': 302.49, 'x1': 304.49, 'y0': 163.64, 'y1': 165.64}, 'customdata': ['00_03', 2]}]}
+    #
+    # cellid = picked_eg['points'][0]['hovertext']
+    # contexts = [int(ss) for ss in picked_eg['points'][0]['customdata'][0].split('_')]
+    # probes = picked_eg['points'][0]['customdata'][1]
+    #
+    # fig = make_subplots(1, 2)
+    #
+    # psth = plot_psth_pair(cellid, contexts, probes)
+    # quant_diff = plot_time_ser_quant(cellid, contexts, probes,
+    #                                  multiple_comparisons_axis=[1, 2], consecutive=0, cluster_threshold=0.05,
+    #                                  fn_name='t_statistic', meta=meta)
+    #
+    # fig.add_traces(psth['data'], rows=[1] * len(psth['data']), cols=[1] * len(psth['data']))
+    # fig.add_traces(quant_diff['data'], rows=[1] * len(quant_diff['data']), cols=[2] * len(quant_diff['data']))
