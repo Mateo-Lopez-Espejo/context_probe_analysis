@@ -16,7 +16,7 @@ badsites = {'AMT031a', 'DRX008b','DRX021a', 'DRX023a', 'ley074a', 'TNC010a'} # e
 no_perm = {'ley058d'} # sites without permutations
 sites = sites.difference(badsites).difference(no_perm)
 # sites = ('AMT021b',) # test site
-cluster_thresholds = [0.01]
+cluster_thresholds = [0.05, 0.01]
 
 # iterates over every mode, checks what cells have not been fitted with it and runs the fit command.
 for site, clust_thresh in itt.product(sites, cluster_thresholds):
