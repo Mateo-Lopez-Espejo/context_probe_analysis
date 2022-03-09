@@ -1,7 +1,6 @@
 import pathlib as pl
 import warnings
 from configparser import ConfigParser
-from src.metrics.consolidated_metrics import _append_means_to_array
 import numpy as np
 import numpy.ma as ma
 import operator
@@ -76,24 +75,6 @@ def _raw_pvalue(real_val, mont_array, tails='both'):
 
     return pvalues
 
-def _signif_quantiles(mont_array, alpha=(0.05, 0.01, 0.001)):
-    """
-    returns a dictionary of quantiles from the input montecarlo. These quantiles are effectively the thresholds
-    for significance difference from the Montecarlo distribution on a two tailed test.
-    :param mont_array: array with shape MontecarloReps x ...
-    :param alpha: int, list. alpha or list of alpha values
-    :return: dict of quatiles for each alpha
-    """
-    if not isinstance(alpha, (list, tuple)):
-        alpha = [alpha]
-
-    quantil_dict = dict()
-
-    for alp in alpha:
-        quantil_dict[alp] = np.quantile(mont_array, [alp/2, 1-alp/2], axis=0)
-
-    return quantil_dict
-
 def  _significance(pvalue, multiple_comparisons_axis=None, consecutive=0, alpha=0.01):
     """
     calculates significance (boolean) for the values of array using the montecarlo method e.g. n simulations or shuffles of the
@@ -137,44 +118,6 @@ def  _significance(pvalue, multiple_comparisons_axis=None, consecutive=0, alpha=
         significance = chunk_signif
 
     return significance
-
-def _mask_with_significance(dprime, significance, label_dictionary, mean_type='zeros', mean_signif_arr=None):
-    """
-    uses the significance array to mask the dprime for later analysis. The critial use of this fuction is to deal with
-    different aproaches on how to deal with the significance for the mean across context_pairs, probes or both.
-    zeros:
-    :param dprime: arraye of dprime values
-    :param significance: boolean array of the significance of said dprimes
-    :param label_dict: dictionary of the dimension labels for dprime
-    :param mean_type: how to deal with the sigificance for the mean values
-    :return: masked array containing appended mean values, ready for metric calculation
-    """
-
-    if mean_type == 'zeros':
-        # turns nonsigificant values into zeros and takes the means normally
-        zeroed = np.where(significance, dprime, 0)
-        dprime_means, mean_lable_dict = _append_means_to_array(zeroed, label_dictionary)
-        masked_dprime_means = ma.array(dprime_means)
-
-    elif mean_type == 'mean':
-        # takes the mean of the significances and uses it to determine what mean values are significant
-        dprime_means, mean_lable_dict = _append_means_to_array(dprime, label_dictionary)
-        signif_means,_ = _append_means_to_array(significance, label_dictionary)
-        masked_dprime_means = ma.array(dprime_means, mask=signif_means==0)
-
-    elif mean_type == 'shuffles':
-        # merges the imported  mean signif array into the dprime signifs
-        dprime_means, mean_lable_dict = _append_means_to_array(dprime, label_dictionary)
-        signif_means,_ = _append_means_to_array(significance, label_dictionary)
-        signif_means[:,-1, :,:] = mean_signif_arr[:,-1, :,:]
-        signif_means[:, :, -1,:] = mean_signif_arr[:, :, -1,:]
-        masked_dprime_means = ma.array(dprime_means, mask=signif_means==0)
-
-    else:
-        raise ValueError(f'Unrecognized mean_type: {mean_type}')
-
-    return masked_dprime_means, mean_lable_dict
-
 
 def get_clusters_mass(metric, threshold, axis, min_size=1, verbose=False):
     # defines threshold
