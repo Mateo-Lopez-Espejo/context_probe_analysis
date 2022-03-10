@@ -141,6 +141,7 @@ def plot_time_ser_quant(cellid, contexts, probe,
         pvalue = shuffled_eg['pvalue']
 
 
+
     significance = _significance(pvalue,
                                  multiple_comparisons_axis=multiple_comparisons_axis,
                                  consecutive=consecutive,
@@ -148,11 +149,17 @@ def plot_time_ser_quant(cellid, contexts, probe,
 
     # new alphas corrected by multiple comparisons
     if multiple_comparisons_axis is None:
-        n_comparisons = 1
+        mult_comp = 'none'
+    elif len(multiple_comparisons_axis) == 2:
+        # asumes correction acros context and probes
+        mult_comp = 'bf_cp'
+    elif len(multiple_comparisons_axis) == 3:
+        # asumes correction acros neurons, context and probes
+        mult_comp = 'bf_ncp'
     else:
-        n_comparisons = np.prod(np.asarray(pvalue.shape)[np.asarray(multiple_comparisons_axis)])
+        raise ValueError('I dont know what to do with so many multiple_comparisons_axis')
 
-    corr_alpha = f"{alpha / n_comparisons:.5f}"
+    mult_comp
 
 
     cell_idx = goodcells.index(cellid) if len(cellid) > 7 else 0
@@ -169,10 +176,11 @@ def plot_time_ser_quant(cellid, contexts, probe,
         flip = 1
 
     DP *= flip
-    if corr_alpha in pval_quantiles.keys():
-        CI = pval_quantiles[corr_alpha][cell_idx, pair_idx, prb_idx, 0]
+    if mult_comp in pval_quantiles.keys():
+        CI = pval_quantiles[mult_comp][cell_idx, pair_idx, prb_idx, 0]
     else:
-        print('undefined quantiles for ')
+        raise ValueError(f'undefined quantiles for {mult_comp}')
+
     CT = pval_quantiles['clusters'][cell_idx, pair_idx, prb_idx, :] * flip
 
     if 't-threshold' in pval_quantiles:
@@ -188,11 +196,19 @@ def plot_time_ser_quant(cellid, contexts, probe,
     t = np.linspace(0, DP.shape[-1] / meta['raster_fs'], DP.shape[-1], endpoint=False)
 
     # calculates center of mass and integral
-    significant_abs_mass_center = np.sum(np.abs(DP[signif_mask]) * t[signif_mask]) / np.sum(np.abs(DP[signif_mask]))
+    integral = np.sum(np.abs(DP[signif_mask])) * np.mean(np.diff(t))
+    print(f"integral: {integral * 1000:.2f} d'*ms")
+
+    mass_center = np.sum(np.abs(DP[signif_mask]) * t[signif_mask]) / np.sum(np.abs(DP[signif_mask]))
+    if np.isnan(mass_center): mass_center = 0
+    print(f'center of mass: {mass_center * 1000:.2f} ms')
+
+    if np.any(signif_mask):
+        last_bin = np.max(t[signif_mask])
+    else:
+        last_bin = 0
     # if np.isnan(significant_abs_mass_center): significant_abs_mass_center = 0
-    significant_abs_sum = np.sum(np.abs(DP[signif_mask])) * np.mean(np.diff(t))
-    print(f"integral: {significant_abs_sum * 1000:.2f} d'*ms")
-    print(f'center of mass: {significant_abs_mass_center * 1000:.2f} ms')
+    print(f'last bin: {last_bin * 1000:.2f} ms')
 
     fig = go.Figure()
     # plots dprime and cluster threshold on primary axis
@@ -218,9 +234,9 @@ def plot_time_ser_quant(cellid, contexts, probe,
                                  fill='tozeroy', fillcolor=rgba))
 
     # center of mass indication: line fom zero to the time series value at that time point
-    if not np.isnan(significant_abs_mass_center):
-        ytop = DP[np.abs(t-significant_abs_mass_center).argmin()]
-        _ = fig.add_trace(go.Scatter(x=[significant_abs_mass_center]*2, y=[0, ytop], mode='lines',
+    if not np.isnan(mass_center):
+        ytop = DP[np.abs(t-mass_center).argmin()]
+        _ = fig.add_trace(go.Scatter(x=[mass_center]*2, y=[0, ytop], mode='lines',
                                      line=dict(color=Purple, width=4)))
 
     # formats axis, legend and so on.
@@ -402,22 +418,25 @@ if __name__ == '__main__':
 
         return filtered
 
-    cellid, contexts, probes = 'ARM021b-36-8', (0, 1), 3  # odd tail in bf_cp-2.0
-    cellid, contexts, probes = 'CRD012b-13-1', (1, 4), 3  # big difference by cluster threshold
     cellid, contexts, probes = 'TNC006a-07-1', (2, 10), 2 # well behaved example
 
     # longDF = format_dataframe(df)
     # tile = plot_neuron_tiling(cellid, longDF)
     # tile.show()
 
-    raw_pair = plot_raw_pair(cellid, contexts, probes, type='psth')
-    raw_pair.show()
-    raw_pair = plot_raw_pair(cellid, contexts, probes, type='raster')
-    raw_pair.show()
+    fig = make_subplots(1,2)
+
+    raster = plot_raw_pair(cellid, contexts, probes, type='raster')
+    psth = plot_raw_pair(cellid, contexts, probes, type='psth')
+
+    fig.add_traces(raster['data'],rows=[1]*len(raster['data']),cols=[1]*len(raster['data']))
+    fig.add_traces(psth['data'],rows=[1]*len(psth['data']),cols=[2]*len(psth['data']))
+
+    fig.show()
 
 
     # fig = make_subplots(1,3)
-    #
+
     # left = plot_time_ser_quant(cellid, contexts, probes,
     #                              multiple_comparisons_axis=[1,2], consecutive=0, cluster_threshold=2,
     #                              fn_name='dprime')
@@ -425,32 +444,13 @@ if __name__ == '__main__':
     # center = plot_time_ser_quant(cellid, contexts, probes,
     #                              multiple_comparisons_axis=[1,2], consecutive=0, cluster_threshold=2,
     #                              fn_name='mean_difference')
-    #
-    # right = plot_time_ser_quant(cellid, contexts, probes,
+    # right = plot_time_ser_quant(cellid, contexts, probes, source='real',
     #                              multiple_comparisons_axis=[1,2], consecutive=0, cluster_threshold=0.05,
     #                              fn_name='t_statistic')
-    #
+    # right.show()
+
     # fig.add_traces(left['data'],rows=[1]*len(left['data']),cols=[1]*len(left['data']))
     # fig.add_traces(center['data'],rows=[1]*len(center['data']),cols=[2]*len(center['data']))
     # fig.add_traces(right['data'],rows=[1]*len(right['data']),cols=[3]*len(right['data']))
     #
     # fig.show()
-
-
-
-    # # debugging odd examples
-    # picked_eg = {'points': [{'curveNumber': 21, 'pointNumber': 7244, 'pointIndex': 7244, 'x': 185.252606486073, 'y': 3215.425125645705, 'hovertext': 'TNC014a-22-2', 'bbox': {'x0': 302.49, 'x1': 304.49, 'y0': 163.64, 'y1': 165.64}, 'customdata': ['00_03', 2]}]}
-    #
-    # cellid = picked_eg['points'][0]['hovertext']
-    # contexts = [int(ss) for ss in picked_eg['points'][0]['customdata'][0].split('_')]
-    # probes = picked_eg['points'][0]['customdata'][1]
-    #
-    # fig = make_subplots(1, 2)
-    #
-    # psth = plot_psth_pair(cellid, contexts, probes)
-    # quant_diff = plot_time_ser_quant(cellid, contexts, probes,
-    #                                  multiple_comparisons_axis=[1, 2], consecutive=0, cluster_threshold=0.05,
-    #                                  fn_name='t_statistic', meta=meta)
-    #
-    # fig.add_traces(psth['data'], rows=[1] * len(psth['data']), cols=[1] * len(psth['data']))
-    # fig.add_traces(quant_diff['data'], rows=[1] * len(quant_diff['data']), cols=[2] * len(quant_diff['data']))

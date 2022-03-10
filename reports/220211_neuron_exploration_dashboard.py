@@ -10,7 +10,7 @@ from dash import Dash, dcc, html, Input, Output
 from plotly.subplots import make_subplots
 
 from src.root_path import config_path
-from src.visualization.interactive import plot_psth_pair, plot_time_ser_quant
+from src.visualization.interactive import plot_raw_pair, plot_time_ser_quant
 
 #### general configuration to import the right data and caches
 config = ConfigParser()
@@ -99,9 +99,11 @@ def format_dataframe(DF):
     return filtered
 
 
-DF_long = format_dataframe(DF)
+# DF_long = format_dataframe(DF)
+longDF = DF
 
-pivoted = DF_long.pivot_table(index=['source', 'mult_comp_corr', 'cluster_threshold',
+
+pivoted = longDF.pivot_table(index=['source', 'mult_comp_corr', 'cluster_threshold',
                                      'region', 'stim_count',
                                      'context_pair', 'probe',
                                      'id', 'site'],
@@ -147,7 +149,7 @@ def _plot_sample_details(picked_eg):
 
     fig = make_subplots(1, 2)
 
-    psth = plot_psth_pair(cellid, contexts, probes)
+    psth = plot_raw_pair(cellid, contexts, probes, type='psth')
     quant_diff = plot_time_ser_quant(cellid, contexts, probes,
                                      multiple_comparisons_axis=[1, 2], consecutive=0, cluster_threshold=0.05,
                                      fn_name='t_statistic', meta=meta)

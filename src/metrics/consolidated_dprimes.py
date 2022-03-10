@@ -9,7 +9,7 @@ from joblib import Memory
 from src.data import LDA as cLDA, dPCA as cdPCA
 from src.data.rasters import load_site_formated_raster
 from src.metrics import dprime as cDP
-from src.metrics.significance import _signif_quantiles, _raw_pvalue, get_clusters_mass
+from src.metrics.significance import _raw_pvalue, get_clusters_mass
 from src.root_path import config_path
 from src.utils.tools import shuffle_along_axis as shuffle
 
@@ -17,7 +17,6 @@ config = ConfigParser()
 config.read_file(open(config_path / 'settings.ini'))
 
 memory = Memory(str(pl.Path(config['paths']['analysis_cache']) / 'consolidated_dprimes'))
-# print(f'consolidated_dprimes functions cache at:\n{memory.location}')
 
 
 # these functionse should operate over site, and a probe, and return a pairwise dprime between contexts, plus the shuffled
@@ -73,10 +72,10 @@ def single_cell_dprimes(site, contexts, probes, meta, load_fn=load_site_formated
         real_dprime = dprime[:, ctx_pairs.index((c0, c1)), ...][:, None, ...]
         pvalue[:, cpn, :, :] = _raw_pvalue(real_dprime, neur_shuff_dprime).squeeze(axis=1)
 
-        # saves quantiles mostly for display, i.e. gray confidense intervale on dprime plots
-        neur_shuff_quantils = _signif_quantiles(neur_shuff_dprime)
-        for alpha, qntls in neur_shuff_quantils.items():
-            quantiles[alpha][:, :, cpn, :, :] = qntls.squeeze(axis=2)
+        # # saves quantiles mostly for display, i.e. gray confidense intervale on dprime plots
+        # neur_shuff_quantils = _signif_quantiles(neur_shuff_dprime)
+        # for alpha, qntls in neur_shuff_quantils.items():
+        #     quantiles[alpha][:, :, cpn, :, :] = qntls.squeeze(axis=2)
 
         # saves onle last single random shuffle example and its corresponding pvlaue
         sf_eg = shuffle(ctx_shuffle, shuffle_axis=2, indie_axis=0, rng=rng)
@@ -91,8 +90,10 @@ def single_cell_dprimes(site, contexts, probes, meta, load_fn=load_site_formated
 
     return dprime, pval_quantiles, goodcells, shuffled_eg
 
+
 @memory.cache
-def single_cell_dprimes_cluster_mass(site, contexts, probes, cluster_threshold, meta, load_fn=load_site_formated_raster):
+def single_cell_dprimes_cluster_mass(site, contexts, probes, cluster_threshold, meta,
+                                     load_fn=load_site_formated_raster):
     """
     calculated the dprime between context for all probes and for all cells in a site.
     Defines significance of said dprime using the cluster mass method (for time clusters) with the permutation distributions of context id.
@@ -113,7 +114,6 @@ def single_cell_dprimes_cluster_mass(site, contexts, probes, cluster_threshold, 
     # shuffling on a context pair basis for consistancy with the pairwise dprime, and as a bonus, to deal with memory issues
     ctx_pairs = list(itt.combinations(range(ctx), 2))
 
-
     dprime = cDP.pairwise_dprimes(trialR, observation_axis=0, condition_axis=2)
     clusters = get_clusters_mass(dprime, cluster_threshold, axis=-1)
     # shape Cell x CtxPair x Probe x Time
@@ -125,9 +125,15 @@ def single_cell_dprimes_cluster_mass(site, contexts, probes, cluster_threshold, 
     rng = np.random.default_rng(42)
 
     # we need a single top quantil, and its a single value over all time points
+
+    # we need a single top quantile, and it s a single value over all time points
+    # context_pair*probe and neuron*context_pair*probe
+    bf_corrections = dict(none=1,
+                          bf_cp=len(ctx_pairs) * prb,
+                          bf_ncp=chn * len(ctx_pairs) * prb)
     qnt_shape = list(dprime.shape)
     qnt_shape[-1] = 1
-    quantiles = defaultdict(lambda: np.zeros(qnt_shape))
+    quantiles = {corr_name: np.zeros(qnt_shape) for corr_name in bf_corrections.keys()}
     pvalue = np.zeros_like(dprime)
 
     shuf_eg_dprime = np.zeros_like(dprime)
@@ -154,12 +160,10 @@ def single_cell_dprimes_cluster_mass(site, contexts, probes, cluster_threshold, 
         cpn_pval = _raw_pvalue(real_clstr, cpn_shuf_clstr_max)
         pvalue[:, cpn, :, :] = cpn_pval.squeeze(axis=1)
 
-        # saves quantiles for display, multiple comparisons corrections for:
-        # 4 sounds (4 probes, 10 context pairs) and 10 sounds (10 probes, 55 context pairs)
-        for alpha in [0.05, 0.05/40, 0.05/550]:
-            alpha_name = f'{alpha:.5f}'
-            quantiles[alpha_name][:, cpn, :, :] = np.quantile(cpn_shuf_clstr_max, 1-alpha, axis=0).squeeze(axis=1)
-        quantiles = {**quantiles}
+        # saves raw quantiles for display alongside multiple comparisons corrections for
+        for corr_name, ncorr in bf_corrections.items():  # [0.05, 0.05 / 40, 0.05 / 550]:
+            alpha = 0.05 / ncorr  # asumes initial alpha of 0.05
+            quantiles[corr_name][:, cpn, :, :] = np.quantile(cpn_shuf_clstr_max, 1 - alpha, axis=0).squeeze(axis=1)
 
         # saves onle last single random shuffle example and its corresponding pvalue
         sf_eg = shuffle(ctx_shuffle, shuffle_axis=2, indie_axis=0, rng=rng)
@@ -170,13 +174,13 @@ def single_cell_dprimes_cluster_mass(site, contexts, probes, cluster_threshold, 
         shuf_eg_pvalue[:, cpn, :, :] = _raw_pvalue(sf_eg_clust, cpn_shuf_clstr_max).squeeze(axis=1)
         del (cpn_shuff_dprime)
 
-        if False and (ctx_pairs.index((0,1)) == cpn):
+        if False and (ctx_pairs.index((0, 1)) == cpn):
             alpha = 0.05
             ncomp = prb * len(ctx_pairs)
             alpha_corr = alpha / ncomp
 
             from src.visualization.fancy_plots import squarefy
-            eg_idx = np.s_[goodcells.index(cellid), ctx_pairs.index((0,1)), 3-1, :]
+            eg_idx = np.s_[goodcells.index(cellid), ctx_pairs.index((0, 1)), 3 - 1, :]
             # eg_idx = np.s_[goodcells.index(cellid), 9, 3-1, :]
 
             if np.sum(dprime[eg_idx]) < 0:
@@ -185,19 +189,19 @@ def single_cell_dprimes_cluster_mass(site, contexts, probes, cluster_threshold, 
                 flip = 1
 
             t = np.arange(30)
-            d = dprime[eg_idx]*flip
-            c = clusters[eg_idx]*flip
-            s = cpn_shuf_clstr_max[:, eg_idx[0],0, eg_idx[2],0]
+            d = dprime[eg_idx] * flip
+            c = clusters[eg_idx] * flip
+            s = cpn_shuf_clstr_max[:, eg_idx[0], 0, eg_idx[2], 0]
             p = pvalue[eg_idx]
 
             tt, dd = squarefy(t, d)
             _, cc = squarefy(t, c)
-            tt , pp = squarefy(t, p)
+            tt, pp = squarefy(t, p)
 
             ci_c = quantiles[f'{alpha_corr:.5f}'][eg_idx]
             ci = quantiles[f'{alpha:.5f}'][eg_idx]
 
-            fig, (ax, ax2, ax3) = plt.subplots(3,1, figsize=[8, 8])
+            fig, (ax, ax2, ax3) = plt.subplots(3, 1, figsize=[8, 8])
 
             # raw data
             ax.hlines(s, 0, 30, color='gray', alpha=0.1)
@@ -206,10 +210,9 @@ def single_cell_dprimes_cluster_mass(site, contexts, probes, cluster_threshold, 
             ax.axhline(ci_c, color='black', label='shuff_CI_corr')
             ax.axhline(cluster_threshold, color='red', linestyle=':', label='clust_threshold')
 
-            ax.fill_between(tt, 0, 1, where=pp<alpha_corr,
+            ax.fill_between(tt, 0, 1, where=pp < alpha_corr,
                             color='green', alpha=0.5, transform=ax.get_xaxis_transform(), label='significant_corr')
             ax.legend()
-
 
             # pval, signif
             ax2.plot(tt, pp, label='pvalue', color='green')
@@ -219,8 +222,8 @@ def single_cell_dprimes_cluster_mass(site, contexts, probes, cluster_threshold, 
 
             # shuff dist and quantiles
             ax3.hist(s, bins=100, orientation='vertical')
-            q0 = np.quantile(s, 1-(alpha))
-            q1 = np.quantile(s, 1-(alpha_corr))
+            q0 = np.quantile(s, 1 - (alpha))
+            q1 = np.quantile(s, 1 - (alpha_corr))
 
             ax3.axvline(ci_c, color='green', label='shuf_ci_corr')
             ax3.axvline(ci, color='red', linestyle='--', alpha=0.5, label='shuf_ci_raw')
@@ -233,10 +236,11 @@ def single_cell_dprimes_cluster_mass(site, contexts, probes, cluster_threshold, 
             print(' ')
 
     # neat little output packages.
-    clust_quant_pval = {'clusters':clusters, **quantiles, 'pvalue': pvalue}
+    clust_quant_pval = {'clusters': clusters, **quantiles, 'pvalue': pvalue}
     shuffled_eg = dict(dprime=shuf_eg_dprime, clusters=shuf_eg_clust, pvalue=shuf_eg_pvalue)
 
     return dprime, clust_quant_pval, goodcells, shuffled_eg
+
 
 @memory.cache
 def _load_probewise_dPCA_raster(site, contexts, probes, meta, load_fn=load_site_formated_raster):
@@ -520,8 +524,11 @@ if __name__ == "__main__":
     #                           meta=meta)
 
     cluster_threshold = 2
-    (dprime, clust_quant_pval, goodcells, shuffled_eg), _ = single_cell_dprimes_cluster_mass.call(site=cellid, contexts='all', probes='all',
-                                           cluster_threshold=cluster_threshold, meta=meta)
+    (dprime, clust_quant_pval, goodcells, shuffled_eg), _ = single_cell_dprimes_cluster_mass.call(site=cellid,
+                                                                                                  contexts='all',
+                                                                                                  probes='all',
+                                                                                                  cluster_threshold=cluster_threshold,
+                                                                                                  meta=meta)
 
     pvalue = clust_quant_pval['pvalue']
     clusters = clust_quant_pval['clusters']
@@ -529,7 +536,6 @@ if __name__ == "__main__":
     alpha = 0.05
     ncomp = dprime.shape[2] * dprime.shape[1]
     alpha_corr = alpha / ncomp
-
 
     if dprime.shape[1] == 10:
         ctx = 5
@@ -547,7 +553,6 @@ if __name__ == "__main__":
         flip = -1
     else:
         flip = 1
-
 
     eg_idx = np.s_[goodcells.index(cellid), ctx_pairs.index((0, 1)), 3 - 1, :]
     # eg_idx = np.s_[goodcells.index(cellid), 9, 3-1, :]
