@@ -7,7 +7,7 @@ print('enqueuing jobs')
 # python environment where you want to run the job
 executable_path = '/auto/users/mateo/miniconda3/envs/context_probe_analysis2/bin/python'
 # name of script that you'd like to run
-script_path = '/auto/users/mateo/code/context_probe_analysis/scripts/0_cluster/tstat_cluster_mass/script.py'
+script_path = '/auto/users/mateo/code/context_probe_analysis/scripts/0_cluster/tstat_cluster_mass_big_shuff/script.py'
 
 # Parameters to pass to each job i.e. each function call.
 
@@ -20,7 +20,7 @@ cluster_thresholds = [0.05, 0.01]
 
 # iterates over every mode, checks what cells have not been fitted with it and runs the fit command.
 for site, clust_thresh in itt.product(sites, cluster_thresholds):
-    note = f'{site}_tstat_thresh-{clust_thresh}_cluster_mass'
+    note = f'{site}_tstat_thresh-{clust_thresh}_cluster_mass_BS'
     args = [site, clust_thresh]
     print(note)
     out = nd.add_job_to_queue(args, note, force_rerun=True,

@@ -4,7 +4,7 @@ import sys
 import nems.db as nd
 import nems.utils
 import nems.utils
-from src.metrics.consolidated_tstat import single_cell_tstat_cluster_mass
+from src.metrics.consolidated_tstat_big_shuff import single_cell_tstat_cluster_mass
 
 if 'QUEUEID' in os.environ:
     queueid = os.environ['QUEUEID']
@@ -23,7 +23,7 @@ cluster_threshold = float(sys.argv[2])
 meta = {'reliability': 0.1,  # r value
         'smoothing_window': 0,  # ms
         'raster_fs': 30,
-        'montecarlo': 1000,
+        'montecarlo': 11000,
         'zscore': True,
         'stim_type': 'permutations'}
 
