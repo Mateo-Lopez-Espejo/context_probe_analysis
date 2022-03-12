@@ -9,6 +9,7 @@ import joblib as jl
 from src.data.load import get_site_ids
 from src.data.region_map import region_map
 from src.metrics.consolidated_tstat import single_cell_tstat_cluster_mass
+from src.metrics.consolidated_tstat_big_shuff import single_cell_tstat_cluster_mass as big_shuff
 from src.metrics.significance import _significance
 from src.metrics.time_series_summary import metrics_to_DF
 from src.root_path import config_path
@@ -24,14 +25,16 @@ config.read_file(open(config_path / 'settings.ini'))
 meta = {'reliability': 0.1,  # r value
         'smoothing_window': 0,  # ms
         'raster_fs': 30,
-        'montecarlo': 1000,
+        'montecarlo': 11000,
         'zscore': True,
         'stim_type': 'permutations'}
 
-summary_DF_file = pl.Path(config['paths']['analysis_cache']) / f'220303_ctx_mod_metric_DF_tstat_cluster_mass'
+# summary_DF_file = pl.Path(config['paths']['analysis_cache']) / f'220303_ctx_mod_metric_DF_tstat_cluster_mass'
+summary_DF_file = pl.Path(config['paths']['analysis_cache']) / f'220310_ctx_mod_metric_DF_tstat_cluster_mass_BS'
 summary_DF_file.parent.mkdir(parents=True, exist_ok=True)
 
-analysis_functions = {'SC': single_cell_tstat_cluster_mass}
+# analysis_functions = {'SC': single_cell_tstat_cluster_mass}
+analysis_functions = {'SC': big_shuff}
 
 alpha = 0.05
 cluster_thresholds = [0.05, 0.01]

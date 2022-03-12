@@ -183,86 +183,89 @@ def single_cell_tstat_cluster_mass(site, contexts, probes, cluster_threshold, me
     return tstats, clust_quant_pval, goodcells, shuffled_eg
 
 
+
 if __name__ == "__main__":
-    import matplotlib.pyplot as plt
-    from src.visualization.fancy_plots import squarefy
+    def test():
+        import matplotlib.pyplot as plt
+        from src.visualization.fancy_plots import squarefy
 
-    meta = {'reliability': 0.1,  # r value
-            'smoothing_window': 0,  # ms
-            'raster_fs': 30,
-            'montecarlo': 11000,
-            'zscore': True,
-            'stim_type': 'permutations'}
+        meta = {'reliability': 0.1,  # r value
+                'smoothing_window': 0,  # ms
+                'raster_fs': 30,
+                'montecarlo': 11000,
+                'zscore': True,
+                'stim_type': 'permutations'}
 
-    cellid, contexts, probes = 'CRD012b-13-1', (3, 4), 3  # huge difference between thresholds
-    siteid = cellid[:7]
-    cluster_threshold = 0.05
-    # (dprime, clust_quant_pval, goodcells, shuffled_eg), _ = single_cell_tstat_cluster_mass.call(site=siteid,
-    #                                                                                                 contexts='all',
-    #                                                                                                 probes='all',
-    #                                                                                                 cluster_threshold=cluster_threshold,
-    #                                                                                                 meta=meta)
-    tstats, clust_quant_pval, goodcells, shuffled_eg = single_cell_tstat_cluster_mass(site=siteid,
-                                                                                      contexts='all',
-                                                                                      probes='all',
-                                                                                      cluster_threshold=cluster_threshold,
-                                                                                      meta=meta)
+        cellid, contexts, probes = 'CRD012b-13-1', (3, 4), 3  # huge difference between thresholds
+        siteid = cellid[:7]
+        cluster_threshold = 0.05
+        # (dprime, clust_quant_pval, goodcells, shuffled_eg), _ = single_cell_tstat_cluster_mass.call(site=siteid,
+        #                                                                                                 contexts='all',
+        #                                                                                                 probes='all',
+        #                                                                                                 cluster_threshold=cluster_threshold,
+        #                                                                                                 meta=meta)
+        tstats, clust_quant_pval, goodcells, shuffled_eg = single_cell_tstat_cluster_mass(site=siteid,
+                                                                                          contexts='all',
+                                                                                          probes='all',
+                                                                                          cluster_threshold=cluster_threshold,
+                                                                                          meta=meta)
 
-    pvalue = clust_quant_pval['pvalue']
-    clusters = clust_quant_pval['clusters']
-    ct = clust_quant_pval['t-threshold']
+        pvalue = clust_quant_pval['pvalue']
+        clusters = clust_quant_pval['clusters']
+        ct = clust_quant_pval['t-threshold']
 
-    ncomp, fb_corr = 1, 'none'
-    # ncomp, fb_corr = tstats.shape[1] * tstats.shape[2], 'bf_cp'
-    # ncomp, fb_corr = tstats.shape[0] * tstats.shape[1] * tstats.shape[2], 'bf_ncp'
+        ncomp, fb_corr = 1, 'none'
+        # ncomp, fb_corr = tstats.shape[1] * tstats.shape[2], 'bf_cp'
+        # ncomp, fb_corr = tstats.shape[0] * tstats.shape[1] * tstats.shape[2], 'bf_ncp'
 
-    alpha = 0.05
-    alpha_corr = alpha / ncomp
+        alpha = 0.05
+        alpha_corr = alpha / ncomp
 
-    if tstats.shape[1] == 10:
-        ctx = 5
-    elif tstats.shape[1] == 55:
-        ctx = 11
-    else:
-        raise ValueError('unknown nuber of context pairs')
+        if tstats.shape[1] == 10:
+            ctx = 5
+        elif tstats.shape[1] == 55:
+            ctx = 11
+        else:
+            raise ValueError('unknown nuber of context pairs')
 
-    ctx_pairs = list(itt.combinations(range(ctx), 2))
+        ctx_pairs = list(itt.combinations(range(ctx), 2))
 
-    eg_idx = np.s_[goodcells.index(cellid), ctx_pairs.index(contexts), probes - 1, :]
+        eg_idx = np.s_[goodcells.index(cellid), ctx_pairs.index(contexts), probes - 1, :]
 
-    if np.sum(tstats[eg_idx]) < 0:
-        flip = -1
-    else:
-        flip = 1
+        if np.sum(tstats[eg_idx]) < 0:
+            flip = -1
+        else:
+            flip = 1
 
-    t = np.arange(30)
-    d = tstats[eg_idx] * flip
-    c = clusters[eg_idx] * flip
-    p = pvalue[eg_idx]
+        t = np.arange(30)
+        d = tstats[eg_idx] * flip
+        c = clusters[eg_idx] * flip
+        p = pvalue[eg_idx]
 
-    tt, dd = squarefy(t, d)
-    _, cc = squarefy(t, c)
-    tt, pp = squarefy(t, p)
+        tt, dd = squarefy(t, d)
+        _, cc = squarefy(t, c)
+        tt, pp = squarefy(t, p)
 
-    ci_c = clust_quant_pval[fb_corr][eg_idx]
-    ci = clust_quant_pval[fb_corr][eg_idx]
+        ci_c = clust_quant_pval[fb_corr][eg_idx]
+        ci = clust_quant_pval[fb_corr][eg_idx]
 
-    fig, (ax, ax2) = plt.subplots(2, 1, figsize=[8, 8])
+        fig, (ax, ax2) = plt.subplots(2, 1, figsize=[8, 8])
 
-    # raw data
-    ax.plot(tt, dd, label='dprime')
-    ax.plot(tt, cc, label='cluster')
-    ax.axhline(ci_c, color='black', label='shuff_CI_corr')
-    ax.axhline(ct, color='red', linestyle=':', label='clust_threshold')
+        # raw data
+        ax.plot(tt, dd, label='dprime')
+        ax.plot(tt, cc, label='cluster')
+        ax.axhline(ci_c, color='black', label='shuff_CI_corr')
+        ax.axhline(ct, color='red', linestyle=':', label='clust_threshold')
 
-    ax.fill_between(tt, 0, 1, where=pp < alpha_corr,
-                    color='green', alpha=0.5, transform=ax.get_xaxis_transform(), label='significant_corr')
-    ax.legend()
+        ax.fill_between(tt, 0, 1, where=pp < alpha_corr,
+                        color='green', alpha=0.5, transform=ax.get_xaxis_transform(), label='significant_corr')
+        ax.legend()
 
-    # pval, signif
-    ax2.plot(tt, pp, label='pvalue', color='green')
-    ax2.axhline(alpha_corr, color='brown', linestyle=':', label='alpha_bf')
-    ax2.axhline(alpha, color='brown', linestyle='--', label='alpha')
-    ax2.legend()
+        # pval, signif
+        ax2.plot(tt, pp, label='pvalue', color='green')
+        ax2.axhline(alpha_corr, color='brown', linestyle=':', label='alpha_bf')
+        ax2.axhline(alpha, color='brown', linestyle='--', label='alpha')
+        ax2.legend()
 
-    fig.show()
+        fig.show()
+    test()

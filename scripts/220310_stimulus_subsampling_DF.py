@@ -7,18 +7,17 @@ from math import factorial
 import joblib as jl
 import pandas as pd
 import numpy as np
-import plotly.graph_objects as go
-from plotly.subplots import make_subplots
 
 from src.root_path import config_path
 
 config = ConfigParser()
 config.read_file(open(config_path / 'settings.ini'))
-t_statistic = pl.Path(config['paths']['analysis_cache']) / f'220303_ctx_mod_metric_DF_tstat_cluster_mass'
+# t_statistic = pl.Path(config['paths']['analysis_cache']) / f'220303_ctx_mod_metric_DF_tstat_cluster_mass'
+t_statistic = pl.Path(config['paths']['analysis_cache']) / f'220310_ctx_mod_metric_DF_tstat_cluster_mass_BS'
 longDF = jl.load(t_statistic)
 
 subsampling_path = pl.Path(config['paths']['analysis_cache']) / '220310_pval_subsamp_DF'
-recache = False
+recache = True
 
 sources = ['real', 'shuffled_eg']
 
@@ -78,12 +77,19 @@ if (not subsampling_path.exists()) or recache:
                 recruited_neu_pct=('coverage_percent', lambda x: sum(x > 0) / len(x) * 100))
 
             # alternatively look at the tiling of modulation space by neuronse
-            site_tiling = spl_df.groupby(['source', 'region', 'site', 'context_pair', 'probe']).agg(pvalue=('value', 'min'))
+            # first collapse across neuronse in a site by taking the min pvalue for each position in modulation space
+            # keeps number of neurons per site
+            site_tiling = spl_df.groupby(['source', 'region', 'site', 'context_pair', 'probe']).agg(
+                pvalue=('value', 'min'), n_cells =('value', 'count'))
+            # second, defines the coverage percent by finding significant position in modulation space.
+            # here further corrects alpha with bonferroni correction for number of neurons
+            site_tiling['significant'] = site_tiling['pvalue'] < (site_tiling['n_cells'] * alpha)
             site_coverage = site_tiling.groupby(['source', 'region', 'site']).agg(
-                coverage_percent=("pvalue", lambda x: sum(x < alpha) / len(x) * 100))
+                coverage_percent=("significant", lambda x: sum(x) / len(x) * 100))
+            # site_coverage = site_tiling.groupby(['source', 'region', 'site']).agg(
+            #     coverage_percent=("pvalue", lambda x: sum(x < alpha) / len(x) * 100))
 
             out_DF = pd.concat([neuron_recuitment, site_coverage], axis=1)
-
 
             out_DF['n_prb'] = nprb
             out_DF['n_ctx'] = nctx

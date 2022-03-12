@@ -10,7 +10,7 @@ from dash import Dash, dcc, html, Input, Output
 from plotly.subplots import make_subplots
 
 from src.root_path import config_path
-from src.visualization.interactive import plot_raw_pair, plot_time_ser_quant
+from src.visualization.interactive import plot_raw_pair, plot_time_ser_quant, plot_tiling
 
 #### general configuration to import the right data and caches
 config = ConfigParser()
@@ -21,7 +21,16 @@ meta = {'reliability': 0.1,  # r value
         'montecarlo': 1000,
         'zscore': True,
         'stim_type': 'permutations'}
+
+meta_BS = {'reliability': 0.1,  # r value
+        'smoothing_window': 0,  # ms
+        'raster_fs': 30,
+        'montecarlo': 11000,
+        'zscore': True,
+        'stim_type': 'permutations'}
+
 summary_DF_file = pl.Path(config['paths']['analysis_cache']) / f'220303_ctx_mod_metric_DF_tstat_cluster_mass'
+summary_DF_file = pl.Path(config['paths']['analysis_cache']) / f'220310_ctx_mod_metric_DF_tstat_cluster_mass_BS'
 
 ### same example cell as in figure 1 ###
 start_prb = 3 - 1  # selected probe. the -1 is to acount for 0 not being used
@@ -32,96 +41,81 @@ start_cellid = 'ARM021b-36-8'
 print('loading and formatting summary dataframe')
 tic = time()
 DF = jl.load(summary_DF_file)
-print(f'it took {time() - tic:.3f}s to load')
 
+def filter_DF(DF):
+    filtered = DF.query("metric in ['integral', 'last_bin'] and mult_comp_corr == 'bf_cp' and source == 'real' and "
+                           "cluster_threshold == 0.05")
 
-def format_dataframe(DF):
-    tic = time()
-    ff_analylis = DF.analysis.isin(['SC'])
-    ff_badsites = ~DF.siteid.isin(['TNC010a'])
-    mask = ff_analylis & ff_badsites
-
-    if 'cluster_threshold' not in DF.columns:
-        DF['cluster_threshold'] = 0
-
-    good_cols = ['source', 'mult_comp_corr', 'cluster_threshold', 'region', 'siteid', 'cellid', 'context_pair',
-                 'probe', 'metric', 'value']
-    filtered = DF.loc[mask, good_cols]
-    print(f'first pass filtering {time() - tic:.3f}s ')
-
-    filtered['probe'] = [int(p) for p in filtered['probe']]
-    filtered['context_pair'] = [f"{int(cp.split('_')[0]):02d}_{int(cp.split('_')[1]):02d}"
-                                for cp in filtered['context_pair']]
-    print(f'changing ctx prb name {time() - tic:.3f}s ')
-
-    # rename metrics and analysis for ease of ploting
-    filtered['metric'] = filtered['metric'].replace({'significant_abs_mass_center': 'duration',
-                                                     'significant_abs_sum': "amplitude"})
-    print(f'changing metric names {time() - tic:.3f}s ')
-
-    filtered['id'] = filtered['cellid'].fillna(value=filtered['siteid'])
-    filtered = filtered.drop(columns=['cellid'])
-    filtered.rename(columns={'siteid': 'site'}, inplace=True)
-    print(f'consolidating ids {time() - tic:.3f}s ')
-
-    filtered['value'] = filtered['value'].fillna(value=0)
-    print(f'dealing with non significant{time() - tic:.3f}s ')
-
-    # permutation related preprocesing.
-    # creates a new column relating probe with  context pairs
-    ctx = np.asarray([row.split('_') for row in filtered.context_pair], dtype=int)
-    prb = np.asarray(filtered.probe, dtype=int)
-
-    silence = ctx == 0
-    same = ctx == prb[:, None]
-    different = np.logical_and(~silence, ~same)
-
-    name_arr = np.full_like(ctx, np.nan, dtype=object)
-    name_arr[silence] = 'silence'
-    name_arr[same] = 'same'
-    name_arr[different] = 'diff'
-    comp_name_arr = np.apply_along_axis('_'.join, 1, name_arr)
-
-    # swaps clasification names to not have repetitions i.e. diff_same == same_diff
-    comp_name_arr[np.where(comp_name_arr == 'same_silence')] = 'silence_same'
-    comp_name_arr[np.where(comp_name_arr == 'diff_silence')] = 'silence_diff'
-    comp_name_arr[np.where(comp_name_arr == 'diff_same')] = 'same_diff'
-    comp_name_arr[np.where(comp_name_arr == 'same_silence')] = 'silence_same'
-
-    filtered['trans_pair'] = comp_name_arr
-    print(f'defining transition type {time() - tic:.3f}s ')
-
-    # column specifying number of different sounds used
-    nstim = filtered.groupby(['id']).agg(stim_count=('probe', lambda x: x.nunique()))
-    filtered = pd.merge(filtered, nstim, on='id')
-    print(f'defining n stimuli {time() - tic:.3f}s ')
-
-    return filtered
-
-
-# DF_long = format_dataframe(DF)
-longDF = DF
-
-
-pivoted = longDF.pivot_table(index=['source', 'mult_comp_corr', 'cluster_threshold',
+    pivoted = filtered.pivot_table(index=['source', 'mult_comp_corr', 'cluster_threshold',
                                      'region', 'stim_count',
                                      'context_pair', 'probe',
                                      'id', 'site'],
-                              columns=['metric'], values='value', aggfunc='first')
+                                   columns=['metric'], values='value', aggfunc='first').query('last_bin > 0').reset_index()
+    # adds a small amount of jitter to the last bin value to help visualization
+    binsize = 1/meta['raster_fs']
+    jitter = (np.random.random(pivoted.shape[0]) * binsize * 0.8 - (binsize*0.8/2)) * 1000 # in ms
+    pivoted['last_bin'] = pivoted['last_bin'] + jitter
 
-# frankesntein indexing. first get only the real data, then dismiss non significant point
-dur_vs_amp_df = pivoted.loc[('real', 'none', 0.01), :].query('duration >  0').reset_index()
 
-### simplified version of the tile figure ###
-# prefilters all the data to be ploted (multiple neurons) to ensure shared colormaps
-# for the fill values
+    return filtered, pivoted
+
+filtered, pivoted = filter_DF(DF)
+print(f'it took {time() - tic:.3f}s to load')
+
 
 #### dashboard general layout
 
 app = Dash(__name__)
 
-dur_vs_amp = px.scatter(data_frame=dur_vs_amp_df, x="duration", y="amplitude", color='region'
+dur_vs_amp = px.scatter(data_frame=pivoted, x="last_bin", y="integral", color='region'
                         , hover_name='id', hover_data=['context_pair', 'probe'])
+
+raw_type = 'psth'
+
+@app.callback(
+    Output(component_id='sample_details', component_property='figure'),
+    Input(component_id='dur_vs_amp', component_property='clickData'),
+    # Input(component_id='raw_type_sel', component_property=' ??? ')
+)
+def _plot_sample_details(picked_eg):
+    print(picked_eg)
+
+    cellid = picked_eg['points'][0]['hovertext']
+    contexts = [int(ss) for ss in picked_eg['points'][0]['customdata'][0].split('_')]
+    probes = picked_eg['points'][0]['customdata'][1]
+
+    fig = make_subplots(1, 2)
+    psth = plot_raw_pair(cellid, contexts, probes, type=raw_type)
+    quant_diff = plot_time_ser_quant(cellid, contexts, probes,
+                                     multiple_comparisons_axis=[1, 2], consecutive=0, cluster_threshold=0.05,
+                                     fn_name='big_shuff', meta=meta_BS)
+
+    fig.add_traces(psth['data'], rows=[1] * len(psth['data']), cols=[1] * len(psth['data']))
+    fig.add_vline(x=0, line_width=2, line_color='black', line_dash='dot', opacity=1, row=1, col=1)
+    fig.add_traces(quant_diff['data'], rows=[1] * len(quant_diff['data']), cols=[2] * len(quant_diff['data']))
+
+    return fig
+
+
+@app.callback(
+    Output(component_id='neuron_tiling', component_property='figure'),
+    Input(component_id='dur_vs_amp', component_property='clickData')
+)
+def _plot_neu_tiling(picked_eg):
+    cellid = picked_eg['points'][0]['hovertext']
+    fig = plot_tiling(cellid, filtered)
+    return fig
+
+
+@app.callback(
+    Output(component_id='site_tiling', component_property='figure'),
+    Input(component_id='dur_vs_amp', component_property='clickData')
+)
+def _plot_site_tiling(picked_eg):
+    cellid = picked_eg['points'][0]['hovertext']
+    fig = plot_tiling(cellid[:7], filtered)
+    return fig
+
 
 app.layout = html.Div([
     dcc.Graph(
@@ -132,34 +126,14 @@ app.layout = html.Div([
     ),
     dcc.Graph(
         id='sample_details'
+    ),
+    dcc.Graph(
+        id='neuron_tiling'
+    ),
+    dcc.Graph(
+        id='site_tiling'
     )
 ])
-
-
-@app.callback(
-    Output(component_id='sample_details', component_property='figure'),
-    Input(component_id='dur_vs_amp', component_property='clickData')
-)
-def _plot_sample_details(picked_eg):
-    print(picked_eg)
-
-    cellid = picked_eg['points'][0]['hovertext']
-    contexts = [int(ss) for ss in picked_eg['points'][0]['customdata'][0].split('_')]
-    probes = picked_eg['points'][0]['customdata'][1]
-
-    fig = make_subplots(1, 2)
-
-    psth = plot_raw_pair(cellid, contexts, probes, type='psth')
-    quant_diff = plot_time_ser_quant(cellid, contexts, probes,
-                                     multiple_comparisons_axis=[1, 2], consecutive=0, cluster_threshold=0.05,
-                                     fn_name='t_statistic', meta=meta)
-
-    fig.add_traces(psth['data'], rows=[1] * len(psth['data']), cols=[1] * len(psth['data']))
-    fig.add_traces(quant_diff['data'], rows=[1] * len(quant_diff['data']), cols=[2] * len(quant_diff['data']))
-
-    return fig
-
-
 if __name__ == '__main__':
-    print('inside nane == main')
+    print("inside __name__ == '__main__'")
     app.run_server(debug=True)

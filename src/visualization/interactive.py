@@ -10,6 +10,7 @@ from src.data.rasters import load_site_formated_raster
 from src.metrics.consolidated_dprimes import single_cell_dprimes_cluster_mass
 from src.metrics.consolidated_mean_diff import single_cell_mean_diff_cluster_mass
 from src.metrics.consolidated_tstat import single_cell_tstat_cluster_mass
+from src.metrics.consolidated_tstat_big_shuff import single_cell_tstat_cluster_mass as big_shuff
 from src.metrics.significance import _significance
 from src.visualization.fancy_plots import squarefy
 from src.visualization.palette import *
@@ -121,14 +122,15 @@ def plot_time_ser_quant(cellid, contexts, probe,
 
     fn_dict = {'dprime':single_cell_dprimes_cluster_mass,
                'mean_difference':single_cell_mean_diff_cluster_mass,
-               't_statistic':single_cell_tstat_cluster_mass}
+               't_statistic':single_cell_tstat_cluster_mass,
+               'big_shuff': big_shuff}
 
     fn = fn_dict[fn_name]
-    meta.update(defaults_meta)
+    defaults_meta.update(meta)
 
-    if fn.check_call_in_cache(cellid[:7], contexts='all', probes='all', cluster_threshold=float(cluster_threshold), meta=meta):
+    if fn.check_call_in_cache(cellid[:7], contexts='all', probes='all', cluster_threshold=float(cluster_threshold), meta=defaults_meta):
         dprime, pval_quantiles, goodcells, shuffled_eg = fn(
-            cellid[:7], contexts='all', probes='all', cluster_threshold=float(cluster_threshold), meta=meta
+            cellid[:7], contexts='all', probes='all', cluster_threshold=float(cluster_threshold), meta=defaults_meta
         )
     else:
         raise ValueError(f'{cellid[:7]}, {fn}, {cluster_threshold} not yet in cache')
@@ -193,7 +195,7 @@ def plot_time_ser_quant(cellid, contexts, probe,
     SIG = significance[cell_idx, pair_idx, prb_idx, :]
 
     signif_mask = SIG > 0
-    t = np.linspace(0, DP.shape[-1] / meta['raster_fs'], DP.shape[-1], endpoint=False)
+    t = np.linspace(0, DP.shape[-1] / defaults_meta['raster_fs'], DP.shape[-1], endpoint=False)
 
     # calculates center of mass and integral
     integral = np.sum(np.abs(DP[signif_mask])) * np.mean(np.diff(t))
@@ -246,13 +248,21 @@ def plot_time_ser_quant(cellid, contexts, probe,
 
     return fig
 
-def plot_neuron_tiling(picked_neuron, df):
+def plot_tiling(picked_id, df):
     # turns long format data into an array with dimension Probe * context_pair
-    to_pivot = df.loc[df['id'] == picked_neuron, :]
+
+    if len(picked_id) == 7:
+        #site case, get max projection across neurons
+        to_pivot = df.query(f"site == '{picked_id}'").groupby(
+            ['metric', 'probe', 'context_pair']).agg(
+            value=('value','max'))
+    else:
+        #neuron case, just select data
+        to_pivot = df.query(f"id == '{picked_id}'")
     val_df = to_pivot.pivot_table(index=['metric', 'probe'], columns=['context_pair'], values='value')
 
-    cscales = {'amplitude': pc.make_colorscale(['#000000', Green]),
-               'duration': pc.make_colorscale(['#000000', Purple])}
+    cscales = {'integral': pc.make_colorscale(['#000000', Green]),
+               'last_bin': pc.make_colorscale(['#000000', Purple])}
     max_vals = dict()
     # normalizes,saves max values and get colors for each metric
     color_df = val_df.copy()
@@ -266,11 +276,11 @@ def plot_neuron_tiling(picked_neuron, df):
     xu, yu = np.array([0, 0, 1, 0]), np.array([0, 1, 1, 0])
     xl, yl = np.array([0, 1, 1, 0]), np.array([0, 0, 1, 0])
 
-    amp_color = color_df.loc[('amplitude'), :].values
-    dur_color = color_df.loc[('duration'), :].values
+    amp_color = color_df.loc[('integral'), :].values
+    dur_color = color_df.loc[('last_bin'), :].values
 
-    amplitudes = val_df.loc[('amplitude'), :]
-    durations = val_df.loc[('duration'), :]
+    amplitudes = val_df.loc[('integral'), :]
+    durations = val_df.loc[('last_bin'), :]
 
     fig = go.Figure()
 
@@ -283,7 +293,7 @@ def plot_neuron_tiling(picked_neuron, df):
                             marker=dict(color=(amplitudes.values[p, c],) * len(xu),
                                         coloraxis='coloraxis',
                                         opacity=0,
-                                        cmin=0, cmax=max_vals['amplitude'],
+                                        cmin=0, cmax=max_vals['integral'],
                                         ),
                             showlegend=False
                             )
@@ -295,7 +305,7 @@ def plot_neuron_tiling(picked_neuron, df):
                             marker=dict(color=(durations.values[p, c],) * len(xl),
                                         coloraxis='coloraxis2',
                                         opacity=0,
-                                        cmin=0, cmax=max_vals['duration'],
+                                        cmin=0, cmax=max_vals['last_bin'],
                                         ),
                             showlegend=False
                             )
@@ -311,7 +321,7 @@ def plot_neuron_tiling(picked_neuron, df):
                               tickvals=np.arange(amplitudes.columns.size) + 0.5,
                               ticktext=ticktexts))
 
-    _ = fig.update_yaxes(dict(title=dict(text=f'{picked_neuron}<br>probes'),
+    _ = fig.update_yaxes(dict(title=dict(text=f'{picked_id}<br>probes'),
                               constrain='domain',
                               range=[0, amplitudes.index.size], fixedrange=True,
                               tickmode='array',
@@ -319,18 +329,18 @@ def plot_neuron_tiling(picked_neuron, df):
                               ticktext=amplitudes.index.to_list()))
 
     # set the positions of the colorbars
-    fig.update_layout(coloraxis=dict(colorscale=cscales['amplitude'],
+    fig.update_layout(coloraxis=dict(colorscale=cscales['integral'],
                                      colorbar=dict(
                                          thickness=10, len=0.6,
-                                         title_text='amplitude',
+                                         title_text='integral',
                                          title_side='right',
                                          tickangle=-90,
                                          xanchor='left', x=1)
                                      ),
-                      coloraxis2=dict(colorscale=cscales['duration'],
+                      coloraxis2=dict(colorscale=cscales['last_bin'],
                                       colorbar=dict(
                                           thickness=10, len=0.6,
-                                          title_text='duration',
+                                          title_text='last_bin',
                                           title_side='right',
                                           tickangle=-90,
                                           xanchor='left', x=1.1)
@@ -360,97 +370,31 @@ if __name__ == '__main__':
             'montecarlo': 1000,
             'zscore': True,
             'stim_type': 'permutations'}
-    t_statistic = pl.Path(config['paths']['analysis_cache']) / f'220303_ctx_mod_metric_DF_tstat_cluster_mass'
+
+
+    cellid, contexts, probes = 'TNC006a-07-1', (2, 10), 2 # well-behaved example
+
+    t_statistic = pl.Path(config['paths']['analysis_cache']) / f'220310_ctx_mod_metric_DF_tstat_cluster_mass_BS'
     df = jl.load(t_statistic)
+    to_plot = df.query("metric in ['integral', 'last_bin'] and mult_comp_corr == 'bf_cp' and source == 'real' and "
+                       "cluster_threshold == 0.05")
+    tile = plot_tiling(cellid, to_plot)
+    tile.show()
 
-    def format_dataframe(DF):
-        ff_analylis = DF.analysis.isin(['SC'])
-        ff_badsites = ~DF.siteid.isin(['TNC010a'])
-        mask = ff_analylis & ff_badsites
-
-        if 'cluster_threshold' not in DF.columns:
-            DF['cluster_threshold'] = 0
-
-        good_cols = ['source', 'mult_comp_corr', 'cluster_threshold', 'region', 'siteid', 'cellid', 'context_pair',
-                     'probe', 'metric', 'value']
-        filtered = DF.loc[mask, good_cols]
-
-        filtered['probe'] = [int(p) for p in filtered['probe']]
-        filtered['context_pair'] = [f"{int(cp.split('_')[0]):02d}_{int(cp.split('_')[1]):02d}"
-                                    for cp in filtered['context_pair']]
-
-        # rename metrics and analysis for ease of ploting
-        filtered['metric'] = filtered['metric'].replace({'significant_abs_mass_center': 'duration',
-                                                         'significant_abs_sum': 'amplitude'})
-
-        filtered['id'] = filtered['cellid'].fillna(value=filtered['siteid'])
-        filtered = filtered.drop(columns=['cellid'])
-        filtered.rename(columns={'siteid': 'site'}, inplace=True)
-
-        filtered['value'] = filtered['value'].fillna(value=0)
-
-        # permutation related preprocesing.
-        # creates a new column relating probe with  context pairs
-        ctx = np.asarray([row.split('_') for row in filtered.context_pair], dtype=int)
-        prb = np.asarray(filtered.probe, dtype=int)
-
-        silence = ctx == 0
-        same = ctx == prb[:, None]
-        different = np.logical_and(~silence, ~same)
-
-        name_arr = np.full_like(ctx, np.nan, dtype=object)
-        name_arr[silence] = 'silence'
-        name_arr[same] = 'same'
-        name_arr[different] = 'diff'
-        comp_name_arr = np.apply_along_axis('_'.join, 1, name_arr)
-
-        # swaps clasification names to not have repetitions i.e. diff_same == same_diff
-        comp_name_arr[np.where(comp_name_arr == 'same_silence')] = 'silence_same'
-        comp_name_arr[np.where(comp_name_arr == 'diff_silence')] = 'silence_diff'
-        comp_name_arr[np.where(comp_name_arr == 'diff_same')] = 'same_diff'
-        comp_name_arr[np.where(comp_name_arr == 'same_silence')] = 'silence_same'
-
-        filtered['trans_pair'] = comp_name_arr
-
-        # column specifying number of different sounds used
-        nstim = filtered.groupby(['id']).agg(stim_count=('probe', lambda x: x.nunique()))
-        filtered = pd.merge(filtered, nstim, on='id')
-
-        return filtered
-
-    cellid, contexts, probes = 'TNC006a-07-1', (2, 10), 2 # well behaved example
-
-    # longDF = format_dataframe(df)
-    # tile = plot_neuron_tiling(cellid, longDF)
-    # tile.show()
-
-    fig = make_subplots(1,2)
-
-    raster = plot_raw_pair(cellid, contexts, probes, type='raster')
-    psth = plot_raw_pair(cellid, contexts, probes, type='psth')
-
-    fig.add_traces(raster['data'],rows=[1]*len(raster['data']),cols=[1]*len(raster['data']))
-    fig.add_traces(psth['data'],rows=[1]*len(psth['data']),cols=[2]*len(psth['data']))
-
-    fig.show()
-
-
-    # fig = make_subplots(1,3)
-
-    # left = plot_time_ser_quant(cellid, contexts, probes,
-    #                              multiple_comparisons_axis=[1,2], consecutive=0, cluster_threshold=2,
-    #                              fn_name='dprime')
+    # fig = make_subplots(1,4)
     #
-    # center = plot_time_ser_quant(cellid, contexts, probes,
-    #                              multiple_comparisons_axis=[1,2], consecutive=0, cluster_threshold=2,
-    #                              fn_name='mean_difference')
-    # right = plot_time_ser_quant(cellid, contexts, probes, source='real',
+    # raster = plot_raw_pair(cellid, contexts, probes, type='raster')
+    # psth = plot_raw_pair(cellid, contexts, probes, type='psth')
+    # quant0 = plot_time_ser_quant(cellid, contexts, probes, source='real',
     #                              multiple_comparisons_axis=[1,2], consecutive=0, cluster_threshold=0.05,
     #                              fn_name='t_statistic')
-    # right.show()
-
-    # fig.add_traces(left['data'],rows=[1]*len(left['data']),cols=[1]*len(left['data']))
-    # fig.add_traces(center['data'],rows=[1]*len(center['data']),cols=[2]*len(center['data']))
-    # fig.add_traces(right['data'],rows=[1]*len(right['data']),cols=[3]*len(right['data']))
+    # quant1 = plot_time_ser_quant(cellid, contexts, probes, source='real',
+    #                              multiple_comparisons_axis=[1,2], consecutive=0, cluster_threshold=0.05,
+    #                              fn_name='big_shuff', meta={'montecarlo': 11000})
+    #
+    # fig.add_traces(raster['data'],rows=[1]*len(raster['data']),cols=[1]*len(raster['data']))
+    # fig.add_traces(psth['data'],rows=[1]*len(psth['data']),cols=[2]*len(psth['data']))
+    # fig.add_traces(quant0['data'],rows=[1]*len(quant0['data']),cols=[3]*len(quant0['data']))
+    # fig.add_traces(quant1['data'],rows=[1]*len(quant1['data']),cols=[4]*len(quant1['data']))
     #
     # fig.show()
