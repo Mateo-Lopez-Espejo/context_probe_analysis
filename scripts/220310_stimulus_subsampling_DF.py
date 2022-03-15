@@ -17,7 +17,7 @@ t_statistic = pl.Path(config['paths']['analysis_cache']) / f'220310_ctx_mod_metr
 longDF = jl.load(t_statistic)
 
 subsampling_path = pl.Path(config['paths']['analysis_cache']) / '220310_pval_subsamp_DF'
-recache = True
+recache = False
 
 sources = ['real', 'shuffled_eg']
 
@@ -57,7 +57,7 @@ if (not subsampling_path.exists()) or recache:
         n_comparison = n_ctx_pairs * nprb
         alpha = 0.05 / n_comparison
 
-        n_samps = 10  # ideally 100??
+        n_samps = 1000  # ideally 100??
         # joblib parallel returns a list of second groupings
 
 
@@ -83,7 +83,7 @@ if (not subsampling_path.exists()) or recache:
                 pvalue=('value', 'min'), n_cells =('value', 'count'))
             # second, defines the coverage percent by finding significant position in modulation space.
             # here further corrects alpha with bonferroni correction for number of neurons
-            site_tiling['significant'] = site_tiling['pvalue'] < (site_tiling['n_cells'] * alpha)
+            site_tiling['significant'] = site_tiling['pvalue'] < (alpha / site_tiling['n_cells'])
             site_coverage = site_tiling.groupby(['source', 'region', 'site']).agg(
                 coverage_percent=("significant", lambda x: sum(x) / len(x) * 100))
             # site_coverage = site_tiling.groupby(['source', 'region', 'site']).agg(
