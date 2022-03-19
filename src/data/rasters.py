@@ -296,4 +296,32 @@ def load_site_formated_raster(site, contexts='all', probes='all', part='probe', 
     return raster, goodcells
 
 
+def load_site_formated_prediction(site=None, contexts='all', probes='all', part='probe', modelspec=None, **kwargs):
 
+    # todo make this functions with a site name and modeslpec
+    print(f'loading predicted response for {site} with modelspec\n'
+          f'{modelspec}\n'
+          f'.... pff you bet. not yet implemented, using xform ctx')
+
+    meta = {'reliability': 0.1,
+            'smoothing_window': 0,
+            'stim_type': 'permutations',
+            'zscore': True}
+
+    meta.update(kwargs)
+    ctx = meta['ctx']
+
+    response = ctx['val'].signals['resp']
+    prediction = ctx['val'].signals['pred']
+    fs = prediction.fs
+
+    goodcells = response.chans
+    prediction.chans = response.chans
+
+    # get the full data raster Context x Probe x Rep x Neuron x Time
+    raster = raster_from_sig(prediction, probes=probes, channels=goodcells, contexts=contexts,
+                             smooth_window=meta['smoothing_window'], raster_fs=fs,
+                             stim_type=meta['stim_type'],
+                             zscore=meta['zscore'], part=part)
+
+    return raster, goodcells

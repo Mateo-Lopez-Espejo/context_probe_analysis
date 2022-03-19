@@ -3,10 +3,9 @@ import itertools as itt
 import numpy as np
 import plotly.colors as pc
 import plotly.graph_objects as go
-from plotly.subplots import make_subplots
 from webcolors import hex_to_rgb
 
-from src.data.rasters import load_site_formated_raster
+from src.data.rasters import load_site_formated_raster, load_site_formated_prediction
 from src.metrics.consolidated_dprimes import single_cell_dprimes_cluster_mass
 from src.metrics.consolidated_mean_diff import single_cell_mean_diff_cluster_mass
 from src.metrics.consolidated_tstat import single_cell_tstat_cluster_mass
@@ -15,20 +14,119 @@ from src.metrics.significance import _significance
 from src.visualization.fancy_plots import squarefy
 from src.visualization.palette import *
 
-def plot_raw_pair(cellid, contexts, probe, type='psth'):
+def plot_raw_pair(cellid, contexts, probe, type='psth', modelspec=None, **kwargs):
+    probe -= 1 # probe names start at 1 but we have zero idex
+
+    if modelspec is not None:
+        fs = 100 # hard code for now for model fittings
+        site_raster, goodcellse = load_site_formated_prediction(cellid[:7], part='all',
+                                                                raster_fs=fs, modelspec=modelspec, **kwargs)
+        # force PSTH
+        if type != 'psth':
+            print('can only plot psth for predictions, forcing...')
+            type = 'psth'
+    else:
+        if type == 'psth':
+            fs = 30 # dont pass as is default
+            smoothing_window = 50
+        elif type == 'raster':
+            fs = 100
+            smoothing_window = 0
+        else:
+            raise ValueError("undefined plot type, choose psht or raster")
+        site_raster, goodcellse = load_site_formated_raster(cellid[:7], part='all',
+                                                            smoothing_window=smoothing_window, raster_fs=fs)
+
+    eg_raster = site_raster[:, goodcellse.index(cellid), :, probe, :]
+
+
+    # fs = 30# here asuming 30Hz sampling rate, as its the default of the raster loader
+    nreps,_,nsamps = eg_raster.shape
+    duration  = nsamps / fs
+    time = np.linspace(0-duration/2, duration/2, nsamps, endpoint=False)
+    halfs = [np.s_[:int(nsamps / 2)], np.s_[int(nsamps / 2):]]
+
+    # rotation of colors for the silence + 4 sound examples
+    colors = [Grey, Yellow, Red, Teal, Brown]
+
+    fig = go.Figure()
+    for cc, ctx_idx in enumerate(contexts):
+
+        part_color = [colors[ctx_idx % len(colors)], colors[probe % len(colors)]]
+
+        for nn, (half, color) in enumerate(zip(halfs, part_color)):
+
+            if type == 'psth':
+                # find mean and estandard error of the mean for line and confidence interval
+                mean_resp = np.mean(eg_raster[:, ctx_idx, :], axis=0)
+                std_resp = np.std(eg_raster[:, ctx_idx, :], axis=0)
+                x, y = squarefy(time[half], mean_resp[half])
+                _, ystd = squarefy(time[half], std_resp[half])
+
+                if nn == 0:
+                    # same color of ci border line and fill for left-hand side
+                    _ = fig.add_trace(go.Scatter(x=x, y=y + ystd, mode='lines', line_color=color, line_width=1))
+                    _ = fig.add_trace(go.Scatter(x=x, y=y - ystd, mode='lines', line_color=color, line_width=1,
+                                                 fill='tonexty'))
+
+                else:
+                    # different color of ci border line and fill for right-hand side
+                    # to set a transparent fillcolor changes the 'rgb(x,y,z)' into 'rgba(x,y,z,a)'
+                    rgb = hex_to_rgb(part_color[0])  # tuple
+                    fill_opacity = 0.5
+                    rgba = f'rgba({rgb[0]}, {rgb[1]}, {rgb[2]}, {fill_opacity})'
+
+                    _ = fig.add_trace(go.Scatter(x=x, y=y + ystd, mode='lines', line_color=color, line_width=1))
+                    _ = fig.add_trace(go.Scatter(x=x, y=y - ystd, mode='lines', line_color=color, line_width=1,
+                                                 fill='tonexty', fillcolor=rgba))
+
+                # set the mean lines second so they lie on top of the colored areas
+                _ = fig.add_trace(go.Scatter(x=x, y=y, mode='lines', line_color=color, line_width=3))
+
+            elif type == 'raster':
+                y, x = np.where(eg_raster[:, ctx_idx, half] > 0)
+                x_offset = time[half][0]
+                x = (x/fs) + x_offset
+                y_offset = nreps * cc
+                y += y_offset
+
+                # set the mean lines second so they lie on top of the colored areas
+                _ = fig.add_trace(
+                    go.Scatter(x=x, y=y, mode='markers',
+                                             marker=dict(
+                                                 color=color,
+                                                 opacity=0.5,
+                                                 line=dict(
+                                                     color=part_color[0],
+                                                     width=1
+                                                 )
+                                             )
+                               )
+                )
+            else:
+                raise ValueError("undefined plot type, choose psht or raster")
+
+    _ = fig.update_xaxes(title_text='time from probe onset (s)', title_standoff=0, range=[0-duration/2, duration/2])
+    _ = fig.add_vline(x=0, line_width=2, line_color='black', line_dash='dot', opacity=1)
+
+    if type == 'psth':
+        _ = fig.update_yaxes(title_text='firing rate (z-score)', title_standoff=0)
+    elif type == 'raster':
+        _ = fig.update_yaxes(title_text='trials', title_standoff=0, showticklabels=False, range=[0, nreps*2])
+        fig.update_layout()
+
+    return fig
+
+
+def plot_predition(cellid, contexts, probe, modelspec=None, ctx=None):
+    # todo work in progress, this should load models, calcupate predictions if neede and plot them
     ctx_pair = contexts
     prb_idx = probe - 1
 
-    if type == 'psth':
-        fs = 30 # dont pass as is default
-        smoothing_window = 50
-    elif type == 'raster':
-        fs = 100
-        smoothing_window = 0
-    else:
-        raise ValueError("undefined plot type, choose psht or raster")
-    site_raster, goodcellse = load_site_formated_raster(cellid[:7], part='all',
-                                                        smoothing_window=smoothing_window, raster_fs=fs)
+    fs = 100
+
+    site_raster, goodcellse = load_site_formated_prediction(ctx)
+
     eg_raster = site_raster[:, goodcellse.index(cellid), :, prb_idx, :]
 
 
@@ -108,6 +206,7 @@ def plot_raw_pair(cellid, contexts, probe, type='psth'):
         fig.update_layout()
 
     return fig
+
 
 def plot_time_ser_quant(cellid, contexts, probe,
                          multiple_comparisons_axis, consecutive, cluster_threshold, fn_name,
