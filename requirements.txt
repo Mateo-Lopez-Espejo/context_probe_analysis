@@ -2,13 +2,11 @@
 -e .
 
 # external requirements
-Sphinx
-coverage
 numpy
 scipy
 matplotlib
 joblib
-seaborn
-statannot
+plotly
+dash
 nems
 nems-db

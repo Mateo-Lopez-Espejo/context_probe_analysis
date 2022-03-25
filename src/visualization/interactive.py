@@ -20,7 +20,7 @@ def plot_raw_pair(cellid, contexts, probe, type='psth', modelspec=None, **kwargs
     if modelspec is not None:
         fs = 100 # hard code for now for model fittings
         site_raster, goodcellse = load_site_formated_prediction(cellid[:7], part='all',
-                                                                raster_fs=fs, modelspec=modelspec, **kwargs)
+                                                                raster_fs=fs, modelspec=modelspec, cellid=cellid, **kwargs)
         # force PSTH
         if type != 'psth':
             print('can only plot psth for predictions, forcing...')

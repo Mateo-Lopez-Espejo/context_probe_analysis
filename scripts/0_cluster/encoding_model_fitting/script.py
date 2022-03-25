@@ -4,7 +4,8 @@ import sys
 import nems.db as nd
 import nems.utils
 import nems.utils
-from src.metrics.consolidated_tstat_big_shuff import single_cell_tstat_cluster_mass
+from nems.xform_helper import fit_model_xform
+
 
 if 'QUEUEID' in os.environ:
     queueid = os.environ['QUEUEID']
@@ -16,22 +17,11 @@ if queueid:
     print("Starting QUEUEID={}".format(queueid))
     nd.update_job_start(queueid)
 
-site = sys.argv[1]
-cluster_threshold = float(sys.argv[2])
+cellid = sys.argv[1]
+modelname = sys.argv[2]
+batch = sys.argv[3]
 
-
-meta = {'reliability': 0.1,  # r value
-        'smoothing_window': 0,  # ms
-        'raster_fs': 30,
-        'montecarlo': 11000,
-        'zscore': True,
-        'stim_type': 'permutations'}
-
-print(f"running single_cell_dprimes for site {site} with threshold {cluster_threshold} and meta:{meta} ")
-
-
-_ = single_cell_tstat_cluster_mass(site, contexts='all', probes='all',
-                                     cluster_threshold=cluster_threshold, meta=meta)
+_ = fit_model_xform(cellid, batch, modelname, autoPlot=True, saveInDB=True, returnModel=False)
 
 # Mark completed in the queue. Note that this should happen last thing!
 # Otherwise the job might still crash after being marked as complete.

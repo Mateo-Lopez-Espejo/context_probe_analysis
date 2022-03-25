@@ -1,9 +1,14 @@
 import itertools as itt
+import pathlib as pl
 
 import numpy as np
-from nems import epoch as nep
 
-from src.data.load import load
+
+from nems import epoch as nep
+from nems.recording import load_recording
+from nems.xform_helper import find_model_xform_file
+
+from src.data.load import load, load_pred
 from src.metrics.reliability import signal_reliability
 from src.utils import tools as tools
 from src.utils.cpp_parameter_handlers import _channel_handler
@@ -296,12 +301,23 @@ def load_site_formated_raster(site, contexts='all', probes='all', part='probe', 
     return raster, goodcells
 
 
-def load_site_formated_prediction(site=None, contexts='all', probes='all', part='probe', modelspec=None, **kwargs):
+def load_site_formated_prediction(site, contexts='all', probes='all', part='probe', modelspec=None, batch=None, **kwargs):
 
     # todo make this functions with a site name and modeslpec
     print(f'loading predicted response for {site} with modelspec\n'
-          f'{modelspec}\n'
-          f'.... pff you bet. not yet implemented, using xform ctx')
+          f'{modelspec}\n')
+
+
+    if 'cellid' in kwargs.keys():
+        # odd case, loads a single neuron for speed
+        rec = load_pred(kwargs['cellid'], modelspec, batch, **kwargs)
+    else:
+        # normal case. Full site, time consuming if not cached
+        rec = load_pred(site, modelspec, batch, **kwargs)
+
+    prediction = rec['pred']
+    goodcells = prediction.chans
+
 
     meta = {'reliability': 0.1,
             'smoothing_window': 0,
@@ -309,14 +325,9 @@ def load_site_formated_prediction(site=None, contexts='all', probes='all', part=
             'zscore': True}
 
     meta.update(kwargs)
-    ctx = meta['ctx']
 
-    response = ctx['val'].signals['resp']
-    prediction = ctx['val'].signals['pred']
+
     fs = prediction.fs
-
-    goodcells = response.chans
-    prediction.chans = response.chans
 
     # get the full data raster Context x Probe x Rep x Neuron x Time
     raster = raster_from_sig(prediction, probes=probes, channels=goodcells, contexts=contexts,
@@ -325,3 +336,24 @@ def load_site_formated_prediction(site=None, contexts='all', probes='all', part=
                              zscore=meta['zscore'], part=part)
 
     return raster, goodcells
+
+
+if __name__ == "__main__":
+    modelname = "ozgf.fs100.ch18-ld.popstate-dline.10.15-norm-epcpn.seq-avgreps_" \
+                "dlog-wc.18x1.g-fir.1x15-lvl.1-dexp.1-stategain.S.d_" \
+                "jk.nf10-tfinit.n.lr1e3.et3.cont-newtf.n.lr1e4.cont-svpred"
+    batch = 326
+    cellid = 'TNC014a-22-2'
+
+    raster_cell, goodcell  = load_site_formated_prediction(site=cellid[:7], part='all',
+                                               modelspec=modelname, batch=batch, cellid=cellid)
+    print(f'cell raster shape: {raster_cell.shape}')
+
+    raster_site, goodcells  = load_site_formated_prediction(site=cellid[:7], part='all',
+                                               modelspec=modelname, batch=batch)
+
+    print(f'site raster shape: {raster_site.shape}')
+
+    # the single neuron and the site sliced neuron rasters should be the same!
+    sliced = raster_site[:, goodcells.index(cellid), ...].squeeze()
+    print(f'are rasters consistent?: {np.all(sliced == raster_cell.squeeze())}')
