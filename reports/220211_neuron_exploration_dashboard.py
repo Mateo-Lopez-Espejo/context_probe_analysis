@@ -43,12 +43,8 @@ tic = time()
 DF = jl.load(summary_DF_file)
 
 def filter_DF(DF):
-    sites = ['TNC014a', 'TNC023a', 'TNC018a', 'TNC015a', 'TNC017a', 'TNC016a', 'TNC009a', 'TNC024a', 'TNC010a'] # all NTI-CPN10
-    sites = ['TNC014a'] #good example for fits
-
     filtered = DF.query("metric in ['integral', 'last_bin'] and mult_comp_corr == 'bf_cp' and source == 'real' and "
-                        "cluster_threshold == 0.05 and "
-                        f"site in {sites}")
+                        "cluster_threshold == 0.05")
 
     pivoted = filtered.pivot_table(index=['source', 'mult_comp_corr', 'cluster_threshold',
                                      'region', 'stim_count',

@@ -1,8 +1,10 @@
 import itertools as itt
+import re
 
 import numpy as np
 import plotly.colors as pc
 import plotly.graph_objects as go
+import plotly.express as px
 from webcolors import hex_to_rgb
 
 from src.data.rasters import load_site_formated_raster, load_site_formated_prediction
@@ -11,21 +13,26 @@ from src.metrics.consolidated_mean_diff import single_cell_mean_diff_cluster_mas
 from src.metrics.consolidated_tstat import single_cell_tstat_cluster_mass
 from src.metrics.consolidated_tstat_big_shuff import single_cell_tstat_cluster_mass as big_shuff
 from src.metrics.significance import _significance
+from src.models.param_tools import get_population_weights, get_strf, get_population_influence
 from src.visualization.fancy_plots import squarefy
 from src.visualization.palette import *
 
-def plot_raw_pair(cellid, contexts, probe, type='psth', modelspec=None, **kwargs):
+def plot_raw_pair(cellid, contexts, probe, type='psth',**kwargs):
     probe -= 1 # probe names start at 1 but we have zero idex
 
-    if modelspec is not None:
-        fs = 100 # hard code for now for model fittings
-        site_raster, goodcellse = load_site_formated_prediction(cellid[:7], part='all',
-                                                                raster_fs=fs, modelspec=modelspec, cellid=cellid, **kwargs)
+    if 'modelname' in kwargs.keys() and 'batch' in kwargs.keys():
+        is_pred = True
+        fs = int(re.findall('\.fs\d*\.', kwargs['modelname'])[0][3:-1])
+        # fs = 100 # hard code for now for model fittings
+        site_raster, goodcells = load_site_formated_prediction(cellid[:7], part='all', raster_fs=fs, cellid=cellid,
+                                                               **kwargs)
         # force PSTH
         if type != 'psth':
             print('can only plot psth for predictions, forcing...')
             type = 'psth'
+
     else:
+        is_pred = False
         if type == 'psth':
             fs = 30 # dont pass as is default
             smoothing_window = 50
@@ -34,10 +41,10 @@ def plot_raw_pair(cellid, contexts, probe, type='psth', modelspec=None, **kwargs
             smoothing_window = 0
         else:
             raise ValueError("undefined plot type, choose psht or raster")
-        site_raster, goodcellse = load_site_formated_raster(cellid[:7], part='all',
+        site_raster, goodcells = load_site_formated_raster(cellid[:7], part='all',
                                                             smoothing_window=smoothing_window, raster_fs=fs)
 
-    eg_raster = site_raster[:, goodcellse.index(cellid), :, probe, :]
+    eg_raster = site_raster[:, goodcells.index(cellid), :, probe, :]
 
 
     # fs = 30# here asuming 30Hz sampling rate, as its the default of the raster loader
@@ -52,7 +59,11 @@ def plot_raw_pair(cellid, contexts, probe, type='psth', modelspec=None, **kwargs
     fig = go.Figure()
     for cc, ctx_idx in enumerate(contexts):
 
-        part_color = [colors[ctx_idx % len(colors)], colors[probe % len(colors)]]
+        if is_pred:
+            part_color = [colors[ctx_idx % len(colors)], colors[ctx_idx % len(colors)]]
+        else:
+            # probe and context lines have different colors since areas color help identify probes
+            part_color = [colors[ctx_idx % len(colors)], colors[probe % len(colors)]]
 
         for nn, (half, color) in enumerate(zip(halfs, part_color)):
 
@@ -63,25 +74,37 @@ def plot_raw_pair(cellid, contexts, probe, type='psth', modelspec=None, **kwargs
                 x, y = squarefy(time[half], mean_resp[half])
                 _, ystd = squarefy(time[half], std_resp[half])
 
+                if not is_pred:
+                    # add confidence intervals for real multi trial data
+                    if nn == 0:
+                        # same color of ci border line and fill for left-hand side
+                        _ = fig.add_trace(go.Scatter(x=x, y=y + ystd, mode='lines', line_color=color, line_width=1,
+                                                     showlegend=False))
+                        _ = fig.add_trace(go.Scatter(x=x, y=y - ystd, mode='lines', line_color=color, line_width=1,
+                                                     fill='tonexty', showlegend=False))
+                    else:
+                        # different color of ci border line and fill for right-hand side
+                        # to set a transparent fillcolor changes the 'rgb(x,y,z)' into 'rgba(x,y,z,a)'
+                        rgb = hex_to_rgb(part_color[0])  # tuple
+                        fill_opacity = 0.5
+                        rgba = f'rgba({rgb[0]}, {rgb[1]}, {rgb[2]}, {fill_opacity})'
+
+                        _ = fig.add_trace(go.Scatter(x=x, y=y + ystd, mode='lines', line_color=color, line_width=1,
+                                                     showlegend=False))
+                        _ = fig.add_trace(go.Scatter(x=x, y=y - ystd, mode='lines', line_color=color, line_width=1,
+                                                     fill='tonexty', fillcolor=rgba, showlegend=False))
+
+                # add labels to the mean line for the probe only for the simulation ,
                 if nn == 0:
-                    # same color of ci border line and fill for left-hand side
-                    _ = fig.add_trace(go.Scatter(x=x, y=y + ystd, mode='lines', line_color=color, line_width=1))
-                    _ = fig.add_trace(go.Scatter(x=x, y=y - ystd, mode='lines', line_color=color, line_width=1,
-                                                 fill='tonexty'))
-
+                    name = f'context {ctx_idx}'
                 else:
-                    # different color of ci border line and fill for right-hand side
-                    # to set a transparent fillcolor changes the 'rgb(x,y,z)' into 'rgba(x,y,z,a)'
-                    rgb = hex_to_rgb(part_color[0])  # tuple
-                    fill_opacity = 0.5
-                    rgba = f'rgba({rgb[0]}, {rgb[1]}, {rgb[2]}, {fill_opacity})'
-
-                    _ = fig.add_trace(go.Scatter(x=x, y=y + ystd, mode='lines', line_color=color, line_width=1))
-                    _ = fig.add_trace(go.Scatter(x=x, y=y - ystd, mode='lines', line_color=color, line_width=1,
-                                                 fill='tonexty', fillcolor=rgba))
+                    name = f'probe {probe} after context {ctx_idx}'
 
                 # set the mean lines second so they lie on top of the colored areas
-                _ = fig.add_trace(go.Scatter(x=x, y=y, mode='lines', line_color=color, line_width=3))
+                _ = fig.add_trace(go.Scatter(x=x, y=y, mode='lines', line_color=color, line_width=3,
+                                             name=name, showlegend=True))
+
+
 
             elif type == 'raster':
                 y, x = np.where(eg_raster[:, ctx_idx, half] > 0)
@@ -90,7 +113,6 @@ def plot_raw_pair(cellid, contexts, probe, type='psth', modelspec=None, **kwargs
                 y_offset = nreps * cc
                 y += y_offset
 
-                # set the mean lines second so they lie on top of the colored areas
                 _ = fig.add_trace(
                     go.Scatter(x=x, y=y, mode='markers',
                                              marker=dict(
@@ -100,7 +122,8 @@ def plot_raw_pair(cellid, contexts, probe, type='psth', modelspec=None, **kwargs
                                                      color=part_color[0],
                                                      width=1
                                                  )
-                                             )
+                                             ),
+                               showlegend=False
                                )
                 )
             else:
@@ -117,96 +140,50 @@ def plot_raw_pair(cellid, contexts, probe, type='psth', modelspec=None, **kwargs
 
     return fig
 
+def plot_pop_modulation(cellid, modelname, batch, contexts, probe, **kwargs):
 
-def plot_predition(cellid, contexts, probe, modelspec=None, ctx=None):
-    # todo work in progress, this should load models, calcupate predictions if neede and plot them
-    ctx_pair = contexts
-    prb_idx = probe - 1
+    fs = int(re.findall('\.fs\d*\.', modelname)[0][3:-1])
+    _, mod_raster = get_population_influence(cellid, batch, modelname, **kwargs)
 
-    fs = 100
+    toplot = mod_raster[0,0,np.asarray(contexts), probe-1,:]
 
-    site_raster, goodcellse = load_site_formated_prediction(ctx)
-
-    eg_raster = site_raster[:, goodcellse.index(cellid), :, prb_idx, :]
-
-
-    # fs = 30# here asuming 30Hz sampling rate, as its the default of the raster loader
-    nreps,_,nsamps = eg_raster.shape
+    # asumes balanced data around zero
+    _,nsamps = toplot.shape
     duration  = nsamps / fs
     time = np.linspace(0-duration/2, duration/2, nsamps, endpoint=False)
-    halfs = [np.s_[:int(nsamps / 2)], np.s_[int(nsamps / 2):]]
 
-    # rotation of colors for the silence + 4 sound examples
     colors = [Grey, Yellow, Red, Teal, Brown]
-
     fig = go.Figure()
-    for cc, ctx_idx in enumerate(ctx_pair):
+    for cc, ctx_idx in enumerate(contexts):
+        color = colors[ctx_idx % len(colors)]
+        name = f'pop mod ctx{ctx_idx}_prb{probe}'
 
-        part_color = [colors[ctx_idx % len(colors)], colors[prb_idx % len(colors)]]
-
-        for nn, (half, color) in enumerate(zip(halfs, part_color)):
-
-            if type == 'psth':
-                # find mean and estandard error of the mean for line and confidence interval
-                mean_resp = np.mean(eg_raster[:, ctx_idx, :], axis=0)
-                std_resp = np.std(eg_raster[:, ctx_idx, :], axis=0)
-                x, y = squarefy(time[half], mean_resp[half])
-                _, ystd = squarefy(time[half], std_resp[half])
-
-                if nn == 0:
-                    # same color of ci border line and fill for left-hand side
-                    _ = fig.add_trace(go.Scatter(x=x, y=y + ystd, mode='lines', line_color=color, line_width=1))
-                    _ = fig.add_trace(go.Scatter(x=x, y=y - ystd, mode='lines', line_color=color, line_width=1,
-                                                 fill='tonexty'))
-
-                else:
-                    # different color of ci border line and fill for right-hand side
-                    # to set a transparent fillcolor changes the 'rgb(x,y,z)' into 'rgba(x,y,z,a)'
-                    rgb = hex_to_rgb(part_color[0])  # tuple
-                    fill_opacity = 0.5
-                    rgba = f'rgba({rgb[0]}, {rgb[1]}, {rgb[2]}, {fill_opacity})'
-
-                    _ = fig.add_trace(go.Scatter(x=x, y=y + ystd, mode='lines', line_color=color, line_width=1))
-                    _ = fig.add_trace(go.Scatter(x=x, y=y - ystd, mode='lines', line_color=color, line_width=1,
-                                                 fill='tonexty', fillcolor=rgba))
-
-                # set the mean lines second so they lie on top of the colored areas
-                _ = fig.add_trace(go.Scatter(x=x, y=y, mode='lines', line_color=color, line_width=3))
-
-            elif type == 'raster':
-                y, x = np.where(eg_raster[:, ctx_idx, half] > 0)
-                x_offset = time[half][0]
-                x = (x/fs) + x_offset
-                y_offset = nreps * cc
-                y += y_offset
-
-                # set the mean lines second so they lie on top of the colored areas
-                _ = fig.add_trace(
-                    go.Scatter(x=x, y=y, mode='markers',
-                                             marker=dict(
-                                                 color=color,
-                                                 opacity=0.5,
-                                                 line=dict(
-                                                     color=part_color[0],
-                                                     width=1
-                                                 )
-                                             )
-                               )
-                )
-            else:
-                raise ValueError("undefined plot type, choose psht or raster")
+        x, y = squarefy(time, toplot[cc])
+        fig.add_trace(go.Scatter(x=x, y=y, mode='lines', line_color=color, line_width=1,
+                                 line_dash='dash',
+                                 name=name, showlegend=True))
 
     _ = fig.update_xaxes(title_text='time from probe onset (s)', title_standoff=0, range=[0-duration/2, duration/2])
     _ = fig.add_vline(x=0, line_width=2, line_color='black', line_dash='dot', opacity=1)
-
-    if type == 'psth':
-        _ = fig.update_yaxes(title_text='firing rate (z-score)', title_standoff=0)
-    elif type == 'raster':
-        _ = fig.update_yaxes(title_text='trials', title_standoff=0, showticklabels=False, range=[0, nreps*2])
-        fig.update_layout()
+    _ = fig.update_yaxes(title_text='pop modulation', title_standoff=0)
 
     return fig
 
+
+def plot_pop_stategain(cellid, modelname, batch):
+
+    mean_pop_gain = get_population_weights(cellid, batch, modelname)[:,None]
+    img = px.imshow(mean_pop_gain, aspect='auto', color_continuous_scale='inferno')
+
+    return img
+
+
+def plot_strf(cellid, modelname, batch):
+
+    strf = get_strf(cellid, batch, modelname)
+    img = px.imshow(strf, origin='lower', aspect='auto',color_continuous_scale='inferno')
+
+    return img
 
 def plot_time_ser_quant(cellid, contexts, probe,
                          multiple_comparisons_axis, consecutive, cluster_threshold, fn_name,
@@ -314,15 +291,19 @@ def plot_time_ser_quant(cellid, contexts, probe,
     fig = go.Figure()
     # plots dprime and cluster threshold on primary axis
     tt, mmdd = squarefy(t, DP)
-    _ = fig.add_trace(go.Scatter(x=tt, y=mmdd, mode='lines', line_color='black', line_width=3))
+    _ = fig.add_trace(go.Scatter(x=tt, y=mmdd, mode='lines', line_color='black', line_width=3,
+                                 name='t-statistic'))
     _ = fig.add_trace(go.Scatter(x=tt[[0,-1]], y=[CTT]*2, mode='lines',
-                                 line=dict(color='Black', dash='dash', width=2)))
+                                 line=dict(color='Black', dash='dash', width=2),
+                                 name='t-stat thresold'))
 
     # cluster and corrected confidence interval of the shuffled clusters
     tt, mmcc = squarefy(t, CT)
-    _ = fig.add_trace(go.Scatter(x=tt, y=mmcc, mode='lines', line_color=Green, line_dash='dot', line_width=3))
+    _ = fig.add_trace(go.Scatter(x=tt, y=mmcc, mode='lines', line_color=Green, line_dash='dot', line_width=3,
+                                 name='cluster sum'))
     _ = fig.add_trace(go.Scatter(x=tt[[0,-1]], y=[CI]*2, mode='lines',
-                                 line=dict(color=Green, dash='dash', width=2)))
+                                 line=dict(color=Green, dash='dash', width=2),
+                                 name='cluster threshold'))
 
     # significant area under the curve
     # little hack to add gaps into the area, set d' value to zero where no significance
@@ -347,21 +328,20 @@ def plot_time_ser_quant(cellid, contexts, probe,
 
     return fig
 
-def plot_tiling(picked_id, df):
+def plot_tiling(picked_id, df, time_metric='last_bin'):
     # turns long format data into an array with dimension Probe * context_pair
-
     if len(picked_id) == 7:
         #site case, get max projection across neurons
-        to_pivot = df.query(f"site == '{picked_id}'").groupby(
+        to_pivot = df.query(f"site == '{picked_id}' and metric in ['integral', '{time_metric}']").groupby(
             ['metric', 'probe', 'context_pair']).agg(
             value=('value','max'))
     else:
         #neuron case, just select data
-        to_pivot = df.query(f"id == '{picked_id}'")
+        to_pivot = df.query(f"id == '{picked_id}' and metric in ['integral', '{time_metric}']")
     val_df = to_pivot.pivot_table(index=['metric', 'probe'], columns=['context_pair'], values='value')
 
     cscales = {'integral': pc.make_colorscale(['#000000', Green]),
-               'last_bin': pc.make_colorscale(['#000000', Purple])}
+               time_metric: pc.make_colorscale(['#000000', Purple])}
     max_vals = dict()
     # normalizes,saves max values and get colors for each metric
     color_df = val_df.copy()
@@ -376,10 +356,10 @@ def plot_tiling(picked_id, df):
     xl, yl = np.array([0, 1, 1, 0]), np.array([0, 0, 1, 0])
 
     amp_color = color_df.loc[('integral'), :].values
-    dur_color = color_df.loc[('last_bin'), :].values
+    dur_color = color_df.loc[(time_metric), :].values
 
     amplitudes = val_df.loc[('integral'), :]
-    durations = val_df.loc[('last_bin'), :]
+    durations = val_df.loc[(time_metric), :]
 
     fig = go.Figure()
 
@@ -404,7 +384,7 @@ def plot_tiling(picked_id, df):
                             marker=dict(color=(durations.values[p, c],) * len(xl),
                                         coloraxis='coloraxis2',
                                         opacity=0,
-                                        cmin=0, cmax=max_vals['last_bin'],
+                                        cmin=0, cmax=max_vals[time_metric],
                                         ),
                             showlegend=False
                             )
@@ -436,10 +416,10 @@ def plot_tiling(picked_id, df):
                                          tickangle=-90,
                                          xanchor='left', x=1)
                                      ),
-                      coloraxis2=dict(colorscale=cscales['last_bin'],
+                      coloraxis2=dict(colorscale=cscales[time_metric],
                                       colorbar=dict(
                                           thickness=10, len=0.6,
-                                          title_text='last_bin',
+                                          title_text=time_metric,
                                           title_side='right',
                                           tickangle=-90,
                                           xanchor='left', x=1.1)
@@ -458,6 +438,7 @@ if __name__ == '__main__':
 
     import joblib as jl
     import pandas as pd
+    from plotly.subplots import make_subplots
 
     from src.root_path import config_path
 
@@ -466,34 +447,63 @@ if __name__ == '__main__':
     meta = {'reliability': 0.1,  # r value
             'smoothing_window': 0,  # ms
             'raster_fs': 30,
-            'montecarlo': 1000,
+            'montecarlo': 11000,
             'zscore': True,
             'stim_type': 'permutations'}
 
 
-    cellid, contexts, probes = 'TNC006a-07-1', (2, 10), 2 # well-behaved example
+    # cellid, contexts, probes = 'TNC006a-07-1', (2, 10), 2 # well-behaved example
+    cellid, contexts, probes = 'TNC014a-22-2', (8, 10), 8 # model fit subset example
 
-    t_statistic = pl.Path(config['paths']['analysis_cache']) / f'220310_ctx_mod_metric_DF_tstat_cluster_mass_BS'
-    df = jl.load(t_statistic)
-    to_plot = df.query("metric in ['integral', 'last_bin'] and mult_comp_corr == 'bf_cp' and source == 'real' and "
-                       "cluster_threshold == 0.05")
-    tile = plot_tiling(cellid, to_plot)
-    tile.show()
 
+
+    # # digested metric plots aka tile plots
+    # df = jl.load(pl.Path(config['paths']['analysis_cache']) / f'220310_ctx_mod_metric_DF_tstat_cluster_mass_BS')
+    # to_plot = df.query("metric in ['integral', 'last_bin', 'mass_center'] and mult_comp_corr == 'bf_cp' and source == 'real' and "
+    #                    "cluster_threshold == 0.05")
+    # tile = plot_tiling(cellid, to_plot, time_metric='last_bin')
+    # tile.show()
+    # tile = plot_tiling(cellid, to_plot, time_metric='mass_center')
+    # tile.show()
+
+    # # rawish data plots, aka psth, raster and quantification
     # fig = make_subplots(1,4)
-    #
-    # raster = plot_raw_pair(cellid, contexts, probes, type='raster')
+    # raster = plot_raw_pair(cellid, contexts, probes, type='psth')
     # psth = plot_raw_pair(cellid, contexts, probes, type='psth')
     # quant0 = plot_time_ser_quant(cellid, contexts, probes, source='real',
     #                              multiple_comparisons_axis=[1,2], consecutive=0, cluster_threshold=0.05,
     #                              fn_name='t_statistic')
-    # quant1 = plot_time_ser_quant(cellid, contexts, probes, source='real',
-    #                              multiple_comparisons_axis=[1,2], consecutive=0, cluster_threshold=0.05,
-    #                              fn_name='big_shuff', meta={'montecarlo': 11000})
-    #
+    quant1 = plot_time_ser_quant(cellid, contexts, probes, source='real',
+                                 multiple_comparisons_axis=[1,2], consecutive=0, cluster_threshold=0.05,
+                                 fn_name='big_shuff', meta={'montecarlo': 11000})
+    quant1.show()
     # fig.add_traces(raster['data'],rows=[1]*len(raster['data']),cols=[1]*len(raster['data']))
     # fig.add_traces(psth['data'],rows=[1]*len(psth['data']),cols=[2]*len(psth['data']))
     # fig.add_traces(quant0['data'],rows=[1]*len(quant0['data']),cols=[3]*len(quant0['data']))
     # fig.add_traces(quant1['data'],rows=[1]*len(quant1['data']),cols=[4]*len(quant1['data']))
-    #
     # fig.show()
+
+    # model parameter plots, aka pop_stategain etc.
+    cellid = 'TNC014a-22-2'
+    batch = 326
+    modelname = "ozgf.fs100.ch18-ld.popstate-dline.15.15.1-norm-epcpn.seq-avgreps_" \
+                "dlog-wc.18x1.g-fir.1x15-lvl.1-dexp.1-stategain.S.d_" \
+                "jk.nf10-tfinit.n.lr1e3.et3.cont-newtf.n.lr1e4.cont-svpred"
+    # fig = plot_pop_stategain(cellid, modelname, batch)
+    # fig.show()
+    # fig = plot_strf(cellid, modelname, batch)
+    # fig.show()
+
+    # # raw prediction plot
+    # psth_pred = plot_raw_pair(cellid, contexts, probes, modelname=modelname, batch=batch)
+    # psth_pred.show()
+
+    # # population modulation
+    # pop_mod = plot_pop_modulation(cellid, modelname, batch, contexts, probes)
+    # pop_mod.show()
+    #
+    # composite = go.Figure()
+    # composite.add_traces(psth_pred.data)
+    # composite.add_traces(pop_mod.data)
+    # composite.show()
+

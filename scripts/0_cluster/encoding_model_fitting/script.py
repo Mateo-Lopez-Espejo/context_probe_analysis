@@ -18,8 +18,8 @@ if queueid:
     nd.update_job_start(queueid)
 
 cellid = sys.argv[1]
-modelname = sys.argv[2]
-batch = sys.argv[3]
+batch = sys.argv[2]
+modelname = sys.argv[3]
 
 _ = fit_model_xform(cellid, batch, modelname, autoPlot=True, saveInDB=True, returnModel=False)
 

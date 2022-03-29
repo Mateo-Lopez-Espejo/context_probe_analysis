@@ -6,17 +6,13 @@ import numpy as np
 import pandas as pd
 import joblib as jl
 
-from nems.xform_helper import load_model_xform
-
 from src.data.load import get_site_ids
 from src.data.rasters import load_site_formated_prediction
 from src.data.region_map import region_map
-from src.metrics.consolidated_tstat import single_cell_tstat_cluster_mass
-from src.metrics.consolidated_tstat_big_shuff import single_cell_tstat_cluster_mass as big_shuff
-from src.metrics.significance import _significance
 from src.metrics.time_series_summary import metrics_to_DF
 from src.root_path import config_path
-from src.utils.dataframes import add_classified_contexts, ndim_array_to_long_DF
+from src.utils.dataframes import add_classified_contexts
+from src.models.modelnames import modelnames
 
 """
 
@@ -46,11 +42,9 @@ sites = sites.difference(badsites).difference(no_perm)
 
 sites = ('TNC014a', )
 batch = 326
-m0="ozgf.fs100.ch18-ld.popstate-dline.15.15.1-norm-epcpn.seq-avgreps_" \
-   "dlog-wc.18x1.g-fir.1x15-lvl.1-dexp.1-stategain.S.d_" \
-   "jk.nf10-tfinit.n.lr1e3.et3.cont-newtf.n.lr1e4.cont-svpred"
 
-modelnames = [m0]
+selected = ['STRF_long', ]
+modelnames = {nickname:modelname for nickname, modelname in modelnames.items() if  nickname in selected}
 
 fs = 100 # todo extrac it dinamically from modelname??
 
@@ -68,7 +62,7 @@ if summary_DF_file.exists() and not recacheDF:
 else:
     to_concat = list()
 
-for site, modelname in itt.product(sites, modelnames):
+for site, (nickname, modelname) in itt.product(sites, modelnames.items()):
 
     raster, goodcells = load_site_formated_prediction(site, modelspec=modelname, batch=batch)
 

@@ -301,19 +301,19 @@ def load_site_formated_raster(site, contexts='all', probes='all', part='probe', 
     return raster, goodcells
 
 
-def load_site_formated_prediction(site, contexts='all', probes='all', part='probe', modelspec=None, batch=None, **kwargs):
+def load_site_formated_prediction(site, contexts='all', probes='all', part='probe', modelname=None, batch=None, **kwargs):
 
     # todo make this functions with a site name and modeslpec
     print(f'loading predicted response for {site} with modelspec\n'
-          f'{modelspec}\n')
+          f'{modelname}\n')
 
 
     if 'cellid' in kwargs.keys():
         # odd case, loads a single neuron for speed
-        rec = load_pred(kwargs['cellid'], modelspec, batch, **kwargs)
+        rec = load_pred(kwargs['cellid'], modelname, batch, **kwargs)
     else:
         # normal case. Full site, time consuming if not cached
-        rec = load_pred(site, modelspec, batch, **kwargs)
+        rec = load_pred(site, modelname, batch, **kwargs)
 
     prediction = rec['pred']
     goodcells = prediction.chans
@@ -346,11 +346,11 @@ if __name__ == "__main__":
     cellid = 'TNC014a-22-2'
 
     raster_cell, goodcell  = load_site_formated_prediction(site=cellid[:7], part='all',
-                                               modelspec=modelname, batch=batch, cellid=cellid)
+                                               modelname=modelname, batch=batch, cellid=cellid)
     print(f'cell raster shape: {raster_cell.shape}')
 
     raster_site, goodcells  = load_site_formated_prediction(site=cellid[:7], part='all',
-                                               modelspec=modelname, batch=batch)
+                                               modelname=modelname, batch=batch)
 
     print(f'site raster shape: {raster_site.shape}')
 
