@@ -37,23 +37,23 @@ summary_DF_file.parent.mkdir(parents=True, exist_ok=True)
 analysis_functions = {'SC': big_shuff}
 
 alpha = 0.05
-cluster_thresholds = [0.05, 0.01]
+cluster_thresholds = [0.05,
+                      # 0.01
+                      ]
 multiple_corrections = {'bf_cp': ([1, 2], 0),
                         'bf_ncp': ([0, 1, 2], 0),
-                        'none': (None, 0)}
+                        # 'none': (None, 0),
+                        }
 
-metrics = ['mass_center', 'integral', 'last_bin']
+metrics = ['mass_center', 'integral', 'last_bin', 'mass_center_trunc', 'integral_trunc']
 
 sites = set(get_site_ids(316).keys())
 badsites = {'AMT031a', 'DRX008b', 'DRX021a', 'DRX023a', 'ley074a', 'TNC010a'}  # empirically decided
 no_perm = {'ley058d'}  # sites without permutations
 sites = sites.difference(badsites).difference(no_perm)
-# sites = ('AMT029a', )
 print(f'all sites: \n{sites}\n')
 
-
 recacheDF = True
-
 if summary_DF_file.exists() and not recacheDF:
     DF = jl.load(summary_DF_file)
     ready_sites = set(DF.siteid.unique())

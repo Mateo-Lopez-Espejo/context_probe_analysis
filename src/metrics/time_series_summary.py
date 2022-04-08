@@ -55,29 +55,42 @@ def signif_abs_mean(array, label_dictionary):
     return metric, updated_label_dict
 
 
-def signif_abs_decay(array, label_dictionary):
-    # unused old function to fit exponential decay on dprime.
-    print('warning, exponential decay fit is an untestede metric')
-    t = label_dictionary['time']
-    unfolded = array.reshape(-1, array.shape[-1])
-    metric = np.empty(unfolded.shape[0], 3)
-    for aa, arr in enumerate(unfolded):
-        popt, pcov, r2 = fts.exp_decay(t, arr, skip_error=True)
-        perr = np.sqrt(np.diag(pcov))  # error
-        metric[aa, 0] = popt[0]  # r0
-        metric[aa, 1] = popt[1]  # tau
-        metric[aa, 2] = r2  # r2
+##### Truncated metrics ######
 
-    metric = metric.reshape(list(array.shape)[0:-1], 3)
+def signif_abs_mass_center_truncated(array, label_dictionary):
+    # as the name implicates, truncate the metric calculation to values past the first 100 ms
+    t = np.asarray(label_dictionary['time'])
+    tidx = np.argwhere(t>100)[0,0]
+
+    array = array[...,tidx:]
+    t = t[tidx:]
+
+    metric = np.sum(np.abs(array) * t[None, None, None, :], axis=3) / np.sum(np.abs(array), axis=3)
+    metric = metric.filled(fill_value=0)
     updated_label_dict = copy.deepcopy(label_dictionary)
     _ = updated_label_dict.pop('time')
-    updated_label_dict['metric values'] = ['r0', 'tau', 'r2']
+    return metric, updated_label_dict
+
+
+def signif_abs_sum_trucated(array, label_dictionary):
+    # as the name implicates, truncate the metric calculation to values past the first 100 ms
+    t = np.asarray(label_dictionary['time'])
+    tidx = np.argwhere(t > 100)[0,0]
+
+    array = array[..., tidx:]
+    t = t[tidx:]
+
+    metric = np.sum(np.abs(array), axis=3) * np.mean(np.diff(t))
+    updated_label_dict = copy.deepcopy(label_dictionary)
+    _ = updated_label_dict.pop('time')
     return metric, updated_label_dict
 
 
 all_metrics = {'mass_center': signif_abs_mass_center,
                'integral': signif_abs_sum,
-               'last_bin': signif_last_bin}
+               'last_bin': signif_last_bin,
+               'mass_center_trunc': signif_abs_mass_center_truncated,
+               'integral_trunc': signif_abs_sum_trucated}
 
 
 ################################################

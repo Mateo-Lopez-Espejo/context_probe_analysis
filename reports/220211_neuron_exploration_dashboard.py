@@ -15,21 +15,21 @@ from src.visualization.interactive import plot_raw_pair, plot_time_ser_quant, pl
 #### general configuration to import the right data and caches
 config = ConfigParser()
 config.read_file(open(config_path / 'settings.ini'))
-meta = {'reliability': 0.1,  # r value
-        'smoothing_window': 0,  # ms
-        'raster_fs': 30,
-        'montecarlo': 1000,
-        'zscore': True,
-        'stim_type': 'permutations'}
 
-meta_BS = {'reliability': 0.1,  # r value
+# meta = {'reliability': 0.1,  # r value
+#         'smoothing_window': 0,  # ms
+#         'raster_fs': 30,
+#         'montecarlo': 1000,
+#         'zscore': True,
+#         'stim_type': 'permutations'}
+# summary_DF_file = pl.Path(config['paths']['analysis_cache']) / f'220303_ctx_mod_metric_DF_tstat_cluster_mass'
+
+meta = {'reliability': 0.1,  # r value
         'smoothing_window': 0,  # ms
         'raster_fs': 30,
         'montecarlo': 11000,
         'zscore': True,
         'stim_type': 'permutations'}
-
-summary_DF_file = pl.Path(config['paths']['analysis_cache']) / f'220303_ctx_mod_metric_DF_tstat_cluster_mass'
 summary_DF_file = pl.Path(config['paths']['analysis_cache']) / f'220310_ctx_mod_metric_DF_tstat_cluster_mass_BS'
 
 ### same example cell as in figure 1 ###
@@ -37,14 +37,25 @@ start_prb = 3 - 1  # selected probe. the -1 is to acount for 0 not being used
 start_ctxp = '00_01'  # pair of contexts to compare and exemplify d'
 start_cellid = 'ARM021b-36-8'
 
+# TNC014a best example for the model fitting subset
+start_prb = 8 - 1
+start_ctxp = '00_08'
+start_cellid = 'TNC014a-22-2'
+batch = 326
+
 ### load and preformat some of the main data
 print('loading and formatting summary dataframe')
 tic = time()
 DF = jl.load(summary_DF_file)
 
+
+# subset of sites wit CPN0 and NTI
+selected_sites = ['TNC015a', 'TNC023a', 'TNC016a', 'TNC010a', 'TNC017a', 'TNC014a', 'TNC018a', 'TNC024a', 'TNC009a']
+
 def filter_DF(DF):
     filtered = DF.query("metric in ['integral', 'last_bin'] and mult_comp_corr == 'bf_cp' and source == 'real' and "
-                        "cluster_threshold == 0.05")
+                        "cluster_threshold == 0.05 and "
+                        f"site in {selected_sites}")
 
     pivoted = filtered.pivot_table(index=['source', 'mult_comp_corr', 'cluster_threshold',
                                      'region', 'stim_count',
@@ -67,7 +78,7 @@ print(f'it took {time() - tic:.3f}s to load')
 
 app = Dash(__name__)
 
-dur_vs_amp = px.scatter(data_frame=pivoted, x="last_bin", y="integral", color='region'
+dur_vs_amp = px.scatter(data_frame=pivoted, x="last_bin", y="integral", color='site'
                         , hover_name='id', hover_data=['context_pair', 'probe'])
 
 raw_type = 'psth'
@@ -88,7 +99,7 @@ def _plot_sample_details(picked_eg):
     psth = plot_raw_pair(cellid, contexts, probes, type=raw_type)
     quant_diff = plot_time_ser_quant(cellid, contexts, probes,
                                      multiple_comparisons_axis=[1, 2], consecutive=0, cluster_threshold=0.05,
-                                     fn_name='big_shuff', meta=meta_BS)
+                                     fn_name='big_shuff', meta=meta)
 
     fig.add_traces(psth['data'], rows=[1] * len(psth['data']), cols=[1] * len(psth['data']))
     fig.add_vline(x=0, line_width=2, line_color='black', line_dash='dot', opacity=1, row=1, col=1)

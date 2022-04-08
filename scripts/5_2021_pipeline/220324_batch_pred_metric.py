@@ -1,70 +1,61 @@
 import itertools as itt
 import pathlib as pl
 from configparser import ConfigParser
+import re
 
 import numpy as np
 import pandas as pd
 import joblib as jl
 
-from src.data.load import get_site_ids
 from src.data.rasters import load_site_formated_prediction
 from src.data.region_map import region_map
 from src.metrics.time_series_summary import metrics_to_DF
 from src.root_path import config_path
 from src.utils.dataframes import add_classified_contexts
 from src.models.modelnames import modelnames
+from src.utils.subsets import cellid_subset_02, good_sites
 
 """
-
+Quick and dirty calculation of context modulation metrics in model predictions
 """
 
 config = ConfigParser()
 config.read_file(open(config_path / 'settings.ini'))
 
-meta = {'reliability': 0.1,  # r value
-        'smoothing_window': 0,  # ms
-        'raster_fs': 30,
-        'montecarlo': 11000,
-        'zscore': True,
-        'stim_type': 'permutations'}
+# meta = {'reliability': 0.1,  # r value
+#         'smoothing_window': 0,  # ms
+#         'raster_fs': 30,
+#         'montecarlo': 11000,
+#         'zscore': True,
+#         'stim_type': 'permutations'}
 
 summary_DF_file = pl.Path(config['paths']['analysis_cache']) / f'220324_ctx_mod_metric_DF_pred'
 summary_DF_file.parent.mkdir(parents=True, exist_ok=True)
 
+metrics = ['mass_center', 'integral', 'mass_center_trunc', 'integral_trunc']
 
-metrics = ['mass_center', 'integral']
-
-sites = set(get_site_ids(316).keys())
-badsites = {'AMT031a', 'DRX008b', 'DRX021a', 'DRX023a', 'ley074a', 'TNC010a'}  # empirically decided
-no_perm = {'ley058d'}  # sites without permutations
-sites = sites.difference(badsites).difference(no_perm)
-
-
-sites = ('TNC014a', )
 batch = 326
 
-selected = ['STRF_long', ]
+selected = {'STRF_long_relu', 'self_lone_relu', 'self_mod_relu', 'pop_lone_relu','pop_mod_relu'}
 modelnames = {nickname:modelname for nickname, modelname in modelnames.items() if  nickname in selected}
 
-fs = 100 # todo extrac it dinamically from modelname??
-
-print(f'all sites: \n{sites}\n')
-
-
-recacheDF = True
+recacheDF = False
 
 if summary_DF_file.exists() and not recacheDF:
     DF = jl.load(summary_DF_file)
-    ready_sites = set(DF.siteid.unique())
-    sites = sites.difference(ready_sites)
-    print('appening new sites to existing DF', sites)
+    ready_cells = set(DF.id.unique())
+    cellids = cellid_subset_02.difference(ready_cells)
+    print('appening new units to existing DF', cellids)
     to_concat = [DF,]
 else:
+    cellids = cellid_subset_02
     to_concat = list()
 
-for site, (nickname, modelname) in itt.product(sites, modelnames.items()):
+for cellid, (nickname, modelname) in itt.product(cellids, modelnames.items()):
 
-    raster, goodcells = load_site_formated_prediction(site, modelspec=modelname, batch=batch)
+    # just get one cellid for this example ToDo deleteme
+    site = cellid.split('-')[0]
+    raster, goodcells = load_site_formated_prediction(site, modelname=modelname, batch=batch, cellid=cellid)
 
     rep, chn, ctx, prb, tme = raster.shape
     ctx_pairs = list(itt.combinations(range(ctx), 2))
@@ -79,6 +70,7 @@ for site, (nickname, modelname) in itt.product(sites, modelnames.items()):
     probes = list(range(1, pair_diff.shape[2] + 1))
 
     # creates label dictionalry
+    fs = int(re.findall('\.fs\d*\.',modelname)[0][3:-1])
     dim_labl_dict = {'id': goodcells,
                      'context_pair': [f'{c1:02d}_{c2:02d}' for c1, c2 in itt.combinations(contexts, 2)],
                      'probe': probes,
@@ -89,6 +81,7 @@ for site, (nickname, modelname) in itt.product(sites, modelnames.items()):
     masked_dprime = np.ma.array(pair_diff, mask=np.full_like(pair_diff, False))
     df = metrics_to_DF(masked_dprime, dim_labl_dict, metrics=metrics)
     df['modelname'] = modelname
+    df['nickname'] = nickname
     df['site'] = site
     df['region'] = region_map[site]
     df['stim_count'] = len(probes)

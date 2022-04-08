@@ -2,9 +2,12 @@ import itertools as itt
 import re
 
 import numpy as np
-import plotly.colors as pc
+from sklearn.decomposition import PCA
+import pandas as pd
 import plotly.graph_objects as go
+import plotly.colors as pc
 import plotly.express as px
+from  plotly.subplots import make_subplots
 from webcolors import hex_to_rgb
 
 from src.data.rasters import load_site_formated_raster, load_site_formated_prediction
@@ -13,12 +16,15 @@ from src.metrics.consolidated_mean_diff import single_cell_mean_diff_cluster_mas
 from src.metrics.consolidated_tstat import single_cell_tstat_cluster_mass
 from src.metrics.consolidated_tstat_big_shuff import single_cell_tstat_cluster_mass as big_shuff
 from src.metrics.significance import _significance
-from src.models.param_tools import get_population_weights, get_strf, get_population_influence
+from src.models.param_tools import get_population_weights, get_strf, get_population_influence, get_pred_err, \
+    model_independence_comparison
+import src.models.modelnames as mns
 from src.visualization.fancy_plots import squarefy
 from src.visualization.palette import *
 
-def plot_raw_pair(cellid, contexts, probe, type='psth',**kwargs):
-    probe -= 1 # probe names start at 1 but we have zero idex
+
+def plot_raw_pair(cellid, contexts, probe, type='psth', **kwargs):
+    prb_idx = probe - 1  # probe names start at 1 but we have zero idex
 
     if 'modelname' in kwargs.keys() and 'batch' in kwargs.keys():
         is_pred = True
@@ -34,7 +40,7 @@ def plot_raw_pair(cellid, contexts, probe, type='psth',**kwargs):
     else:
         is_pred = False
         if type == 'psth':
-            fs = 30 # dont pass as is default
+            fs = 30  # dont pass as is default
             smoothing_window = 50
         elif type == 'raster':
             fs = 100
@@ -42,15 +48,14 @@ def plot_raw_pair(cellid, contexts, probe, type='psth',**kwargs):
         else:
             raise ValueError("undefined plot type, choose psht or raster")
         site_raster, goodcells = load_site_formated_raster(cellid[:7], part='all',
-                                                            smoothing_window=smoothing_window, raster_fs=fs)
+                                                           smoothing_window=smoothing_window, raster_fs=fs)
 
-    eg_raster = site_raster[:, goodcells.index(cellid), :, probe, :]
-
+    eg_raster = site_raster[:, goodcells.index(cellid), :, prb_idx, :]
 
     # fs = 30# here asuming 30Hz sampling rate, as its the default of the raster loader
-    nreps,_,nsamps = eg_raster.shape
-    duration  = nsamps / fs
-    time = np.linspace(0-duration/2, duration/2, nsamps, endpoint=False)
+    nreps, _, nsamps = eg_raster.shape
+    duration = nsamps / fs
+    time = np.linspace(0 - duration / 2, duration / 2, nsamps, endpoint=False)
     halfs = [np.s_[:int(nsamps / 2)], np.s_[int(nsamps / 2):]]
 
     # rotation of colors for the silence + 4 sound examples
@@ -63,7 +68,7 @@ def plot_raw_pair(cellid, contexts, probe, type='psth',**kwargs):
             part_color = [colors[ctx_idx % len(colors)], colors[ctx_idx % len(colors)]]
         else:
             # probe and context lines have different colors since areas color help identify probes
-            part_color = [colors[ctx_idx % len(colors)], colors[probe % len(colors)]]
+            part_color = [colors[ctx_idx % len(colors)], colors[prb_idx % len(colors)]]
 
         for nn, (half, color) in enumerate(zip(halfs, part_color)):
 
@@ -109,48 +114,49 @@ def plot_raw_pair(cellid, contexts, probe, type='psth',**kwargs):
             elif type == 'raster':
                 y, x = np.where(eg_raster[:, ctx_idx, half] > 0)
                 x_offset = time[half][0]
-                x = (x/fs) + x_offset
+                x = (x / fs) + x_offset
                 y_offset = nreps * cc
                 y += y_offset
 
                 _ = fig.add_trace(
                     go.Scatter(x=x, y=y, mode='markers',
-                                             marker=dict(
-                                                 color=color,
-                                                 opacity=0.5,
-                                                 line=dict(
-                                                     color=part_color[0],
-                                                     width=1
-                                                 )
-                                             ),
+                               marker=dict(
+                                   color=color,
+                                   opacity=0.5,
+                                   line=dict(
+                                       color=part_color[0],
+                                       width=1
+                                   )
+                               ),
                                showlegend=False
                                )
                 )
             else:
                 raise ValueError("undefined plot type, choose psht or raster")
 
-    _ = fig.update_xaxes(title_text='time from probe onset (s)', title_standoff=0, range=[0-duration/2, duration/2])
+    _ = fig.update_xaxes(title_text='time from probe onset (s)', title_standoff=0,
+                         range=[0 - duration / 2, duration / 2])
     _ = fig.add_vline(x=0, line_width=2, line_color='black', line_dash='dot', opacity=1)
 
     if type == 'psth':
         _ = fig.update_yaxes(title_text='firing rate (z-score)', title_standoff=0)
     elif type == 'raster':
-        _ = fig.update_yaxes(title_text='trials', title_standoff=0, showticklabels=False, range=[0, nreps*2])
+        _ = fig.update_yaxes(title_text='trials', title_standoff=0, showticklabels=False, range=[0, nreps * 2])
         fig.update_layout()
 
     return fig
 
-def plot_pop_modulation(cellid, modelname, batch, contexts, probe, **kwargs):
 
+def plot_pop_modulation(cellid, modelname, batch, contexts, probe, **kwargs):
     fs = int(re.findall('\.fs\d*\.', modelname)[0][3:-1])
     _, mod_raster = get_population_influence(cellid, batch, modelname, **kwargs)
 
-    toplot = mod_raster[0,0,np.asarray(contexts), probe-1,:]
+    toplot = mod_raster[0, 0, np.asarray(contexts), probe - 1, :]
 
     # asumes balanced data around zero
-    _,nsamps = toplot.shape
-    duration  = nsamps / fs
-    time = np.linspace(0-duration/2, duration/2, nsamps, endpoint=False)
+    _, nsamps = toplot.shape
+    duration = nsamps / fs
+    time = np.linspace(0 - duration / 2, duration / 2, nsamps, endpoint=False)
 
     colors = [Grey, Yellow, Red, Teal, Brown]
     fig = go.Figure()
@@ -159,35 +165,315 @@ def plot_pop_modulation(cellid, modelname, batch, contexts, probe, **kwargs):
         name = f'pop mod ctx{ctx_idx}_prb{probe}'
 
         x, y = squarefy(time, toplot[cc])
-        fig.add_trace(go.Scatter(x=x, y=y, mode='lines', line_color=color, line_width=1,
+        fig.add_trace(go.Scatter(x=x, y=y, mode='lines', line_color=color, line_width=3,
                                  line_dash='dash',
-                                 name=name, showlegend=True))
+                                 name=name, showlegend=False))
 
-    _ = fig.update_xaxes(title_text='time from probe onset (s)', title_standoff=0, range=[0-duration/2, duration/2])
+    _ = fig.update_xaxes(title_text='time from probe onset (s)', title_standoff=0,
+                         range=[0 - duration / 2, duration / 2])
     _ = fig.add_vline(x=0, line_width=2, line_color='black', line_dash='dot', opacity=1)
     _ = fig.update_yaxes(title_text='pop modulation', title_standoff=0)
 
     return fig
 
 
-def plot_pop_stategain(cellid, modelname, batch):
+def plot_pop_stategain(cellid, modelname, batch, orientation='v'):
+    mean_pop_gain = get_population_weights(cellid, batch, modelname)
+    if orientation == 'v':
+        toplot = mean_pop_gain[:, None]
+    elif orientation == 'h':
+        toplot = mean_pop_gain[None, :]
+    else:
+        raise ValueError(f"unknown orientation value: {orientation}\nchoose 'v' or 'h'")
 
-    mean_pop_gain = get_population_weights(cellid, batch, modelname)[:,None]
-    img = px.imshow(mean_pop_gain, aspect='auto', color_continuous_scale='inferno')
-
+    img = px.imshow(toplot, aspect='auto', color_continuous_scale='inferno')
     return img
+
+
+def plot_mod_full(cellid, modelname, batch, contexts, probe, orientation='h', **kwargs):
+    mod_plot = plot_pop_modulation(cellid, modelname, batch, contexts, probe)
+
+    if orientation == 'h':
+        fig = make_subplots(1, 2, column_widths=[0.95, 0.05], horizontal_spacing=0.01)
+        # modulation
+        fig.add_traces(mod_plot['data'], rows=[1] * len(mod_plot['data']), cols=[1] * len(mod_plot['data']))
+
+        # weigts
+        weight_plot = plot_pop_stategain(cellid, modelname, batch, orientation='v')
+        fig.add_traces(weight_plot['data'], rows=[1] * len(weight_plot['data']), cols=[2] * len(weight_plot['data']))
+
+        fig.update_layout(coloraxis=dict(colorscale='inferno',
+                                         colorbar=dict(
+                                             orientation='v',
+                                             thickness=10, len=0.6,
+                                             title_text='weight',
+                                             title_side='right',
+                                             tickangle=0,
+                                             xanchor='left')
+                                         ))
+
+    elif orientation == 'v':
+        fig = make_subplots(2, 1, row_width=[0.05, 0.95], vertical_spacing=0.01)
+        # modulation
+        fig.add_traces(mod_plot['data'], rows=[1] * len(mod_plot['data']), cols=[1] * len(mod_plot['data']))
+
+        # weigts
+        weight_plot = plot_pop_stategain(cellid, modelname, batch, orientation='h')
+        fig.add_traces(weight_plot['data'], rows=[2] * len(weight_plot['data']), cols=[1] * len(weight_plot['data']))
+
+        fig.update_layout(coloraxis=dict(colorscale='inferno',
+                                         colorbar=dict(
+                                             orientation='v',
+                                             thickness=10, len=0.6,
+                                             title_text='weight',
+                                             title_side='right',
+                                             tickangle=0,
+                                             xanchor='left')
+                                         ))
+
+    _ = fig.add_vline(x=0, line_width=2, line_color='black', line_dash='dot', opacity=1,
+                      row=1, col=1)
+    fig.update_layout(xaxis2=dict(tickvals=[], ticktext=[]),
+                      yaxis2=dict(tickvals=[], ticktext=[])
+                      )
+
+    return fig
 
 
 def plot_strf(cellid, modelname, batch):
-
     strf = get_strf(cellid, batch, modelname)
-    img = px.imshow(strf, origin='lower', aspect='auto',color_continuous_scale='inferno')
+    img = px.imshow(strf, origin='lower', aspect='auto', color_continuous_scale='inferno')
 
     return img
 
+
+def plot_errors_over_time(cellid, modelname, batch, contexts, probe, part='probe', grand_mean=False):
+    err, diff_err = get_pred_err(cellid, batch, modelname, part)
+
+    ctx, prb, tme = err.shape
+    ctx_pairs = list(itt.combinations(range(ctx), 2))
+    pidx = probe - 1  # probe names start from 1.
+
+    fs = int(re.findall('\.fs\d*\.', modelname)[0][3:-1])
+    duration = tme / fs
+    if part == 'probe':
+        time = np.linspace(0, duration, tme, endpoint=False)
+    elif part == 'all':
+        time = np.linspace(0 - duration / 2, duration / 2, tme, endpoint=False)
+
+    fig = go.Figure()
+
+    if grand_mean:
+        # take neuron mean accuracy for the cell. dont blame me, Stephen made me do it!
+
+        # first plot individual contex-probe error
+        toplot = err.mean(axis=(0, 1))
+        x, y = squarefy(time, toplot)
+        fig.add_trace(go.Scatter(x=x, y=y, mode='lines', line_color='gray', line_width=2, line_dash='dash',
+                                 name='ctx_prb_mean', showlegend=True))
+
+        # second add the difference error
+        toplot = diff_err.mean(axis=(0, 1))
+        x, y = squarefy(time, toplot)
+        fig.add_trace(go.Scatter(x=x, y=y, mode='lines', line_color='black', line_width=3,
+                                 name='ctx-pair_prb_mean', showlegend=True))
+    elif grand_mean is False:
+        colors = [Grey, Yellow, Red, Teal, Brown]
+        # first plot individual contex-probe error
+        for cc, ctx_idx in enumerate(contexts):
+            color = colors[ctx_idx % len(colors)]
+            name = f'cxt{ctx_idx}_prb{probe}'
+            toplot = err[ctx_idx, pidx, :]
+
+            x, y = squarefy(time, toplot)
+            fig.add_trace(go.Scatter(x=x, y=y, mode='lines', line_color=color, line_width=2, line_dash='dash',
+                                     name=name, showlegend=True))
+
+        # second add the difference error
+        name = f'cxts{contexts}_prb{probe}'
+        pair_idx = ctx_pairs.index(contexts)
+        toplot = diff_err[pair_idx, pidx, :]
+
+        x, y = squarefy(time, toplot)
+        fig.add_trace(go.Scatter(x=x, y=y, mode='lines', line_color='black', line_width=3,
+                                 name=name, showlegend=True))
+    else:
+        raise ValueError(f"'grand_mean' should be bool but is {type(grand_mean)}")
+
+    fig.update_layout(xaxis_title_text='time (ms)', yaxis_title_text='sqr error')
+
+    return fig
+
+
+def plot_multiple_errors_over_time(cellid, modelnames, batch, contexts, probe, part='probe', style='mean', floor=None, nPCs=2):
+
+    modelnicknames = {val:key for key, val in mns.modelnames.items()}
+    colors = [Grey, Yellow, Red, Teal, Brown]
+
+    if floor is not None:
+        err_floor, diff_err_floor = get_pred_err(cellid, batch, floor, part)
+        modelnames.pop(modelnames.index(floor))
+
+    fig = go.Figure()
+    for mm, modelname in enumerate(modelnames):
+        err, diff_err = get_pred_err(cellid, batch, modelname, part)
+
+        if floor is not None:
+            err = err - err_floor
+            diff_err = diff_err - diff_err_floor
+
+
+        ctx, prb, tme = err.shape
+        ctx_pairs = list(itt.combinations(range(ctx), 2))
+        pidx = probe - 1  # probe names start from 1.
+
+        fs = int(re.findall('\.fs\d*\.', modelname)[0][3:-1])
+        duration = tme / fs
+        if part == 'probe':
+            time = np.linspace(0, duration, tme, endpoint=False)
+        elif part == 'all':
+            time = np.linspace(0 - duration / 2, duration / 2, tme, endpoint=False)
+
+        color = colors[mm % len(colors)]
+        if style == 'mean':
+            name = f'{modelnicknames[modelname]}'
+            toplot = diff_err.mean(axis=(0, 1))
+            x, y = squarefy(time, toplot)
+            fig.add_trace(go.Scatter(x=x, y=y, mode='lines', line_color=color, line_width=3,
+                                     name=name, showlegend=True))
+        elif style == 'instance':
+            name = f'{modelnicknames[modelname]}_C{contexts}_P{probe}'
+            pair_idx = ctx_pairs.index(tuple(contexts))
+            toplot = diff_err[pair_idx, pidx, :]
+
+            x, y = squarefy(time, toplot)
+            fig.add_trace(go.Scatter(x=x, y=y, mode='lines', line_color=color, line_width=3,
+                                     name=name, showlegend=True))
+
+        elif style == 'PCA':
+
+            pca = PCA(n_components=50)
+            tofit = diff_err.reshape((-1, diff_err.shape[-1]))
+            toplot = pca.fit_transform(tofit.T).T # PC by Time
+
+            dashings = ['solid', 'dash', 'dot']
+            for pc in range(nPCs):
+                name = f'{modelnicknames[modelname]}_PC{pc}'
+                x, y = squarefy(time, toplot[pc,:])
+                fig.add_trace(go.Scatter(x=x, y=y, mode='lines',
+                                         line=dict(color=color,
+                                                   width=3,
+                                                   dash=dashings[pc%len(dashings)]),
+                                         name=name, showlegend=True))
+
+                # inset for variance explained
+                fig.add_trace(go.Scatter(x=list(range(1,len(pca.explained_variance_ratio_)+1)),
+                                         y=np.cumsum(pca.explained_variance_ratio_),
+                                         mode='lines+markers', line_color=color, marker_color=color,
+                                         xaxis='x2', yaxis='y2', showlegend=False)
+                              )
+
+            fig.update_layout(xaxis2=dict(domain=[0.7,0.95], anchor='y2', title_text='PC#'),
+                              yaxis2=dict(domain=[0.7,0.95], anchor='x2', title_text='var explained')
+                              )
+
+        else:
+            raise ValueError(f"{style} unrecognized 'style' value. Use 'instance', 'mean' or 'PCA'")
+
+        fig.update_layout(xaxis_title_text='time (ms)', yaxis_title_text='sqr error')
+
+    return fig
+
+
+def plot_model_prediction_comparison(cellid, batch, independent_models, dependent_model, contexts, probe,
+                                     part='probe', grand_mean=False):
+    modelnicknames = {val: key for key, val in mns.modelnames.items()}
+    colors = [Grey, Yellow, Red, Teal, Brown]
+
+    rasters, aggs = model_independence_comparison(cellid, batch, independent_models, dependent_model, part=part)
+
+    ctx, prb, tme = rasters[dependent_model].shape
+    ctx_pairs = list(itt.combinations(range(ctx), 2))
+    pidx = probe - 1  # probe names start from 1.
+
+    # asumes the same sampling rate for all the models. Reasonable asumptions.
+    fs = int(re.findall('\.fs\d*\.', dependent_model)[0][3:-1])
+    duration = tme / fs
+    if part == 'probe':
+        time = np.linspace(0, duration, tme, endpoint=False)
+    elif part == 'all':
+        time = np.linspace(0 - duration / 2, duration / 2, tme, endpoint=False)
+
+    fig = make_subplots(1, 3)
+
+    # model predicitions
+    for cc, ctx_idx in enumerate(contexts):
+        # thin textured line for independent model predictions
+
+        toplots = [rasters[independent_models[0]][ctx_idx, pidx, :],
+                   rasters[independent_models[1]][ctx_idx, pidx, :],
+                   (rasters[independent_models[0]] + rasters[independent_models[1]])[ctx_idx, pidx, :],
+                   rasters[dependent_model][ctx_idx, pidx, :]]
+        names = [f"{modelnicknames[independent_models[0]]}",
+                 f"{modelnicknames[independent_models[1]]}",
+                 'model_sum',
+                 f"{modelnicknames[dependent_model]}"]
+        dashings = ['dash',
+                    'dot',
+                    'dashdot',
+                    'solid']
+        widths = [1, 1, 3, 3.5]
+
+        color = colors[ctx_idx % len(colors)]
+        for toplot, name, dashing, width in zip(toplots, names, dashings, widths):
+            x, y = squarefy(time, toplot)
+            fig.add_trace(go.Scatter(x=x, y=y, mode='lines', line_color=color, line_dash=dashing, line_width=width,
+                                     name=name, showlegend=True),
+                          row=1, col=cc+1)
+
+    # all context probes for the neuron
+    to_concat = list()
+    for pred_source in ['dependent', 'sum']:
+        df = pd.DataFrame(index=range(ctx), columns=range(1, prb+1), data=aggs[pred_source])
+        df['model'] = pred_source
+        to_concat.append(df)
+
+    df = pd.concat(to_concat, axis=0)
+    df.index.name='context'
+    df.columns.name='probe'
+    df.reset_index(inplace=True)
+
+    toplot = df.melt(id_vars=['context', 'model']
+                     ).pivot_table(index=['context', 'probe'], columns='model',values='value', aggfunc='first'
+                                   ).reset_index()
+    scatter = px.scatter(toplot, x='dependent',y='sum', hover_data=['context', 'probe'], color_discrete_sequence=['black'])
+
+    fig.add_traces(scatter['data'], rows=[1] * len(scatter['data']), cols=[3] * len(scatter['data']))
+
+
+    # highlighs the selected  values
+    selected = toplot.query(f"context in {contexts} and probe == {probe}")
+    fig.add_trace(go.Scatter(x=selected['dependent'], y=selected['sum'], mode='markers',
+                             marker_color=[colors[int(cc) % len(colors)] for cc in selected['context']],
+                             marker_size=10),
+                  row=1, col=3)
+
+    # unit line
+    plot_range = [toplot.loc[:, ['dependent', 'sum']].values.min(), toplot.loc[:, ['dependent', 'sum']].values.max()]
+    fig.add_trace(go.Scatter(x=plot_range, y=plot_range, mode='lines', line_color='black', line_dash='dash'),
+                  row=1, col=3)
+
+    fig.update_xaxes(title_text=modelnicknames[dependent_model],
+                     col=3, row=1)
+    fig.update_yaxes(scaleratio=1, title_text=f'{modelnicknames[independent_models[0]]} + {modelnicknames[dependent_model][0]}',
+                     col=3, row=1)
+
+    return fig
+
+
 def plot_time_ser_quant(cellid, contexts, probe,
-                         multiple_comparisons_axis, consecutive, cluster_threshold, fn_name,
-                         alpha=0.05, source='real', meta={}):
+                        multiple_comparisons_axis, consecutive, cluster_threshold, fn_name,
+                        alpha=0.05, source='real', meta={}):
     defaults_meta = {'montecarlo': 1000,
                      'raster_fs': 30,
                      'reliability': 0.1,
@@ -195,30 +481,27 @@ def plot_time_ser_quant(cellid, contexts, probe,
                      'stim_type': 'permutations',
                      'zscore': True}
 
-
-    fn_dict = {'dprime':single_cell_dprimes_cluster_mass,
-               'mean_difference':single_cell_mean_diff_cluster_mass,
-               't_statistic':single_cell_tstat_cluster_mass,
+    fn_dict = {'dprime': single_cell_dprimes_cluster_mass,
+               'mean_difference': single_cell_mean_diff_cluster_mass,
+               't_statistic': single_cell_tstat_cluster_mass,
                'big_shuff': big_shuff}
 
     fn = fn_dict[fn_name]
     defaults_meta.update(meta)
 
-    if fn.check_call_in_cache(cellid[:7], contexts='all', probes='all', cluster_threshold=float(cluster_threshold), meta=defaults_meta):
+    if fn.check_call_in_cache(cellid[:7], contexts='all', probes='all', cluster_threshold=float(cluster_threshold),
+                              meta=defaults_meta):
         dprime, pval_quantiles, goodcells, shuffled_eg = fn(
             cellid[:7], contexts='all', probes='all', cluster_threshold=float(cluster_threshold), meta=defaults_meta
         )
     else:
         raise ValueError(f'{cellid[:7]}, {fn}, {cluster_threshold} not yet in cache')
 
-
     if source == 'real':
         pvalue = pval_quantiles['pvalue']
     elif source == 'shuffled_eg':
         dprime = shuffled_eg['dprime']
         pvalue = shuffled_eg['pvalue']
-
-
 
     significance = _significance(pvalue,
                                  multiple_comparisons_axis=multiple_comparisons_axis,
@@ -238,7 +521,6 @@ def plot_time_ser_quant(cellid, contexts, probe,
         raise ValueError('I dont know what to do with so many multiple_comparisons_axis')
 
     mult_comp
-
 
     cell_idx = goodcells.index(cellid) if len(cellid) > 7 else 0
     pair_idx = [f'{t0}_{t1}' for t0, t1 in itt.combinations(range(dprime.shape[2] + 1), 2)].index(
@@ -293,7 +575,7 @@ def plot_time_ser_quant(cellid, contexts, probe,
     tt, mmdd = squarefy(t, DP)
     _ = fig.add_trace(go.Scatter(x=tt, y=mmdd, mode='lines', line_color='black', line_width=3,
                                  name='t-statistic'))
-    _ = fig.add_trace(go.Scatter(x=tt[[0,-1]], y=[CTT]*2, mode='lines',
+    _ = fig.add_trace(go.Scatter(x=tt[[0, -1]], y=[CTT] * 2, mode='lines',
                                  line=dict(color='Black', dash='dash', width=2),
                                  name='t-stat thresold'))
 
@@ -301,7 +583,7 @@ def plot_time_ser_quant(cellid, contexts, probe,
     tt, mmcc = squarefy(t, CT)
     _ = fig.add_trace(go.Scatter(x=tt, y=mmcc, mode='lines', line_color=Green, line_dash='dot', line_width=3,
                                  name='cluster sum'))
-    _ = fig.add_trace(go.Scatter(x=tt[[0,-1]], y=[CI]*2, mode='lines',
+    _ = fig.add_trace(go.Scatter(x=tt[[0, -1]], y=[CI] * 2, mode='lines',
                                  line=dict(color=Green, dash='dash', width=2),
                                  name='cluster threshold'))
 
@@ -317,8 +599,8 @@ def plot_time_ser_quant(cellid, contexts, probe,
 
     # center of mass indication: line fom zero to the time series value at that time point
     if not np.isnan(mass_center):
-        ytop = DP[np.abs(t-mass_center).argmin()]
-        _ = fig.add_trace(go.Scatter(x=[mass_center]*2, y=[0, ytop], mode='lines',
+        ytop = DP[np.abs(t - mass_center).argmin()]
+        _ = fig.add_trace(go.Scatter(x=[mass_center] * 2, y=[0, ytop], mode='lines',
                                      line=dict(color=Purple, width=4)))
 
     # formats axis, legend and so on.
@@ -328,15 +610,16 @@ def plot_time_ser_quant(cellid, contexts, probe,
 
     return fig
 
+
 def plot_tiling(picked_id, df, time_metric='last_bin'):
     # turns long format data into an array with dimension Probe * context_pair
     if len(picked_id) == 7:
-        #site case, get max projection across neurons
+        # site case, get max projection across neurons
         to_pivot = df.query(f"site == '{picked_id}' and metric in ['integral', '{time_metric}']").groupby(
             ['metric', 'probe', 'context_pair']).agg(
-            value=('value','max'))
+            value=('value', 'max'))
     else:
-        #neuron case, just select data
+        # neuron case, just select data
         to_pivot = df.query(f"id == '{picked_id}' and metric in ['integral', '{time_metric}']")
     val_df = to_pivot.pivot_table(index=['metric', 'probe'], columns=['context_pair'], values='value')
 
@@ -433,14 +716,12 @@ if __name__ == '__main__':
     # for developing and debugging
     print('this should not be runned when importing')
 
-    import pathlib as pl
     from configparser import ConfigParser
 
-    import joblib as jl
-    import pandas as pd
     from plotly.subplots import make_subplots
 
     from src.root_path import config_path
+    from src.models.modelnames import STRF_long_relu, pop_lone_relu, pop_mod_relu
 
     config = ConfigParser()
     config.read_file(open(config_path / 'settings.ini'))
@@ -451,11 +732,8 @@ if __name__ == '__main__':
             'zscore': True,
             'stim_type': 'permutations'}
 
-
     # cellid, contexts, probes = 'TNC006a-07-1', (2, 10), 2 # well-behaved example
-    cellid, contexts, probes = 'TNC014a-22-2', (8, 10), 8 # model fit subset example
-
-
+    cellid, contexts, probe = 'TNC014a-22-2', [8, 10], 8  # model fit subset example
 
     # # digested metric plots aka tile plots
     # df = jl.load(pl.Path(config['paths']['analysis_cache']) / f'220310_ctx_mod_metric_DF_tstat_cluster_mass_BS')
@@ -473,10 +751,9 @@ if __name__ == '__main__':
     # quant0 = plot_time_ser_quant(cellid, contexts, probes, source='real',
     #                              multiple_comparisons_axis=[1,2], consecutive=0, cluster_threshold=0.05,
     #                              fn_name='t_statistic')
-    quant1 = plot_time_ser_quant(cellid, contexts, probes, source='real',
-                                 multiple_comparisons_axis=[1,2], consecutive=0, cluster_threshold=0.05,
-                                 fn_name='big_shuff', meta={'montecarlo': 11000})
-    quant1.show()
+    # quant1 = plot_time_ser_quant(cellid, contexts, probe, source='real',
+    #                              multiple_comparisons_axis=[1,2], consecutive=0, cluster_threshold=0.05,
+    #                              fn_name='big_shuff', meta={'montecarlo': 11000})
     # fig.add_traces(raster['data'],rows=[1]*len(raster['data']),cols=[1]*len(raster['data']))
     # fig.add_traces(psth['data'],rows=[1]*len(psth['data']),cols=[2]*len(psth['data']))
     # fig.add_traces(quant0['data'],rows=[1]*len(quant0['data']),cols=[3]*len(quant0['data']))
@@ -507,3 +784,16 @@ if __name__ == '__main__':
     # composite.add_traces(pop_mod.data)
     # composite.show()
 
+    # fig = plot_mod_full(cellid, modelname, batch, contexts, probe, orientation='v')
+    # fig.show()
+
+    # fig = plot_errors_over_time(cellid, modelname, batch, contexts, probe, grand_mean=False)
+    # fig.show()
+
+    fig = plot_multiple_errors_over_time(cellid, [mns.STRF_relu, mns.pop_mod_relu, mns.self_mod_relu],batch, contexts, probe,
+                                         part='probe', style='PCA', floor=mns.STRF_relu, nPCs=3)
+    fig.show()
+
+    # fig  = plot_model_prediction_comparison(cellid, batch, [STRF_long_relu, pop_lone_relu], pop_mod_relu, contexts, probe,
+    #                                  part='probe', grand_mean=False)
+    # fig.show()

@@ -21,6 +21,8 @@ cellid = sys.argv[1]
 batch = sys.argv[2]
 modelname = sys.argv[3]
 
+print(f"fitting neuron:{cellid}, batch:{batch}, modelname:{modelname}")
+
 _ = fit_model_xform(cellid, batch, modelname, autoPlot=True, saveInDB=True, returnModel=False)
 
 # Mark completed in the queue. Note that this should happen last thing!

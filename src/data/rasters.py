@@ -303,11 +303,8 @@ def load_site_formated_raster(site, contexts='all', probes='all', part='probe', 
 
 def load_site_formated_prediction(site, contexts='all', probes='all', part='probe', modelname=None, batch=None, **kwargs):
 
-    # todo make this functions with a site name and modeslpec
     print(f'loading predicted response for {site} with modelspec\n'
           f'{modelname}\n')
-
-
     if 'cellid' in kwargs.keys():
         # odd case, loads a single neuron for speed
         rec = load_pred(kwargs['cellid'], modelname, batch, **kwargs)
@@ -319,12 +316,12 @@ def load_site_formated_prediction(site, contexts='all', probes='all', part='prob
     goodcells = prediction.chans
 
 
-    meta = {'reliability': 0.1,
+    defaults = {'reliability': 0.1,
             'smoothing_window': 0,
             'stim_type': 'permutations',
-            'zscore': True}
-
-    meta.update(kwargs)
+            'zscore': False}
+    meta = kwargs
+    meta.update(defaults)
 
 
     fs = prediction.fs
