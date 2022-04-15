@@ -3,6 +3,7 @@ from configparser import ConfigParser
 from time import time
 
 import numpy as np
+import pandas as pd
 from joblib import Memory
 import pathlib as pl
 
@@ -35,6 +36,7 @@ def get_site_ids(batch):
     :param batch:
     :return:
     '''
+    print('deprecated, rather use get_batch_ids(batch)')
     batch_cells = nd.get_batch_cells(batch)
 
     cellids = batch_cells.cellid.unique().tolist()
@@ -52,6 +54,9 @@ def get_batch_ids(batch):
     return df
 
 def get_runclass_ids(runclass):
+    """
+    get all cells and sites from a given runclass, e.g. both permutations and triplests from CPN
+    """
     querry = f"SELECT gSingleCell.siteid, gSingleCell.cellid FROM " \
              f"((gSingleCell INNER JOIN sCellFile ON gSingleCell.id=sCellFile.singleid) " \
              f"INNER JOIN  gRunClass on sCellFile.runclassid=gRunClass.id) WHERE gRunClass.name = '{runclass}'"
@@ -59,28 +64,45 @@ def get_runclass_ids(runclass):
     df = pd_query(querry)
     return df
 
-def get_10perm_ids():
-    """
-    returns dataframe with site and cell ids containing CPN 10 permutations experiments regardless of batch (A1, PEG, alone etc.)
-    """
-    # finds the raw ids for  AllPermutations experiments
-    querry = f"SELECT rawid FROM gData where name = 'Ref_SequenceStructure' and svalue = 'AllPermutations'"
-    df = pd_query(querry)
-    rawids = tuple(df.rawid)
 
-    # with those raw ids, filter for those raw ids wher there were 10 sounds
-    querry = f"SELECT rawid, svalue FROM gData where name = 'Ref_SoundIndexes' and rawid in {rawids}"
-    df = pd_query(querry)
-    df['nsounds'] = df['svalue'].apply(lambda x: len([int(i) for i in x[1:-1].split(' ')]))
-    rawids = tuple(df.query('nsounds == 10').rawid)
+def get_CPN_ids(nsounds, structure):
+    """
+    returns a DF of the specified neurons
+    :nsounds: int, either 2, (for triplets) or  4 and 10 for permutations
+    :structure: str , 'Triplets' or 'AllPermutations'
+    """
+    #sanitize input
+    assert structure in ['Triplets', 'AllPermutations']
+    assert nsounds in [2,4,9,10] # that one TNC062 with 9 sounds....
+
+    if structure == 'Triplets' and nsounds !=2:
+        print('forcing 2 sound for triplets')
+        nsounds = 2
+
+    # finds the raw ids for  AllPermutations experiments
+    querry = f"SELECT rawid, name, svalue FROM gData where name in ('Ref_SequenceStructure', 'Ref_SoundIndexes')"
+    param_df = pd_query(querry)
+    param_df = param_df.pivot_table(index=['rawid'], columns=['name'], values='svalue', aggfunc='first')
+    param_df = param_df.dropna().reset_index().copy()
+    param_df['Ref_SoundIndexes'] = param_df['Ref_SoundIndexes'].apply(lambda x: [int(s) for s in x[1:-1].split(' ')])
+    param_df['nsounds'] = param_df['Ref_SoundIndexes'].apply(lambda x: len(x))
+    param_df['Ref_SequenceStructure'] = param_df['Ref_SequenceStructure'].str.strip()
+    param_df = param_df.query(f"nsounds == {nsounds} and Ref_SequenceStructure == '{structure}'")
+    rawids = tuple(param_df.rawid.unique())
+
+    if len(rawids) == 0:
+        print('no sites/neurons found with these specifications')
+        return pd.DataFrame()
 
     # finally finds the subset of sites/cells that fulfill all conditions
-    querry = f"SELECT cellid FROM gDataRaw where id in {rawids}"
-    siteids = list(pd_query(querry).cellid)
+    querry = f"SELECT cellid, id FROM gDataRaw where id in {rawids}" #this returns a site, not a cell.
+    raw_site_df =pd_query(querry).rename(columns={'cellid':'siteid', 'id':'rawid'})
+    raw_site_df = raw_site_df.loc[~raw_site_df.siteid.str.contains('tst'),:]
 
-    df = get_runclass_ids('CPN')
-
-    df = df.query(f"siteid in {siteids}")
+    # takes all CPN data and filters first by selected site/rawid then adds sound indices based on rawid
+    df = get_runclass_ids('CPN').merge(
+        raw_site_df, on='siteid', validate='m:1'
+    ).merge(param_df.loc[:,['Ref_SoundIndexes','rawid']],on='rawid', validate='m:1')
 
     return df
 
@@ -172,7 +194,8 @@ if __name__ == '__main__':
     # rec = load_pred(siteid, modelname, batch)
     # print(f"done loading site with shape{rec['pred'].shape}")
     # out = get_runclass_ids('CPN')
-    # out = get_10perm_ids()
-    get_batch_ids(326)
+    out1 = get_CPN_ids(10, 'AllPermutations')
+    # out2 = get_CPN_ids(2, 'Triplets')
+    # get_batch_ids(326)
 
     pass

@@ -45,7 +45,7 @@ multiple_corrections = {'bf_cp': ([1, 2], 0),
                         # 'none': (None, 0),
                         }
 
-metrics = ['mass_center', 'integral', 'last_bin', 'mass_center_trunc', 'integral_trunc']
+metrics = ['mass_center', 'integral', 'last_bin', 'mass_center_trunc1.5', 'integral_trunc1.5']
 
 sites = set(get_site_ids(316).keys())
 badsites = {'AMT031a', 'DRX008b', 'DRX021a', 'DRX023a', 'ley074a', 'TNC010a'}  # empirically decided
@@ -56,7 +56,7 @@ print(f'all sites: \n{sites}\n')
 recacheDF = True
 if summary_DF_file.exists() and not recacheDF:
     DF = jl.load(summary_DF_file)
-    ready_sites = set(DF.siteid.unique())
+    ready_sites = set(DF.site.unique())
     sites = sites.difference(ready_sites)
     print('appening new sites to existing DF', sites)
     to_concat = [DF,]
@@ -137,8 +137,8 @@ for site, (fname, func), clust_thresh in itt.product(
 DF = pd.concat(to_concat, ignore_index=True, axis=0)
 
 # extra formatting
-print(f'adding context clasification')
-DF = add_classified_contexts(DF)
+# print(f'adding context clasification')
+# DF = add_classified_contexts(DF)
 
 dups = np.sum(DF.duplicated().values)
 if dups > 0:

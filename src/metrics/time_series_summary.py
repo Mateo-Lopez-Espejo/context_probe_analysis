@@ -57,7 +57,7 @@ def signif_abs_mean(array, label_dictionary):
 
 ##### Truncated metrics ######
 
-def signif_abs_mass_center_truncated(array, label_dictionary):
+def signif_abs_mass_center_truncated100(array, label_dictionary):
     # as the name implicates, truncate the metric calculation to values past the first 100 ms
     t = np.asarray(label_dictionary['time'])
     tidx = np.argwhere(t>100)[0,0]
@@ -72,7 +72,7 @@ def signif_abs_mass_center_truncated(array, label_dictionary):
     return metric, updated_label_dict
 
 
-def signif_abs_sum_trucated(array, label_dictionary):
+def signif_abs_sum_trucated100(array, label_dictionary):
     # as the name implicates, truncate the metric calculation to values past the first 100 ms
     t = np.asarray(label_dictionary['time'])
     tidx = np.argwhere(t > 100)[0,0]
@@ -86,11 +86,73 @@ def signif_abs_sum_trucated(array, label_dictionary):
     return metric, updated_label_dict
 
 
+def signif_abs_mass_center_truncated150(array, label_dictionary):
+    # as the name implicates, truncate the metric calculation to values past the first 100 ms
+    t = np.asarray(label_dictionary['time'])
+    tidx = np.argwhere(t > 150)[0,0]
+
+    array = array[...,tidx:]
+    t = t[tidx:]
+
+    metric = np.sum(np.abs(array) * t[None, None, None, :], axis=3) / np.sum(np.abs(array), axis=3)
+    metric = metric.filled(fill_value=0)
+    updated_label_dict = copy.deepcopy(label_dictionary)
+    _ = updated_label_dict.pop('time')
+    return metric, updated_label_dict
+
+
+def signif_abs_sum_trucated150(array, label_dictionary):
+    # as the name implicates, truncate the metric calculation to values past the first 100 ms
+    t = np.asarray(label_dictionary['time'])
+    tidx = np.argwhere(t > 150)[0,0]
+
+    array = array[..., tidx:]
+    t = t[tidx:]
+
+    metric = np.sum(np.abs(array), axis=3) * np.mean(np.diff(t))
+    updated_label_dict = copy.deepcopy(label_dictionary)
+    _ = updated_label_dict.pop('time')
+    return metric, updated_label_dict
+
+
+def signif_abs_mass_center_truncated200(array, label_dictionary):
+    # as the name implicates, truncate the metric calculation to values past the first 100 ms
+    t = np.asarray(label_dictionary['time'])
+    tidx = np.argwhere(t > 200)[0,0]
+
+    array = array[...,tidx:]
+    t = t[tidx:]
+
+    metric = np.sum(np.abs(array) * t[None, None, None, :], axis=3) / np.sum(np.abs(array), axis=3)
+    metric = metric.filled(fill_value=0)
+    updated_label_dict = copy.deepcopy(label_dictionary)
+    _ = updated_label_dict.pop('time')
+    return metric, updated_label_dict
+
+
+def signif_abs_sum_trucated200(array, label_dictionary):
+    # as the name implicates, truncate the metric calculation to values past the first 100 ms
+    t = np.asarray(label_dictionary['time'])
+    tidx = np.argwhere(t > 200)[0,0]
+
+    array = array[..., tidx:]
+    t = t[tidx:]
+
+    metric = np.sum(np.abs(array), axis=3) * np.mean(np.diff(t))
+    updated_label_dict = copy.deepcopy(label_dictionary)
+    _ = updated_label_dict.pop('time')
+    return metric, updated_label_dict
+
+
 all_metrics = {'mass_center': signif_abs_mass_center,
                'integral': signif_abs_sum,
                'last_bin': signif_last_bin,
-               'mass_center_trunc': signif_abs_mass_center_truncated,
-               'integral_trunc': signif_abs_sum_trucated}
+               'mass_center_trunc1': signif_abs_mass_center_truncated100,
+               'integral_trunc1': signif_abs_sum_trucated100,
+               'mass_center_trunc1.5': signif_abs_mass_center_truncated150,
+               'integral_trunc1.5': signif_abs_sum_trucated150,
+               'mass_center_trunc2': signif_abs_mass_center_truncated200,
+               'integral_trunc2': signif_abs_sum_trucated200}
 
 
 ################################################

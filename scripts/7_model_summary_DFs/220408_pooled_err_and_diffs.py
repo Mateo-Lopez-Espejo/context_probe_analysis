@@ -10,12 +10,13 @@ from tqdm import tqdm
 from src.models.modelnames import modelnames
 from src.models.param_tools import get_pred_err
 from src.root_path import config_path
+from src.utils.subsets import cellid_A1_fit_set, cellid_PEG_fit_set, batch_map
 
 """
 Set of metrics comparing multiple model predictions, and their relative relation with one another.
 """
 
-def aggregate_all_differences(modelnicknames, floor, cellids, batch, instances=None):
+def aggregate_all_differences(modelnicknames, floor, cellids, instances=None):
     """
     aggregate values for each instance of context_pair probe  cell that are significant. both for the real data
     and for the model predictions
@@ -23,14 +24,14 @@ def aggregate_all_differences(modelnicknames, floor, cellids, batch, instances=N
 
     def inner(cid):
 
-        err, diff_err_floor = get_pred_err(cid, batch, modelnames[floor], part='probe')
+        err, diff_err_floor = get_pred_err(cid, batch_map[cid], modelnames[floor], part='probe')
         ctx, prb, tme = err.shape
         del (err)
 
         out_differences = dict()
         out_errors = dict()
         for mm, nickname in enumerate(modelnicknames):
-            _, diff_err, diff_resp, diff_pred = get_pred_err(cid, batch, modelnames[nickname], part='probe',
+            _, diff_err, diff_resp, diff_pred = get_pred_err(cid, batch_map[cid], modelnames[nickname], part='probe',
                                                              retur_diffs=True)
             if instances is None:
                 diff_pred = diff_pred.reshape((-1, 100))
@@ -75,8 +76,6 @@ def aggregate_all_differences(modelnicknames, floor, cellids, batch, instances=N
 
         return out_differences, out_errors, label, instance_count
 
-
-    # vanilla method
     pooled_differences = defaultdict(list)
     pooled_errors = defaultdict(list)
     labels = list()
@@ -108,75 +107,40 @@ def aggregate_all_differences(modelnicknames, floor, cellids, batch, instances=N
     return pooled_differences, pooled_errors, labels, instance_counter
 
 
-def data_to_DF(modelnicknames, floor, cellids, batch, instances=None):
-    """
-
-    """
-
-    # get real data
-
-    # get each of the model predictions
-
-    # define slices
-
-    # calculate correlation coefficient
-
-    # calculate metric
-
-    # organize in dict
-
-    # merge dicts in DF
-
-    return None
 
 
 
-if __name__ == '__main__':
-    from src.utils.subsets import cellid_fit_set, cellid_subset_02
+config = ConfigParser()
+config.read_file(open(config_path / 'settings.ini'))
 
-    config = ConfigParser()
-    config.read_file(open(config_path / 'settings.ini'))
+summary_DF_file = pl.Path(config['paths']['analysis_cache']) / f'220310_ctx_mod_metric_DF_tstat_cluster_mass_BS'
+DF = jl.load(summary_DF_file)
 
-    summary_DF_file = pl.Path(config['paths']['analysis_cache']) / f'220310_ctx_mod_metric_DF_tstat_cluster_mass_BS'
-    DF = jl.load(summary_DF_file)
+#### lets do it in a for loop
+cellids = cellid_A1_fit_set.union(cellid_PEG_fit_set)
 
-    #### lets do it in a for loop
-    cellids = cellid_fit_set
-    # cellids = {'TNC014a-22-2'}
-    # cellids = cellid_subset_02
+file_names = ['220408_pooled_differences_trunc150',
+              '220408_pooled_nonsig_differences']
+querries = [
+    f"metric == 'integral_trunc1.5' and mult_comp_corr == 'bf_cp' and source == 'real' and cluster_threshold == 0.05 and value > 0 and id in {list(cellids)}",
+    f"metric == 'integral' and mult_comp_corr == 'bf_cp' and source == 'real' and cluster_threshold == 0.05 and value == 0 and id in {list(cellids)}",
+]
 
-    file_names = ['220408_pooled_differences_trunc150',
-                  '220408_pooled_differences_trunc200',
-                  '220408_pooled_nonsig_differences',
-                  ]
-    querries = [
-        f"metric == 'integral_trunc1.5' and mult_comp_corr == 'bf_cp' and source == 'real' and cluster_threshold == 0.05 and value > 0 and id in {list(cellids)}",
-        f"metric == 'integral_trunc2' and mult_comp_corr == 'bf_cp' and source == 'real' and cluster_threshold == 0.05 and value > 0 and id in {list(cellids)}",
-        f"metric == 'integral' and mult_comp_corr == 'bf_cp' and source == 'real' and cluster_threshold == 0.05 and value == 0 and id in {list(cellids)}",
-    ]
+for filename, query in zip(file_names, querries):
+    cache_file = pl.Path(config['paths']['analysis_cache']) / filename
+    recache = False
+    if cache_file.exists() and not recache:
+        print(f'cache for pooled nonsignificant differences at {cache_file}')
+        # pooled_diff_err, labels = jl.load(cache_file)
+    else:
+        # load the real data to find the subset of neuron_context-pair_probes with significant modulation
+        filtered = DF.query(query)
 
-    for filename, query in zip(file_names, querries):
-        cache_file = pl.Path(config['paths']['analysis_cache']) / filename
-        recache = False
-        if cache_file.exists() and not recache:
-            print(f'cache for pooled nonsignificant differences at {cache_file}')
-            # pooled_diff_err, labels = jl.load(cache_file)
-        else:
-            # load the real data to find the subset of neuron_context-pair_probes with significant modulation
-            filtered = DF.query(query)
-
-            out = aggregate_all_differences(modelnicknames=['STRF_long_relu', 'pop_lone_relu', 'pop_mod_relu'],
-                                            floor='STRF_long_relu',
-                                            cellids=cellids,
-                                            batch=326,
-                                            instances=filtered)
-            cache_file.parent.mkdir(parents=True, exist_ok=True)
-            print(out[3])
-            jl.dump(out, cache_file)
-        pass
-
-
-    out = data_to_DF(modelnicknames=['pop_mod_relu'],
-                     cellids=cellids,
-                     batch=326,
-                     instances=filtered)
+        out = aggregate_all_differences(modelnicknames=['STRF_long_relu', 'pop_lone_relu', 'pop_mod_relu'],
+                                        floor='STRF_long_relu',
+                                        cellids=cellids,
+                                        instances=filtered)
+        cache_file.parent.mkdir(parents=True, exist_ok=True)
+        print(out[3])
+        jl.dump(out, cache_file)
+    pass

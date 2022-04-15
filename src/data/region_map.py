@@ -15,9 +15,7 @@ for site in all_sites.keys():
 
     # Sanitizes region in case of missing values
     if raw_area is None:
-
-        warn(f'site {site} has undefined region')
-        print()
+        warn(f'\nsite {site} has undefined region\n')
         continue
     else:
         area = raw_area.split(',')[0]
