@@ -53,6 +53,9 @@ def get_population_weights(cellid, batch, modelname, **kwargs):
     return mean_pop_gain
 
 def get_population_influence(cellid, batch, modelname, **kwargs):
+    """
+    returns the PSTH of the population dependent summed value. i.e. the influence of the population on the PSTH alone
+    """
     # runs only preprocecing
     ctx = load_model_xform_faster(cellid=cellid, batch=batch, modelname=modelname)
 

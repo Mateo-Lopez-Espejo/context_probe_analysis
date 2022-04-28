@@ -53,6 +53,15 @@ pop_lone_relu = "ozgf.fs100.ch18-ld.popstate-norm.l1-dline.15.15.1.i.state.o.sti
                 "wc.Nx1-fir.1x1-lvl.1-relu.1_" \
                 "jk.nf10-tfinit.n.lr1e3.et3.cont-newtf.n.lr1e4.cont-svpred"
 
+# STP rank 1
+STP_STRF1_relu = "ozgf.fs100.ch18-ld-norm.l1-epcpn.seq-avgreps_" \
+                 "wc.18x1.g-stp.1.q-fir.1x15-lvl.1-relu.1_" \
+                 "jk.nf10-tfinit.n.lr1e3.et3.cont-newtf.n.lr1e4.cont-svpred"
+
+# STP rank 2
+STP_STRF2_relu = "ozgf.fs100.ch18-ld-norm.l1-epcpn.seq-avgreps_" \
+                 "wc.18x2.g-stp.2.q-fir.2x15-lvl.1-relu.1_" \
+                 "jk.nf10-tfinit.n.lr1e3.et3.cont-newtf.n.lr1e4.cont-svpred"
 
 # for easy export
 modelnames = {'STRF_no_jk': STRF_no_jk,
@@ -64,4 +73,6 @@ modelnames = {'STRF_no_jk': STRF_no_jk,
               'pop_mod_relu': pop_mod_relu,
               'self_mod_relu': self_mod_relu,
               'pop_lone_relu': pop_lone_relu,
-              'self_lone_relu': self_lone_relu}
+              'self_lone_relu': self_lone_relu,
+              'STP_STRF1_relu': STP_STRF1_relu,
+              'STP_STRF2_relu': STP_STRF2_relu}

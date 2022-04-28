@@ -746,7 +746,7 @@ if __name__ == '__main__':
 
     # # rawish data plots, aka psth, raster and quantification
     # fig = make_subplots(1,4)
-    # raster = plot_raw_pair(cellid, contexts, probes, type='psth')
+    # raster = plot_raw_pair(cellid, contexts, probes, type='raster')
     # psth = plot_raw_pair(cellid, contexts, probes, type='psth')
     # quant0 = plot_time_ser_quant(cellid, contexts, probes, source='real',
     #                              multiple_comparisons_axis=[1,2], consecutive=0, cluster_threshold=0.05,
