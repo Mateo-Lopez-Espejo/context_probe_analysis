@@ -5,6 +5,7 @@ from configparser import ConfigParser
 import numpy as np
 import pandas as pd
 import joblib as jl
+from tqdm import tqdm
 
 from src.data.load import get_site_ids
 from src.data.region_map import region_map
@@ -24,16 +25,20 @@ config.read_file(open(config_path / 'settings.ini'))
 
 meta = {'reliability': 0.1,  # r value
         'smoothing_window': 0,  # ms
-        'raster_fs': 30,
+        'raster_fs': 20,
         'montecarlo': 11000,
         'zscore': True,
         'stim_type': 'permutations'}
 
-# summary_DF_file = pl.Path(config['paths']['analysis_cache']) / f'220303_ctx_mod_metric_DF_tstat_cluster_mass'
-summary_DF_file = pl.Path(config['paths']['analysis_cache']) / f'220310_ctx_mod_metric_DF_tstat_cluster_mass_BS'
+""" 
+note the different files the differences being the addition of integral_A(B,C,D) or the change of firing rate from 
+30hz to 20hz
+"""
+
+summary_DF_file = pl.Path(config['paths']['analysis_cache']) / f'220310_ctx_mod_metric_DF_tstat_cluster_mass_BS' # og
+summary_DF_file = pl.Path(config['paths']['analysis_cache']) / f'220310_ctx_mod_metric_DF_tstat_cluster_20hz'
 summary_DF_file.parent.mkdir(parents=True, exist_ok=True)
 
-# analysis_functions = {'SC': single_cell_tstat_cluster_mass}
 analysis_functions = {'SC': big_shuff}
 
 alpha = 0.05
@@ -45,7 +50,8 @@ multiple_corrections = {'bf_cp': ([1, 2], 0),
                         # 'none': (None, 0),
                         }
 
-metrics = ['mass_center', 'integral', 'last_bin', 'mass_center_trunc1.5', 'integral_trunc1.5']
+metrics = ['mass_center', 'integral', 'last_bin', 'mass_center_trunc1.5', 'integral_trunc1.5',
+           'integral_A', 'integral_B', 'integral_C', 'integral_D']
 
 sites = set(get_site_ids(316).keys())
 badsites = {'AMT031a', 'DRX008b', 'DRX021a', 'DRX023a', 'ley074a', 'TNC010a'}  # empirically decided
@@ -63,9 +69,9 @@ if summary_DF_file.exists() and not recacheDF:
 else:
     to_concat = list()
 
-for site, (fname, func), clust_thresh in itt.product(
-        sites, analysis_functions.items(), cluster_thresholds):
-    print(f'noutmost loop, working on site {site}, {fname}')
+for site, (fname, func), clust_thresh in tqdm(itt.product(
+        sites, analysis_functions.items(), cluster_thresholds),
+        total=len(sites)*len(analysis_functions)*len(cluster_thresholds)):
 
     if func.check_call_in_cache(site, contexts='all', probes='all',
                                 cluster_threshold=float(clust_thresh), meta=meta):
@@ -146,4 +152,5 @@ if dups > 0:
     DF.drop_duplicates(inplace=True)
 
 print(DF.head(10))
+print(DF.shape)
 jl.dump(DF, summary_DF_file)

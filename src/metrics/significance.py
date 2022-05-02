@@ -75,7 +75,7 @@ def _raw_pvalue(real_val, mont_array, tails='both'):
 
     return pvalues
 
-def  _significance(pvalue, multiple_comparisons_axis=None, consecutive=0, alpha=0.01):
+def  _significance(pvalue, multiple_comparisons_axis=None, consecutive=0, alpha=0.01, verbose=False):
     """
     calculates significance (boolean) for the values of array using the montecarlo method e.g. n simulations or shuffles of the
     original data in array. These n repetitions are specified in the mont_array, therefore mont_array should have the
@@ -91,14 +91,14 @@ def  _significance(pvalue, multiple_comparisons_axis=None, consecutive=0, alpha=
     :param tails: str, 'lesser', 'Greater', 'Both', only used with full montecarlo array.
     :return:
     """
-    # todo: rewrite and simplify so it only needs pvalues, some choice of multiple comparisons and an alpha (?)
 
     # chose what axis to consider for the correction, e.g only time, or time-ctx_pair-prb (best option)
     if multiple_comparisons_axis == None:
         n_comparisons = 1
     else:
         n_comparisons = np.prod(np.asarray(pvalue.shape)[np.asarray(multiple_comparisons_axis)])
-        print(f'correcting for {n_comparisons} multiple comparisons, alpha: {alpha} -> {alpha/n_comparisons}')
+        if verbose:
+            print(f'correcting for {n_comparisons} multiple comparisons, alpha: {alpha} -> {alpha/n_comparisons}')
 
     # using pvalue
     corrected_alpha = alpha/n_comparisons

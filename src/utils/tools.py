@@ -33,6 +33,12 @@ def zscore(array, axis):
     zscore = (array-mean)/std
     return zscore
 
+def zscore_spont(signal):
+    # todo!!
+    sile_name = signal.epochs.get_epochs_matching()
+    silece_R = signal.extract_epochs(sile_name)
+    return None
+
 
 
 def shuffle_along_axis(array, shuffle_axis, indie_axis=None, rng=None):
@@ -86,3 +92,32 @@ def shuffle_along_axis(array, shuffle_axis, indie_axis=None, rng=None):
     array = np.transpose(array, np.argsort(new_order))
 
     return array
+
+
+def get_quantile_means(x, y, n_quantiles):
+    """
+    Decimates a set of x, y points by taking the mean of x quantiles, keepign the associated y values
+    :x: np.vector
+    :y: np.vector same shape as x
+    :n_quantiles: int, number of quantiles to calcualte
+    """
+    srtidx = np.argsort(x)
+    x = x[srtidx]
+    y = y[srtidx]
+    qntils = np.quantile(x, np.linspace(0, 1, n_quantiles + 1), interpolation='higher')
+    xm = np.empty((n_quantiles))
+    ym = np.empty((n_quantiles))
+    for rr in range(len(qntils) - 1):
+        if rr == 0:
+            mask = (x <= qntils[rr + 1])
+        else:
+            mask = (qntils[rr] < x) & (x <= qntils[rr + 1])
+
+        if np.sum(mask) == 0:
+            xm[rr] = np.nan
+            ym[rr] = np.nan
+        else:
+            xm[rr] = np.mean(x[mask])
+            ym[rr] = np.mean(y[mask])
+
+    return xm, ym

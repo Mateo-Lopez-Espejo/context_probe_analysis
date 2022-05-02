@@ -13,7 +13,7 @@ from src.metrics.time_series_summary import metrics_to_DF
 from src.root_path import config_path
 from src.utils.dataframes import add_classified_contexts
 from src.models.modelnames import modelnames
-from src.utils.subsets import cellid_subset_02, good_sites
+from src.utils.subsets import cellid_subset_02, cellid_A1_fit_set, cellid_PEG_fit_set, batch_map
 
 """
 Quick and dirty calculation of context modulation metrics in model predictions
@@ -29,12 +29,11 @@ config.read_file(open(config_path / 'settings.ini'))
 #         'zscore': True,
 #         'stim_type': 'permutations'}
 
-summary_DF_file = pl.Path(config['paths']['analysis_cache']) / f'220324_ctx_mod_metric_DF_pred'
+summary_DF_file = pl.Path(config['paths']['analysis_cache']) / f'220324_ctx_mod_metric_DF_pred' # only for cellid_subset02
+summary_DF_file = pl.Path(config['paths']['analysis_cache']) / f'220429_ctx_mod_metric_DF_pred'
 summary_DF_file.parent.mkdir(parents=True, exist_ok=True)
 
-metrics = ['mass_center', 'integral', 'mass_center_trunc', 'integral_trunc']
-
-batch = 326
+metrics = ['mass_center', 'integral', 'mass_center_trunc1.5', 'integral_trunc1.5']
 
 selected = {'STRF_long_relu', 'self_lone_relu', 'self_mod_relu', 'pop_lone_relu','pop_mod_relu'}
 modelnames = {nickname:modelname for nickname, modelname in modelnames.items() if  nickname in selected}
@@ -44,18 +43,25 @@ recacheDF = False
 if summary_DF_file.exists() and not recacheDF:
     DF = jl.load(summary_DF_file)
     ready_cells = set(DF.id.unique())
-    cellids = cellid_subset_02.difference(ready_cells)
+    cellids = cellid_A1_fit_set.union(cellid_PEG_fit_set).difference(ready_cells)
     print('appening new units to existing DF', cellids)
     to_concat = [DF,]
 else:
-    cellids = cellid_subset_02
+    cellids = cellid_A1_fit_set.union(cellid_PEG_fit_set)
     to_concat = list()
 
+bads = list()
 for cellid, (nickname, modelname) in itt.product(cellids, modelnames.items()):
 
     # just get one cellid for this example ToDo deleteme
     site = cellid.split('-')[0]
-    raster, goodcells = load_site_formated_prediction(site, modelname=modelname, batch=batch, cellid=cellid)
+
+    try:
+        raster, goodcells = load_site_formated_prediction(
+            site, modelname=modelname, batch=batch_map[cellid], cellid=cellid
+        )
+    except:
+        bads.append([cellid, batch_map[cellid], modelname])
 
     rep, chn, ctx, prb, tme = raster.shape
     ctx_pairs = list(itt.combinations(range(ctx), 2))
@@ -90,9 +96,12 @@ for cellid, (nickname, modelname) in itt.product(cellids, modelnames.items()):
 
 DF = pd.concat(to_concat, ignore_index=True, axis=0)
 
+print('failed to get parameters from:')
+print(bads)
+
 # extra formatting
-print(f'adding context clasification')
-DF = add_classified_contexts(DF)
+# print(f'adding context clasification')
+# DF = add_classified_contexts(DF)
 
 dups = np.sum(DF.duplicated().values)
 if dups > 0:
@@ -100,4 +109,7 @@ if dups > 0:
     DF.drop_duplicates(inplace=True)
 
 print(DF.head(10))
+print(DF.shape)
+print('pickling DF...')
 jl.dump(DF, summary_DF_file)
+print('done!')

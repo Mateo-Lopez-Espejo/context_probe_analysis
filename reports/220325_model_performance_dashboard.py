@@ -11,7 +11,8 @@ from plotly.subplots import make_subplots
 
 from src.models.modelnames import modelnames
 from src.root_path import config_path
-from src.utils.subsets import cellid_subset_02
+from src.utils.subsets import cellid_subset_02, cellid_A1_fit_set, cellid_PEG_fit_set
+from src.visualization.palette import ColorList
 from src.visualization.interactive import plot_raw_pair, plot_time_ser_quant, plot_strf, plot_pop_stategain, \
     plot_pop_modulation, plot_errors_over_time, plot_multiple_errors_over_time, plot_model_prediction_comparison
 
@@ -45,20 +46,21 @@ sel_real_vs_pred = ['STRF_long_relu', 'pop_mod_relu']
 modelnames = {nickname: modelname for nickname, modelname in modelnames.items() if nickname in selected}
 
 # truncate = '' # full time series metrics values
-truncate = '_trunc'  # truncated time series metrics
-metrics = ['integral', 'mass_center', 'integral_trunc', 'mass_center_trunc', 'last_bin']
+truncate = '_trunc1.5'  # truncated time series metrics
+metrics = ['integral', 'mass_center', 'integral_trunc1.5', 'mass_center_trunc1.5', 'last_bin']
 
 
 ### load and preformat some of the main data
 
 def filter_DF(DF):
+    cellids = list(cellid_A1_fit_set.union(cellid_PEG_fit_set))
     # different filtering for actual and predicted data
     if {'mult_comp_corr', 'source', 'cluster_threshold'}.issubset(set(DF.columns)):
         # asumes real data
         filtered = DF.query(
             f"metric in {metrics} and mult_comp_corr == 'bf_cp' and source == 'real' and "
             "cluster_threshold == 0.05 and "
-            f"id in {list(cellid_subset_02)}"  # first find top 20 neurons TODO deleteme
+            f"id in {cellids} and value > 0"
         )
         df_indices = ['region', 'stim_count', 'context_pair', 'probe', 'id', 'site']
         is_real = True
@@ -66,8 +68,8 @@ def filter_DF(DF):
     else:
         # asumes prediction
         filtered = DF.query(f"metric in {metrics} and "
-                            f"id in {list(cellid_subset_02)} and "
-                            f"nickname in {selected}"  # first find top 20 neurons TODO deleteme
+                            f"id in {cellids} and "
+                            f"nickname in {selected}"
                             )
         df_indices = ['region', 'stim_count', 'context_pair', 'probe', 'id', 'site', 'nickname', 'modelname']
         is_real = False
@@ -86,7 +88,7 @@ def filter_DF(DF):
     return filtered, pivoted
 
 
-recache = False
+recache = True
 if dash_DF_file.exists() and not recache:
     print('found dash cache, loading ...')
     filtered, pivoted_full = jl.load(dash_DF_file)
@@ -115,9 +117,24 @@ app = Dash(__name__)
 # plots response metric space
 # filters a single model to avoid repeated data points
 toplot = pivoted_full.query(f"nickname == '{list(modelnames.keys())[0]}'")
+
+
 dur_vs_amp = px.scatter(data_frame=pivoted_full, x="last_bin", y="integral_resp", color='id'
-                        , hover_name='id', hover_data=['context_pair', 'probe'],
-                        marginal_x='histogram', marginal_y='histogram')
+                        , hover_name='id', hover_data=['context_pair', 'probe'])
+
+# # todo transform to use scattergl
+# all_traces = list()
+# for cc, (cellid) in enumerate(pivoted_full.id.unique()):
+#     color = ColorList[cc%len(ColorList)]
+#     df = pivoted_full.query(f"id == '{cellid}'")
+#     trace = go.Scattergl(x=df['last_bin'], y=df['integral_resp'],
+#                          mode='markers', marker_color=color,
+#                          customdata=df.loc[:, ['context_pair', 'probe']],
+#                          name=cellid,
+#                          text=df['id'],
+#                          hovertext=cellid)
+# dur_vs_amp = go.Figure()
+# dur_vs_amp.add_traces(all_traces)
 
 nickname = 'pop_mod_relu'  # plot metric comparison between real and model data
 raw_type = 'psth'  # real data display type
@@ -202,22 +219,22 @@ def _plot_multiple_predictions(real_pic, amp_pic, dur_pic):
     return fig
 
 
-@app.callback(
-    Output(component_id='model_comparisons', component_property='figure'),
-    [Input(component_id='dur_vs_amp', component_property='clickData'),
-     Input(component_id='real_vs_pred_integral', component_property='clickData'),
-     Input(component_id='real_vs_pred_mass_center', component_property='clickData')]
-)
-def _plot_model_comparisons(real_pic, amp_pic, dur_pic):
-    tic = time()
-    print('############################\nplotting model pred comparisons\n')
-    cellid, contexts, probe = callbacks_to_input(real_pic, amp_pic, dur_pic)
-
-    independent_models = [modelnames['STRF_long_relu'], modelnames['pop_lone_relu']]
-    dependent_model = modelnames['pop_mod_relu']
-    fig = plot_model_prediction_comparison(cellid, batch, independent_models, dependent_model, contexts, probe)
-    print(f'\nmodel pred coparisosn done, took: {time() - tic:.2f}s\n############################')
-    return fig
+# @app.callback(
+#     Output(component_id='model_comparisons', component_property='figure'),
+#     [Input(component_id='dur_vs_amp', component_property='clickData'),
+#      Input(component_id='real_vs_pred_integral', component_property='clickData'),
+#      Input(component_id='real_vs_pred_mass_center', component_property='clickData')]
+# )
+# def _plot_model_comparisons(real_pic, amp_pic, dur_pic):
+#     tic = time()
+#     print('############################\nplotting model pred comparisons\n')
+#     cellid, contexts, probe = callbacks_to_input(real_pic, amp_pic, dur_pic)
+#
+#     independent_models = [modelnames['STRF_long_relu'], modelnames['pop_lone_relu']]
+#     dependent_model = modelnames['pop_mod_relu']
+#     fig = plot_model_prediction_comparison(cellid, batch, independent_models, dependent_model, contexts, probe)
+#     print(f'\nmodel pred coparisosn done, took: {time() - tic:.2f}s\n############################')
+#     return fig
 
 
 @app.callback(
@@ -351,9 +368,9 @@ app.layout = html.Div([
     dcc.Graph(
         id='model_predictions'
     ),
-    dcc.Graph(
-        id='model_comparisons'
-    ),
+    # dcc.Graph(
+    #     id='model_comparisons'
+    # ),
     html.Div(children=[
         dcc.RadioItems(id='error_style', options=['mean', 'instance','PCA'], value='mean'),
         dcc.Graph(id='model_errors')

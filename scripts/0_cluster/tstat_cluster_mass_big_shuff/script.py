@@ -22,7 +22,7 @@ cluster_threshold = float(sys.argv[2])
 
 meta = {'reliability': 0.1,  # r value
         'smoothing_window': 0,  # ms
-        'raster_fs': 30,
+        'raster_fs': 20, # the initial value was 30. 20 is divisible by 4, convenient for chunking
         'montecarlo': 11000,
         'zscore': True,
         'stim_type': 'permutations'}

@@ -55,15 +55,19 @@ def signif_abs_mean(array, label_dictionary):
     return metric, updated_label_dict
 
 
-##### Truncated metrics ######
-
-def signif_abs_mass_center_truncated100(array, label_dictionary):
-    # as the name implicates, truncate the metric calculation to values past the first 100 ms
+##### Truncated or chunked metrics ######
+def _mass_center_chunk_base(array, label_dictionary, start, end):
+    """
+    :array: shape Cell x Context_Pair x Probe x Time
+    :label_dictionary: dict of lists describing each position in the array dimensions
+    :start: start of slice in ms
+    :end: end of slice in ms
+    """
     t = np.asarray(label_dictionary['time'])
-    tidx = np.argwhere(t>100)[0,0]
+    idxr = np.argwhere((t >= start) & (t < end)).squeeze(axis=1)
 
-    array = array[...,tidx:]
-    t = t[tidx:]
+    array = array[..., idxr]
+    t = t[idxr]
 
     metric = np.sum(np.abs(array) * t[None, None, None, :], axis=3) / np.sum(np.abs(array), axis=3)
     metric = metric.filled(fill_value=0)
@@ -72,13 +76,18 @@ def signif_abs_mass_center_truncated100(array, label_dictionary):
     return metric, updated_label_dict
 
 
-def signif_abs_sum_trucated100(array, label_dictionary):
-    # as the name implicates, truncate the metric calculation to values past the first 100 ms
+def _integral_chunk_base(array, label_dictionary, start, end):
+    """
+    :array: shape Cell x Context_Pair x Probe x Time
+    :label_dictionary: dict of lists describing each position in the array dimensions
+    :start: start of slice in ms
+    :end: end of slice in ms
+    """
     t = np.asarray(label_dictionary['time'])
-    tidx = np.argwhere(t > 100)[0,0]
+    idxr = np.argwhere((t >= start) & (t<end)).squeeze(axis=1)
 
-    array = array[..., tidx:]
-    t = t[tidx:]
+    array = array[..., idxr]
+    t = t[idxr]
 
     metric = np.sum(np.abs(array), axis=3) * np.mean(np.diff(t))
     updated_label_dict = copy.deepcopy(label_dictionary)
@@ -87,72 +96,33 @@ def signif_abs_sum_trucated100(array, label_dictionary):
 
 
 def signif_abs_mass_center_truncated150(array, label_dictionary):
-    # as the name implicates, truncate the metric calculation to values past the first 100 ms
-    t = np.asarray(label_dictionary['time'])
-    tidx = np.argwhere(t > 150)[0,0]
-
-    array = array[...,tidx:]
-    t = t[tidx:]
-
-    metric = np.sum(np.abs(array) * t[None, None, None, :], axis=3) / np.sum(np.abs(array), axis=3)
-    metric = metric.filled(fill_value=0)
-    updated_label_dict = copy.deepcopy(label_dictionary)
-    _ = updated_label_dict.pop('time')
-    return metric, updated_label_dict
-
+    return _mass_center_chunk_base(array, label_dictionary, start=150, end=1000)
 
 def signif_abs_sum_trucated150(array, label_dictionary):
-    # as the name implicates, truncate the metric calculation to values past the first 100 ms
-    t = np.asarray(label_dictionary['time'])
-    tidx = np.argwhere(t > 150)[0,0]
+    return _integral_chunk_base(array, label_dictionary, start=150, end=1000)
 
-    array = array[..., tidx:]
-    t = t[tidx:]
+def integral_A(array, label_dictionary):
+    return _integral_chunk_base(array, label_dictionary, start=0, end=250)
 
-    metric = np.sum(np.abs(array), axis=3) * np.mean(np.diff(t))
-    updated_label_dict = copy.deepcopy(label_dictionary)
-    _ = updated_label_dict.pop('time')
-    return metric, updated_label_dict
+def integral_B(array, label_dictionary):
+    return _integral_chunk_base(array, label_dictionary, start=250, end=500)
 
+def integral_C(array, label_dictionary):
+    return _integral_chunk_base(array, label_dictionary, start=500, end=750)
 
-def signif_abs_mass_center_truncated200(array, label_dictionary):
-    # as the name implicates, truncate the metric calculation to values past the first 100 ms
-    t = np.asarray(label_dictionary['time'])
-    tidx = np.argwhere(t > 200)[0,0]
-
-    array = array[...,tidx:]
-    t = t[tidx:]
-
-    metric = np.sum(np.abs(array) * t[None, None, None, :], axis=3) / np.sum(np.abs(array), axis=3)
-    metric = metric.filled(fill_value=0)
-    updated_label_dict = copy.deepcopy(label_dictionary)
-    _ = updated_label_dict.pop('time')
-    return metric, updated_label_dict
-
-
-def signif_abs_sum_trucated200(array, label_dictionary):
-    # as the name implicates, truncate the metric calculation to values past the first 100 ms
-    t = np.asarray(label_dictionary['time'])
-    tidx = np.argwhere(t > 200)[0,0]
-
-    array = array[..., tidx:]
-    t = t[tidx:]
-
-    metric = np.sum(np.abs(array), axis=3) * np.mean(np.diff(t))
-    updated_label_dict = copy.deepcopy(label_dictionary)
-    _ = updated_label_dict.pop('time')
-    return metric, updated_label_dict
+def integral_D(array, label_dictionary):
+    return _integral_chunk_base(array, label_dictionary, start=750, end=1000)
 
 
 all_metrics = {'mass_center': signif_abs_mass_center,
                'integral': signif_abs_sum,
                'last_bin': signif_last_bin,
-               'mass_center_trunc1': signif_abs_mass_center_truncated100,
-               'integral_trunc1': signif_abs_sum_trucated100,
                'mass_center_trunc1.5': signif_abs_mass_center_truncated150,
                'integral_trunc1.5': signif_abs_sum_trucated150,
-               'mass_center_trunc2': signif_abs_mass_center_truncated200,
-               'integral_trunc2': signif_abs_sum_trucated200}
+               'integral_A':integral_A,
+               'integral_B':integral_B,
+               'integral_C':integral_C,
+               'integral_D':integral_D}
 
 
 ################################################
