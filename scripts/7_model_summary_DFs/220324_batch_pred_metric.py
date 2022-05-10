@@ -22,23 +22,17 @@ Quick and dirty calculation of context modulation metrics in model predictions
 config = ConfigParser()
 config.read_file(open(config_path / 'settings.ini'))
 
-# meta = {'reliability': 0.1,  # r value
-#         'smoothing_window': 0,  # ms
-#         'raster_fs': 30,
-#         'montecarlo': 11000,
-#         'zscore': True,
-#         'stim_type': 'permutations'}
 
-summary_DF_file = pl.Path(config['paths']['analysis_cache']) / f'220324_ctx_mod_metric_DF_pred' # only for cellid_subset02
-summary_DF_file = pl.Path(config['paths']['analysis_cache']) / f'220429_ctx_mod_metric_DF_pred'
+summary_DF_file = pl.Path(config['paths']['analysis_cache']) / f'220324_ctx_mod_metric_DF_pred'
 summary_DF_file.parent.mkdir(parents=True, exist_ok=True)
 
 metrics = ['mass_center', 'integral', 'mass_center_trunc1.5', 'integral_trunc1.5']
 
-selected = {'STRF_long_relu', 'self_lone_relu', 'self_mod_relu', 'pop_lone_relu','pop_mod_relu'}
+selected = {'STRF_long_relu', 'self_lone_relu', 'self_mod_relu', 'pop_lone_relu', 'pop_mod_relu',
+            'match_STRF', 'match_self', 'match_pop', 'match_full'}
 modelnames = {nickname:modelname for nickname, modelname in modelnames.items() if  nickname in selected}
 
-recacheDF = False
+recacheDF = True
 
 if summary_DF_file.exists() and not recacheDF:
     DF = jl.load(summary_DF_file)
@@ -110,6 +104,6 @@ if dups > 0:
 
 print(DF.head(10))
 print(DF.shape)
-print('pickling DF...')
+print(f'pickling DF at {str(summary_DF_file)}...')
 jl.dump(DF, summary_DF_file)
 print('done!')

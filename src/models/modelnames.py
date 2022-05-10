@@ -63,6 +63,37 @@ STP_STRF2_relu = "ozgf.fs100.ch18-ld-norm.l1-epcpn.seq-avgreps_" \
                  "wc.18x2.g-stp.2.q-fir.2x15-lvl.1-relu.1_" \
                  "jk.nf10-tfinit.n.lr1e3.et3.cont-newtf.n.lr1e4.cont-svpred"
 
+## Third generation models. have matched sets of parameters, and shuffle parts (self, pop, all) as necesary
+
+match_STRF = "ozgf.fs100.ch18-ld.popstate-norm.l1-shfcat.i.resp0.state0.o.state-dline.15.15.1-epcpn.seq-avgreps_" \
+             "wc.18x1.g-fir.1x15-lvl.1-stategain.S.d-relu.1_" \
+             "jk.nf10-tfinit.n.lr1e3.et3.cont-newtf.n.lr1e4.cont-svpred"
+
+match_pop = "ozgf.fs100.ch18-ld.popstate-norm.l1-shfcat.i.resp0.state.o.state-dline.15.15.1-epcpn.seq-avgreps_" \
+            "wc.18x1.g-fir.1x15-lvl.1-stategain.S.d-relu.1_" \
+            "jk.nf10-tfinit.n.lr1e3.et3.cont-newtf.n.lr1e4.cont-svpred"
+
+match_self = "ozgf.fs100.ch18-ld.popstate-norm.l1-shfcat.i.resp.state0.o.state-dline.15.15.1-epcpn.seq-avgreps_" \
+             "wc.18x1.g-fir.1x15-lvl.1-stategain.S.d-relu.1_" \
+             "jk.nf10-tfinit.n.lr1e3.et3.cont-newtf.n.lr1e4.cont-svpred"
+
+match_full = "ozgf.fs100.ch18-ld.popstate-norm.l1-shfcat.i.resp.state.o.state-dline.15.15.1-epcpn.seq-avgreps_" \
+             "wc.18x1.g-fir.1x15-lvl.1-stategain.S.d-relu.1_" \
+             "jk.nf10-tfinit.n.lr1e3.et3.cont-newtf.n.lr1e4.cont-svpred"
+
+# quick test of rolled instead of shuffled regressors
+matchr_STRF = "ozgf.fs100.ch18-ld.popstate-norm.l1-shfcat.i.resp1.state1.o.state-dline.15.15.1-epcpn.seq-avgreps_" \
+              "wc.18x1.g-fir.1x15-lvl.1-stategain.S.d-relu.1_" \
+              "jk.nf10-tfinit.n.lr1e3.et3.cont-newtf.n.lr1e4.cont-svpred"
+
+matchr_pop = "ozgf.fs100.ch18-ld.popstate-norm.l1-shfcat.i.resp1.state.o.state-dline.15.15.1-epcpn.seq-avgreps_" \
+             "wc.18x1.g-fir.1x15-lvl.1-stategain.S.d-relu.1_" \
+             "jk.nf10-tfinit.n.lr1e3.et3.cont-newtf.n.lr1e4.cont-svpred"
+
+matchr_self = "ozgf.fs100.ch18-ld.popstate-norm.l1-shfcat.i.resp.state1.o.state-dline.15.15.1-epcpn.seq-avgreps_" \
+              "wc.18x1.g-fir.1x15-lvl.1-stategain.S.d-relu.1_" \
+              "jk.nf10-tfinit.n.lr1e3.et3.cont-newtf.n.lr1e4.cont-svpred"
+
 # for easy export
 modelnames = {'STRF_no_jk': STRF_no_jk,
               'STRF': STRF,
@@ -75,4 +106,12 @@ modelnames = {'STRF_no_jk': STRF_no_jk,
               'pop_lone_relu': pop_lone_relu,
               'self_lone_relu': self_lone_relu,
               'STP_STRF1_relu': STP_STRF1_relu,
-              'STP_STRF2_relu': STP_STRF2_relu}
+              'STP_STRF2_relu': STP_STRF2_relu,
+              'match_STRF': match_STRF,
+              'match_self': match_self,
+              'match_pop': match_pop,
+              'match_full': match_full,
+              'matchr_STRF': matchr_STRF,
+              'matchr_self': matchr_self,
+              'matchr_pop': matchr_pop,
+              }

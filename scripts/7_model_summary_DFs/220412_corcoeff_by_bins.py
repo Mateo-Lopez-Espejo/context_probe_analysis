@@ -27,23 +27,27 @@ config = ConfigParser()
 config.read_file(open(config_path / 'settings.ini'))
 
 summary_DF_file = pl.Path(config['paths']['analysis_cache']) / f'220412_cordoeff_by_bins'
+summary_DF_file = pl.Path(config['paths']['analysis_cache']) / f'220412_resp_pred_metrics_by_chunks'
 summary_DF_file.parent.mkdir(parents=True, exist_ok=True)
 
-metrics = ['integral']
+metrics = ['integral', 'mass_center', 'integral_trunc1.5', 'mass_center_trunc1.5']
 
 #  ctxpr, prb, tme
 big_time_bins = {'A': np.s_[:, :, :25],
                  'B': np.s_[:, :, 25:50],
                  'C': np.s_[:, :, 50:75],
-                 'D': np.s_[:, :, 75:],}
-                 # 'full': np.s_[...]}
+                 'D': np.s_[:, :, 75:],
+                 'full': np.s_[...]}
 
 selected = {'STRF_long_relu', 'pop_lone_relu', 'pop_mod_relu', 'self_mod_relu', 'self_lone_relu', 'STP_STRF1_relu',
             'STP_STRF2_relu'}
+selected = {'match_STRF', 'match_self', 'match_pop', 'match_full'}
+
 modelnames = {nickname: modelname for nickname, modelname in modelnames.items() if nickname in selected}
 
 recacheDF = False
 all_cellids = cellid_A1_fit_set.union(cellid_PEG_fit_set)
+all_cellids = cellid_subset_02
 
 
 if summary_DF_file.exists() and not recacheDF:
@@ -66,6 +70,7 @@ else:
     def cells_models_todo():
         return itt.product(all_cellids, modelnames.keys())
 
+    total_iter = len(all_cellids) * len(modelnames)
     cellids_todo = all_cellids
     to_concat = list()
 
@@ -196,7 +201,7 @@ for cellid in tqdm(cellids_todo, total=len(cellids_todo)):
         dim_labl_dict = {'id': [cellid],
                          'context_pair': [f'{c1:02d}_{c2:02d}' for c1, c2 in itt.combinations(contexts, 2)],
                          'probe': probes,
-                         'time': np.linspace(0, diff_pred_chunk.shape[-1] / fs, diff_pred_chunk.shape[-1],
+                         'time': np.linspace(0, diff_resp_chunk.shape[-1] / fs, diff_resp_chunk.shape[-1],
                                              endpoint=False) * 1000}  # todo, ensure to shift time depending on big bin
 
         masked_dprime = np.ma.array(diff_resp_chunk, mask=np.full_like(diff_resp_chunk, False))

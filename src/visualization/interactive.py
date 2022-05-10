@@ -186,7 +186,10 @@ def plot_pop_stategain(cellid, modelname, batch, orientation='v'):
     else:
         raise ValueError(f"unknown orientation value: {orientation}\nchoose 'v' or 'h'")
 
-    img = px.imshow(toplot, aspect='auto', color_continuous_scale='inferno')
+    img = go.Figure()
+    # _ = img.add_trace(go.Heatmap(z=toplot, colorscale='BrBG', zmid=0))
+    _ = img.add_trace(go.Heatmap(z=toplot, coloraxis="coloraxis"))
+    # img = px.imshow(toplot, aspect='auto', color_continuous_scale='inferno')
     return img
 
 
@@ -776,9 +779,9 @@ if __name__ == '__main__':
     # psth_pred.show()
 
     # # population modulation
-    # pop_mod = plot_pop_modulation(cellid, modelname, batch, contexts, probes)
+    # pop_mod = plot_pop_modulation(cellid, modelname, batch, contexts, probe)
     # pop_mod.show()
-    #
+
     # composite = go.Figure()
     # composite.add_traces(psth_pred.data)
     # composite.add_traces(pop_mod.data)
@@ -790,9 +793,9 @@ if __name__ == '__main__':
     # fig = plot_errors_over_time(cellid, modelname, batch, contexts, probe, grand_mean=False)
     # fig.show()
 
-    fig = plot_multiple_errors_over_time(cellid, [mns.STRF_relu, mns.pop_mod_relu, mns.self_mod_relu],batch, contexts, probe,
-                                         part='probe', style='PCA', floor=mns.STRF_relu, nPCs=3)
-    fig.show()
+    # fig = plot_multiple_errors_over_time(cellid, [mns.STRF_relu, mns.pop_mod_relu, mns.self_mod_relu],batch, contexts, probe,
+    #                                      part='probe', style='PCA', floor=mns.STRF_relu, nPCs=3)
+    # fig.show()
 
     # fig  = plot_model_prediction_comparison(cellid, batch, [STRF_long_relu, pop_lone_relu], pop_mod_relu, contexts, probe,
     #                                  part='probe', grand_mean=False)

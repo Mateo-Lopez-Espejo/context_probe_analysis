@@ -1,7 +1,7 @@
 import nems.db as nd
 
 from src.models.modelnames import modelnames
-from src.utils.subsets import cellid_A1_fit_set, cellid_PEG_fit_set
+from src.utils.subsets import cellid_A1_fit_set, cellid_PEG_fit_set, cellid_subset_02
 
 ##### enqueue.py #####
 print('enqueuing jobs')
@@ -12,7 +12,8 @@ script_path = '/auto/users/mateo/code/context_probe_analysis/scripts/0_cluster/e
 
 
 selected = {'STRF_long_relu', 'pop_lone_relu', 'pop_mod_relu', 'self_mod_relu', 'self_lone_relu',
-            'STP_STRF1_relu', 'STP_STRF2_relu'}
+            'STP_STRF1_relu', 'STP_STRF2_relu',
+            'match_STRF', 'match_self', 'match_pop', 'match_full'}
 selected_modelnames = [modelname for nickname, modelname in modelnames.items() if nickname in selected]
 
 n_added = 0
