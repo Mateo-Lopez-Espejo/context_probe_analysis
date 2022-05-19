@@ -19,7 +19,7 @@ from nems.signal import PointProcess
 
 from src.utils.cpp_parameter_handlers import _epoch_name_handler, _channel_handler, _fs_handler
 from src.utils import fits as fts
-from src.data.dPCA import variance_captured as var_capt
+from src.dim_redux.dPCA import variance_captured as var_capt
 from src.root_path import config_path
 
 config = ConfigParser()

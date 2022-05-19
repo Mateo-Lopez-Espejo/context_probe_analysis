@@ -11,19 +11,21 @@ executable_path = '/auto/users/mateo/miniconda3/envs/cpa_tf_gpu/bin/python'
 script_path = '/auto/users/mateo/code/context_probe_analysis/scripts/0_cluster/encoding_model_fitting/script.py'
 
 
-selected = {'STRF_long_relu', 'pop_lone_relu', 'pop_mod_relu', 'self_mod_relu', 'self_lone_relu',
-            'STP_STRF1_relu', 'STP_STRF2_relu'}
-
 selected = {'match_STRF', 'match_self', 'match_pop', 'match_full',
-            'matchr_STRF', 'matchr_self', 'matchr_pop'}
+            'matchr_STRF', 'matchr_self', 'matchr_pop',
+            'matchn_STRF', 'matchn_self', 'matchn_pop', 'matchn_full',
+            }
+selected = {'matchn_STRF', 'matchn_self', 'matchn_pop', 'matchn_full'}
 selected_modelnames = [modelname for nickname, modelname in modelnames.items() if nickname in selected]
 
 n_added = 0
 n_exists = 0
 # for cell_set, batch in zip([cellid_A1_fit_set, cellid_PEG_fit_set], [326, 327]):
 for cell_set, batch in zip([cellid_subset_02], [326]):
+# for cell_set, batch in zip(["TNC014a-22-2"], [326]):
     out = nd.enqueue_models(list(cell_set), batch, selected_modelnames,user='mateo',
-                            executable_path=executable_path, script_path=script_path)
+                            executable_path=executable_path, script_path=script_path,
+                            force_rerun=True)
 
     for mm , (qid, msg) in enumerate(out):
         if 'Added new' in msg:

@@ -2,28 +2,27 @@ import itertools as itt
 import re
 
 import numpy as np
-from sklearn.decomposition import PCA
 import pandas as pd
-import plotly.graph_objects as go
 import plotly.colors as pc
 import plotly.express as px
-from  plotly.subplots import make_subplots
+import plotly.graph_objects as go
+from sklearn.decomposition import PCA
 from webcolors import hex_to_rgb
 
+import src.models.modelnames as mns
+from nems.db import batch_comp
+from src.data.load import get_batch_ids
 from src.data.rasters import load_site_formated_raster, load_site_formated_prediction
-from src.metrics.consolidated_dprimes import single_cell_dprimes_cluster_mass
-from src.metrics.consolidated_mean_diff import single_cell_mean_diff_cluster_mass
-from src.metrics.consolidated_tstat import single_cell_tstat_cluster_mass
-from src.metrics.consolidated_tstat_big_shuff import single_cell_tstat_cluster_mass as big_shuff
+from src.dim_redux.PCA import load_site_formated_PCs
+from src.metrics.consolidated_tstat import tstat_cluster_mass
 from src.metrics.significance import _significance
 from src.models.param_tools import get_population_weights, get_strf, get_population_influence, get_pred_err, \
     model_independence_comparison
-import src.models.modelnames as mns
 from src.visualization.fancy_plots import squarefy
 from src.visualization.palette import *
 
 
-def plot_raw_pair(cellid, contexts, probe, type='psth', **kwargs):
+def plot_raw_pair(cellid, contexts, probe, type='psth', raster_fs=30, **kwargs):
     prb_idx = probe - 1  # probe names start at 1 but we have zero idex
 
     if 'modelname' in kwargs.keys() and 'batch' in kwargs.keys():
@@ -40,19 +39,28 @@ def plot_raw_pair(cellid, contexts, probe, type='psth', **kwargs):
     else:
         is_pred = False
         if type == 'psth':
-            fs = 30  # dont pass as is default
+            fs = raster_fs
             smoothing_window = 50
         elif type == 'raster':
-            fs = 100
+            if raster_fs < 100:
+                print(f'raster_fs={raster_fs} is too low for a good scatter. defaulting to 100hz')
+                fs = 100
+            else:
+                fs = raster_fs
             smoothing_window = 0
         else:
-            raise ValueError("undefined plot type, choose psht or raster")
-        site_raster, goodcells = load_site_formated_raster(cellid[:7], part='all',
-                                                           smoothing_window=smoothing_window, raster_fs=fs)
+            raise ValueError("undefined plot type, choose psth or raster")
+
+        if "-PC-" in cellid:
+            site_raster, goodcells = load_site_formated_PCs(cellid[:7], part='all',
+                                                            smoothing_window=smoothing_window, raster_fs=fs)
+            goodcells = list(goodcells.keys())
+        else:
+            site_raster, goodcells = load_site_formated_raster(cellid[:7], part='all',
+                                                               smoothing_window=smoothing_window, raster_fs=fs)
 
     eg_raster = site_raster[:, goodcells.index(cellid), :, prb_idx, :]
 
-    # fs = 30# here asuming 30Hz sampling rate, as its the default of the raster loader
     nreps, _, nsamps = eg_raster.shape
     duration = nsamps / fs
     time = np.linspace(0 - duration / 2, duration / 2, nsamps, endpoint=False)
@@ -68,7 +76,7 @@ def plot_raw_pair(cellid, contexts, probe, type='psth', **kwargs):
             part_color = [colors[ctx_idx % len(colors)], colors[ctx_idx % len(colors)]]
         else:
             # probe and context lines have different colors since areas color help identify probes
-            part_color = [colors[ctx_idx % len(colors)], colors[prb_idx % len(colors)]]
+            part_color = [colors[ctx_idx % len(colors)], colors[probe % len(colors)]]
 
         for nn, (half, color) in enumerate(zip(halfs, part_color)):
 
@@ -123,9 +131,10 @@ def plot_raw_pair(cellid, contexts, probe, type='psth', **kwargs):
                                marker=dict(
                                    color=color,
                                    opacity=0.5,
+                                   size=5,
                                    line=dict(
                                        color=part_color[0],
-                                       width=1
+                                       width=0.5
                                    )
                                ),
                                showlegend=False
@@ -308,9 +317,9 @@ def plot_errors_over_time(cellid, modelname, batch, contexts, probe, part='probe
     return fig
 
 
-def plot_multiple_errors_over_time(cellid, modelnames, batch, contexts, probe, part='probe', style='mean', floor=None, nPCs=2):
-
-    modelnicknames = {val:key for key, val in mns.modelnames.items()}
+def plot_multiple_errors_over_time(cellid, modelnames, batch, contexts, probe, part='probe', style='mean', floor=None,
+                                   nPCs=2):
+    modelnicknames = {val: key for key, val in mns.modelnames.items()}
     colors = [Grey, Yellow, Red, Teal, Brown]
 
     if floor is not None:
@@ -324,7 +333,6 @@ def plot_multiple_errors_over_time(cellid, modelnames, batch, contexts, probe, p
         if floor is not None:
             err = err - err_floor
             diff_err = diff_err - diff_err_floor
-
 
         ctx, prb, tme = err.shape
         ctx_pairs = list(itt.combinations(range(ctx), 2))
@@ -357,27 +365,27 @@ def plot_multiple_errors_over_time(cellid, modelnames, batch, contexts, probe, p
 
             pca = PCA(n_components=50)
             tofit = diff_err.reshape((-1, diff_err.shape[-1]))
-            toplot = pca.fit_transform(tofit.T).T # PC by Time
+            toplot = pca.fit_transform(tofit.T).T  # PC by Time
 
             dashings = ['solid', 'dash', 'dot']
             for pc in range(nPCs):
                 name = f'{modelnicknames[modelname]}_PC{pc}'
-                x, y = squarefy(time, toplot[pc,:])
+                x, y = squarefy(time, toplot[pc, :])
                 fig.add_trace(go.Scatter(x=x, y=y, mode='lines',
                                          line=dict(color=color,
                                                    width=3,
-                                                   dash=dashings[pc%len(dashings)]),
+                                                   dash=dashings[pc % len(dashings)]),
                                          name=name, showlegend=True))
 
                 # inset for variance explained
-                fig.add_trace(go.Scatter(x=list(range(1,len(pca.explained_variance_ratio_)+1)),
+                fig.add_trace(go.Scatter(x=list(range(1, len(pca.explained_variance_ratio_) + 1)),
                                          y=np.cumsum(pca.explained_variance_ratio_),
                                          mode='lines+markers', line_color=color, marker_color=color,
                                          xaxis='x2', yaxis='y2', showlegend=False)
                               )
 
-            fig.update_layout(xaxis2=dict(domain=[0.7,0.95], anchor='y2', title_text='PC#'),
-                              yaxis2=dict(domain=[0.7,0.95], anchor='x2', title_text='var explained')
+            fig.update_layout(xaxis2=dict(domain=[0.7, 0.95], anchor='y2', title_text='PC#'),
+                              yaxis2=dict(domain=[0.7, 0.95], anchor='x2', title_text='var explained')
                               )
 
         else:
@@ -432,27 +440,27 @@ def plot_model_prediction_comparison(cellid, batch, independent_models, dependen
             x, y = squarefy(time, toplot)
             fig.add_trace(go.Scatter(x=x, y=y, mode='lines', line_color=color, line_dash=dashing, line_width=width,
                                      name=name, showlegend=True),
-                          row=1, col=cc+1)
+                          row=1, col=cc + 1)
 
     # all context probes for the neuron
     to_concat = list()
     for pred_source in ['dependent', 'sum']:
-        df = pd.DataFrame(index=range(ctx), columns=range(1, prb+1), data=aggs[pred_source])
+        df = pd.DataFrame(index=range(ctx), columns=range(1, prb + 1), data=aggs[pred_source])
         df['model'] = pred_source
         to_concat.append(df)
 
     df = pd.concat(to_concat, axis=0)
-    df.index.name='context'
-    df.columns.name='probe'
+    df.index.name = 'context'
+    df.columns.name = 'probe'
     df.reset_index(inplace=True)
 
     toplot = df.melt(id_vars=['context', 'model']
-                     ).pivot_table(index=['context', 'probe'], columns='model',values='value', aggfunc='first'
+                     ).pivot_table(index=['context', 'probe'], columns='model', values='value', aggfunc='first'
                                    ).reset_index()
-    scatter = px.scatter(toplot, x='dependent',y='sum', hover_data=['context', 'probe'], color_discrete_sequence=['black'])
+    scatter = px.scatter(toplot, x='dependent', y='sum', hover_data=['context', 'probe'],
+                         color_discrete_sequence=['black'])
 
     fig.add_traces(scatter['data'], rows=[1] * len(scatter['data']), cols=[3] * len(scatter['data']))
-
 
     # highlighs the selected  values
     selected = toplot.query(f"context in {contexts} and probe == {probe}")
@@ -468,37 +476,39 @@ def plot_model_prediction_comparison(cellid, batch, independent_models, dependen
 
     fig.update_xaxes(title_text=modelnicknames[dependent_model],
                      col=3, row=1)
-    fig.update_yaxes(scaleratio=1, title_text=f'{modelnicknames[independent_models[0]]} + {modelnicknames[dependent_model][0]}',
+    fig.update_yaxes(scaleratio=1,
+                     title_text=f'{modelnicknames[independent_models[0]]} + {modelnicknames[dependent_model][0]}',
                      col=3, row=1)
 
     return fig
 
 
 def plot_time_ser_quant(cellid, contexts, probe,
-                        multiple_comparisons_axis, consecutive, cluster_threshold, fn_name,
+                        multiple_comparisons_axis, consecutive, cluster_threshold,
                         alpha=0.05, source='real', meta={}):
-    defaults_meta = {'montecarlo': 1000,
-                     'raster_fs': 30,
-                     'reliability': 0.1,
-                     'smoothing_window': 0,
-                     'stim_type': 'permutations',
-                     'zscore': True}
+    raster_meta = {'montecarlo': 11000,
+                   'raster_fs': 30,
+                   'reliability': 0.1,
+                   'smoothing_window': 0,
+                   'stim_type': 'permutations',
+                   'zscore': True}
 
-    fn_dict = {'dprime': single_cell_dprimes_cluster_mass,
-               'mean_difference': single_cell_mean_diff_cluster_mass,
-               't_statistic': single_cell_tstat_cluster_mass,
-               'big_shuff': big_shuff}
+    raster_meta.update(meta)
+    montecarlo = raster_meta.pop('montecarlo')
 
-    fn = fn_dict[fn_name]
-    defaults_meta.update(meta)
-
-    if fn.check_call_in_cache(cellid[:7], contexts='all', probes='all', cluster_threshold=float(cluster_threshold),
-                              meta=defaults_meta):
-        dprime, pval_quantiles, goodcells, shuffled_eg = fn(
-            cellid[:7], contexts='all', probes='all', cluster_threshold=float(cluster_threshold), meta=defaults_meta
-        )
+    if "-PC-" in cellid:
+        load_fn = 'PCA'
     else:
-        raise ValueError(f'{cellid[:7]}, {fn}, {cluster_threshold} not yet in cache')
+        load_fn = 'SC'
+
+    if tstat_cluster_mass.check_call_in_cache(
+            cellid[:7], cluster_threshold=float(cluster_threshold), montecarlo=montecarlo, raster_meta=raster_meta,
+            load_fn=load_fn):
+        dprime, pval_quantiles, goodcells, shuffled_eg = tstat_cluster_mass(
+            cellid[:7], cluster_threshold=float(cluster_threshold), montecarlo=montecarlo, raster_meta=raster_meta,
+            load_fn=load_fn)
+    else:
+        raise ValueError(f'{cellid[:7]}, {tstat_cluster_mass}, {cluster_threshold} not yet in cache')
 
     if source == 'real':
         pvalue = pval_quantiles['pvalue']
@@ -525,7 +535,9 @@ def plot_time_ser_quant(cellid, contexts, probe,
 
     mult_comp
 
-    cell_idx = goodcells.index(cellid) if len(cellid) > 7 else 0
+    if type(goodcells) is dict:
+        goodcells = list(goodcells.keys())
+    cell_idx = goodcells.index(cellid)
     pair_idx = [f'{t0}_{t1}' for t0, t1 in itt.combinations(range(dprime.shape[2] + 1), 2)].index(
         f'{contexts[0]}_{contexts[1]}')
     prb_idx = probe - 1
@@ -556,7 +568,7 @@ def plot_time_ser_quant(cellid, contexts, probe,
     SIG = significance[cell_idx, pair_idx, prb_idx, :]
 
     signif_mask = SIG > 0
-    t = np.linspace(0, DP.shape[-1] / defaults_meta['raster_fs'], DP.shape[-1], endpoint=False)
+    t = np.linspace(0, DP.shape[-1] / raster_meta['raster_fs'], DP.shape[-1], endpoint=False)
 
     # calculates center of mass and integral
     integral = np.sum(np.abs(DP[signif_mask])) * np.mean(np.diff(t))
@@ -715,16 +727,40 @@ def plot_tiling(picked_id, df, time_metric='last_bin'):
     return fig
 
 
-if __name__ == '__main__':
-    # for developing and debugging
-    print('this should not be runned when importing')
+def plot_model_goodness(cellids, modelnames, nicknames=None, stat='r_test', mode='bars'):
+    """
+    parses data from CPN experiments (batchs) and models into a figure displaying r-test
+    """
+    DF = batch_comp(batch=[326, 327], modelnames=modelnames, cellids=cellids, stat=stat)
+    if nicknames is not None:
+        DF.columns = nicknames
+        mod_cols = nicknames
+    else:
+        mod_cols = modelnames
 
+    DF.reset_index(inplace=True)
+
+    A1df = get_batch_ids(326)
+    A1df['region'] = 'A1'
+    PEGdf = get_batch_ids(327)
+    PEGdf['region'] = 'PEG'
+    regdf = pd.concat([A1df, PEGdf])
+
+    wide = pd.merge(DF, regdf, on='cellid').rename(columns={'cellid': 'id', 'siteid': 'site'})
+
+    if mode == 'bar':
+        long = pd.melt(wide, id_vars=['id', 'site', 'region'], value_vars=mod_cols, var_name='model', value_name=stat)
+        fig = px.box(long, x='model', y=stat, color='region', points='all')
+
+    return fig
+
+
+if __name__ == '__main__':
     from configparser import ConfigParser
 
     from plotly.subplots import make_subplots
 
     from src.root_path import config_path
-    from src.models.modelnames import STRF_long_relu, pop_lone_relu, pop_mod_relu
 
     config = ConfigParser()
     config.read_file(open(config_path / 'settings.ini'))
@@ -735,8 +771,8 @@ if __name__ == '__main__':
             'zscore': True,
             'stim_type': 'permutations'}
 
-    # cellid, contexts, probes = 'TNC006a-07-1', (2, 10), 2 # well-behaved example
-    cellid, contexts, probe = 'TNC014a-22-2', [8, 10], 8  # model fit subset example
+    cellid, contexts, probe = 'TNC019a-042-5', (0, 3), 3
+    cellid, contexts, probe = 'TNC019a-PC-1', (0, 3), 3
 
     # # digested metric plots aka tile plots
     # df = jl.load(pl.Path(config['paths']['analysis_cache']) / f'220310_ctx_mod_metric_DF_tstat_cluster_mass_BS')
@@ -750,10 +786,12 @@ if __name__ == '__main__':
     # # rawish data plots, aka psth, raster and quantification
     # fig = make_subplots(1,4)
     # raster = plot_raw_pair(cellid, contexts, probes, type='raster')
-    # psth = plot_raw_pair(cellid, contexts, probes, type='psth')
-    # quant0 = plot_time_ser_quant(cellid, contexts, probes, source='real',
-    #                              multiple_comparisons_axis=[1,2], consecutive=0, cluster_threshold=0.05,
-    #                              fn_name='t_statistic')
+    psth = plot_raw_pair(cellid, contexts, probe, type='psth')
+    psth.show()
+    # quant0 = plot_time_ser_quant(cellid, contexts, probe, source='real',
+    #                              multiple_comparisons_axis=[1, 2], consecutive=0, cluster_threshold=0.05,
+    #                              fn_name='big_shuff')
+    # quant0.show()
     # quant1 = plot_time_ser_quant(cellid, contexts, probe, source='real',
     #                              multiple_comparisons_axis=[1,2], consecutive=0, cluster_threshold=0.05,
     #                              fn_name='big_shuff', meta={'montecarlo': 11000})
@@ -799,4 +837,9 @@ if __name__ == '__main__':
 
     # fig  = plot_model_prediction_comparison(cellid, batch, [STRF_long_relu, pop_lone_relu], pop_mod_relu, contexts, probe,
     #                                  part='probe', grand_mean=False)
+    # fig.show()
+
+    # mnames = {nick:modelnames[nick] for nick in ['match_STRF', 'match_self', 'match_pop','match_full']}
+    # cellids = cellid_A1_fit_set.union(cellid_PEG_fit_set)
+    # fig = plot_model_goodness(cellids, mnames.values(), nicknames=mnames.keys())
     # fig.show()

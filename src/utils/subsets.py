@@ -54,13 +54,20 @@ top_cells = filtered.groupby(['id', 'metric']).agg(mean_value=("value", 'mean'))
 top_cells = top_cells.reset_index().sort_values(['mean_value'], ascending=False)
 cellid_subset_02 = set(top_cells.head(20)['id'])
 
+########################################################################################################################
+# site subsets
+
+# bad sites for different reasons
+bad_empirical = {'AMT031a', 'DRX008b', 'DRX021a', 'DRX023a', 'ley074a'}
+no_permutations = {'ley058d'}
+time_shift = {}
+bad_sites = bad_empirical.union(no_permutations).union(time_shift)
+
 # all good sites
 good_sites = set(get_batch_ids(316).siteid)
-badsites = {'AMT031a', 'DRX008b', 'DRX021a', 'DRX023a', 'ley074a', 'TNC010a'}  # empirically decided
-no_perm = {'ley058d'}  # sites without permutations
-good_sites = good_sites.difference(badsites).difference(no_perm)
+good_sites = good_sites.difference(bad_sites)
 
-
+########################################################################################################################
 # maps neurons to batches. Makes sense since these are brain region dependent batches
 batch_map = dict()
 for bb in [326, 327]: # A1 and PEG batches

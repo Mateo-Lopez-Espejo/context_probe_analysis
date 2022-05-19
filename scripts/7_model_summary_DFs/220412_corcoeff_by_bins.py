@@ -41,15 +41,15 @@ big_time_bins = {'A': np.s_[:, :, :25],
 
 selected = {'STRF_long_relu', 'pop_lone_relu', 'pop_mod_relu', 'self_mod_relu', 'self_lone_relu', 'STP_STRF1_relu',
             'STP_STRF2_relu'}
-selected = {'match_STRF', 'match_self', 'match_pop', 'match_full'}
+selected = {'match_STRF', 'match_self', 'match_pop','match_full'}
 
 modelnames = {nickname: modelname for nickname, modelname in modelnames.items() if nickname in selected}
 
-recacheDF = False
+
 all_cellids = cellid_A1_fit_set.union(cellid_PEG_fit_set)
-all_cellids = cellid_subset_02
+# all_cellids = cellid_subset_02
 
-
+recacheDF = True
 if summary_DF_file.exists() and not recacheDF:
     DF = jl.load(summary_DF_file)
     DF_done = DF.loc[:, ['id', 'nickname']].drop_duplicates()

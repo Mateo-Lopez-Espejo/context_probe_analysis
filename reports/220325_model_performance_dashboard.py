@@ -6,23 +6,22 @@ import joblib as jl
 import numpy as np
 import pandas as pd
 import plotly.express as px
-import plotly.graph_objects as go
 from dash import Dash, dcc, html, Input, Output, callback_context
 from plotly.subplots import make_subplots
 
 from src.models.modelnames import modelnames
 from src.root_path import config_path
-from src.utils.subsets import cellid_subset_02, cellid_A1_fit_set, cellid_PEG_fit_set
-from src.visualization.palette import ColorList
+from src.utils.subsets import batch_map
+from src.utils.subsets import cellid_A1_fit_set, cellid_PEG_fit_set
 from src.visualization.interactive import plot_raw_pair, plot_time_ser_quant, plot_strf, plot_pop_stategain, \
-    plot_pop_modulation, plot_errors_over_time, plot_multiple_errors_over_time, plot_model_prediction_comparison
+    plot_pop_modulation, plot_errors_over_time, plot_multiple_errors_over_time
 
 #### general configuration to import the right data and caches
 config = ConfigParser()
 config.read_file(open(config_path / 'settings.ini'))
 meta = {'reliability': 0.1,  # r value
         'smoothing_window': 0,  # ms
-        'raster_fs': 30, #originally 30
+        'raster_fs': 30,  # originally 30
         'montecarlo': 11000,
         'zscore': True,
         'stim_type': 'permutations'}
@@ -34,26 +33,22 @@ model_DF_file = pl.Path(config['paths']['analysis_cache']) / f'220412_resp_pred_
 
 # quick cache
 dash_DF_file = pl.Path(config['paths']['analysis_cache']) / f'220324_model_dashboad'
+recache_DF = False
 
 # TNC014a best example for the model fitting subset
 start_prb = 8 - 1
 start_ctxp = '00_08'
 start_cellid = 'TNC014a-22-2'
-batch = 326
 
-# we dont need all models tryed so far
-# selected = ['STRF_long_relu', 'self_mod_relu', 'pop_mod_relu', 'self_lone_relu',
-#             'pop_lone_relu']  # all displayed modelnames (must contain STRF)
-# selected_mod = ['self_mod_relu', 'pop_mod_relu']  # subset of modelnames with with stategain
-
-selected = ['match_STRF', 'match_self', 'match_pop', 'match_full']  # all displayed modelnames (must contain STRF) # all displayed modelnames (must contain STRF)
+selected = ['match_STRF', 'match_self', 'match_pop',
+            'match_full']  # all displayed modelnames (must contain STRF) # all displayed modelnames (must contain STRF)
 selected_mod = selected
-modelnames = {nickname: modelname for nickname, modelname in modelnames.items() if nickname in selected}
+modelnames = {sel: modelnames[sel] for sel in selected}
 
-metrics = ['integral', 'mass_center', 'integral_trunc1.5', 'mass_center_trunc1.5', 'last_bin']
+# metrics = ['integral', 'mass_center', 'integral_trunc1.5', 'mass_center_trunc1.5', 'last_bin']
+metrics = ['integral', 'mass_center', 'last_bin']
 
-# cellids = list(cellid_A1_fit_set.union(cellid_PEG_fit_set))
-cellids = list(cellid_subset_02)
+cellids = list(cellid_A1_fit_set.union(cellid_PEG_fit_set))
 
 
 ### load and preformat some of the main data
@@ -66,34 +61,33 @@ def get_formated_DF():
                              f"cluster_threshold == 0.05 and "
                              f"id in {cellids} and value > 0")
 
-    pivoted_clust_mass = filtered.pivot_table(index=['region', 'stim_count', 'context_pair', 'probe', 'id', 'site'],
-                                   columns=['metric'], values='value', aggfunc='first').reset_index()
-
-    # here filter by one of the metrics. metrics like integral_trunc1.5 tend to have less significant values
-    pivoted_clust_mass = pivoted_clust_mass.query('last_bin > 0').fillna(0)
+    pivoted_clust_mass = filtered.pivot_table(
+        index=['region', 'stim_count', 'context_pair', 'probe', 'id', 'site'],
+        columns=['metric'], values='value', aggfunc='first', fill_value=0
+    ).reset_index().pivoted_clust_mass.query('last_bin > 0')
 
     # adds a small amount of jitter to the last bin value to help visualization
     binsize = 1 / meta['raster_fs']
     jitter = (np.random.random(pivoted_clust_mass.shape[0]) * binsize * 0.8 - (binsize * 0.8 / 2)) * 1000  # in ms
     pivoted_clust_mass['last_bin'] = pivoted_clust_mass['last_bin'] + jitter
 
-    good_instances = pivoted_clust_mass.loc[:,['id', 'context_pair', 'probe']].drop_duplicates()
+    good_instances = pivoted_clust_mass.loc[:, ['id', 'context_pair', 'probe']].drop_duplicates()
 
     # cleanup big unused dataframes
-    del(DF_mass, filtered)
+    del (DF_mass, filtered)
 
     # model related metrics
     model_DF_file = pl.Path(config['paths']['analysis_cache']) / f'220412_resp_pred_metrics_by_chunks'
     DF = jl.load(model_DF_file)
     pred_filtered = DF.query(f"metric in {metrics} and "
-                        f"id in {cellids} and "
-                        f"nickname in {selected} and time_bin == 'full'"
-                        )
+                             f"id in {cellids} and "
+                             f"nickname in {selected} and time_bin == 'full'"
+                             )
 
     resp_filtered = DF.query(f"metric in {metrics} and "
-                        f"id in {cellids} and "
-                        f"nickname == 'response' and time_bin == 'full'"
-                        )
+                             f"id in {cellids} and "
+                             f"nickname == 'response' and time_bin == 'full'"
+                             )
 
     # fold the response, common to all model predicitons, and turns it along model prediction into columns
     pivoted_models = pd.merge(
@@ -101,17 +95,17 @@ def get_formated_DF():
         on=['id', 'site', 'region', 'context_pair', 'probe', 'metric', 'stim_count'],
         validate='1:m'
     ).pivot_table(
-        index=['id', 'site', 'region', 'context_pair', 'probe',  'stim_count', 'value_x', 'nickname_y'],
+        index=['id', 'site', 'region', 'context_pair', 'probe', 'stim_count', 'value_x', 'nickname_y'],
         columns=['metric'], values='value_y'
-    ).reset_index().rename(columns={'value_x':'response', 'nickname_y':'nickname'})
+    ).reset_index().rename(columns={'value_x': 'response', 'nickname_y': 'nickname'})
 
     # filter by the subset of instanceses with significant contextual modulateion as measured by cluster-mass
     pivoted_models = pd.merge(left=pivoted_models, right=good_instances, on=['id', 'context_pair', 'probe'])
 
     return pivoted_clust_mass, pivoted_models
 
-recache = False
-if dash_DF_file.exists() and not recache:
+
+if dash_DF_file.exists() and not recache_DF:
     print('found dash cache, loading ...')
     pivoted_clust_mass, pivoted_models = jl.load(dash_DF_file)
 else:
@@ -121,24 +115,22 @@ else:
     print('loading and formatting summary dataframe')
 
     tic = time()
-    pivoted_clust_mass, pivoted_models  = get_formated_DF()
+    pivoted_clust_mass, pivoted_models = get_formated_DF()
 
     print(f'it took {time() - tic:.3f}s to load and format. cacheing...')
 
     jl.dump([pivoted_clust_mass, pivoted_models], dash_DF_file)
 print('done')
 
-#### dashboard general layout
+# load dataframe for all model performances
 
+#### dashboard general layout
 
 
 app = Dash(__name__)
 
-# plots response metric space
-# filters a single model to avoid repeated data points
+# plots response metric space per site
 
-# toplot = pivoted_full.query(f"nickname == '{list(modelnames.keys())[0]}'"
-#                             ).groupby(['site', 'region']).agg('mean').reset_index()
 toplot = pivoted_clust_mass.groupby(['site', 'region']).agg('mean').reset_index()
 
 dur_vs_amp = px.scatter(data_frame=toplot, x="last_bin", y="integral", color='region',
@@ -147,7 +139,6 @@ dur_vs_amp = px.scatter(data_frame=toplot, x="last_bin", y="integral", color='re
 nickname = 'pop_mod_relu'  # plot metric comparison between real and model data
 raw_type = 'psth'  # real data display type
 split_errors = False  # plot errors over time one model at a time
-
 
 
 def callbacks_to_input(real_pic, mod_pic):
@@ -160,7 +151,7 @@ def callbacks_to_input(real_pic, mod_pic):
     # note the leading '' to catch when there has been no click at dashboard lauch
     which_click = {'': real_pic, 'dur_vs_amp': real_pic, 'real_vs_pred': mod_pic}
     if trigger_id not in which_click.keys():
-        trigger_id = 'dur_vs_amp' # default for other callbacks not coming from the pi. this is kinda broken
+        trigger_id = 'dur_vs_amp'  # default for other callbacks not coming from the pi. this is kinda broken
     picked_eg = which_click[trigger_id]
 
     cellid = picked_eg['points'][0]['hovertext']
@@ -181,9 +172,7 @@ def plot_cell_scatter(real_pic):
     print(real_pic)
     siteid = real_pic['points'][0]['hovertext']
 
-    # toplot =  pivoted_full.query(f"nickname == '{list(modelnames.keys())[0]}' and "
-    #                              f"site == '{siteid}'")
-    toplot =  pivoted_clust_mass.query(f"site == '{siteid}'")
+    toplot = pivoted_clust_mass.query(f"site == '{siteid}'")
 
     fig = px.scatter(data_frame=toplot, x="last_bin", y="integral", color='id',
                      hover_name='id', hover_data=['context_pair', 'probe'])
@@ -215,6 +204,7 @@ def plot_real_vs_model(real_pic, metric):
     prevent_initial_call=True
 )
 def _plot_sample_details(real_pic, mod_pic):
+    tic = time()
     print('############################\nplotting sample details\n')
     cellid, contexts, probe = callbacks_to_input(real_pic, mod_pic)
 
@@ -222,14 +212,14 @@ def _plot_sample_details(real_pic, mod_pic):
     psth = plot_raw_pair(cellid, contexts, probe, type=raw_type)
     quant_diff = plot_time_ser_quant(cellid, contexts, probe,
                                      multiple_comparisons_axis=[1, 2], consecutive=0, cluster_threshold=0.05,
-                                     fn_name='big_shuff', meta=meta)
+                                     meta=meta)
 
     fig.add_traces(psth['data'], rows=[1] * len(psth['data']), cols=[1] * len(psth['data']))
     fig.add_vline(x=0, line_width=2, line_color='black', line_dash='dot', opacity=1, row=1, col=1)
     fig.add_traces(quant_diff['data'], rows=[1] * len(quant_diff['data']), cols=[2] * len(quant_diff['data']))
 
     fig.update_layout(title_text=f'{cellid}')
-
+    print(f'\nsample details done, took:{time() - tic:.2f}s\n############################')
     return fig
 
 
@@ -248,7 +238,7 @@ def _plot_multiple_predictions(real_pic, mod_pic):
                         shared_xaxes=True, shared_yaxes=True)
 
     for midx, (name, modelname) in enumerate(modelnames.items()):
-        psth = plot_raw_pair(cellid, contexts, probe, type='psth', modelname=modelname, batch=batch)
+        psth = plot_raw_pair(cellid, contexts, probe, type='psth', modelname=modelname, batch=batch_map[cellid])
         fig.add_traces(psth['data'], rows=[1] * len(psth['data']), cols=[midx + 1] * len(psth['data']))
         fig.add_vline(x=0, line_width=2, line_color='black', line_dash='dot', opacity=1, row=1, col=midx + 1)
 
@@ -273,14 +263,16 @@ def _plot_multiple_errors(real_pic, mod_pic, error_style):
                             shared_xaxes=True, shared_yaxes=True)
 
         for midx, (name, modelname) in enumerate(modelnames.items()):
-            errors = plot_errors_over_time(cellid, modelname, batch, contexts, probe, part='probe', grand_mean=error_style)
+            errors = plot_errors_over_time(cellid, modelname, batch_map[cellid], contexts, probe, part='probe',
+                                           grand_mean=error_style)
             fig.add_traces(errors['data'], rows=[1] * len(errors['data']), cols=[midx + 1] * len(errors['data']))
             fig.add_vline(x=0, line_width=2, line_color='black', line_dash='dot', opacity=1, row=1, col=midx + 1)
 
         fig.update_layout(showlegend=False)
 
     else:
-        fig = plot_multiple_errors_over_time(cellid, list(modelnames.values()), batch, contexts, probe, part='probe',
+        fig = plot_multiple_errors_over_time(cellid, list(modelnames.values()), batch_map[cellid], contexts, probe,
+                                             part='probe',
                                              style=error_style, floor=modelnames['match_STRF'])
 
     print(f'\noverlayed errors done, took: {time() - tic:.2f}s\n############################')
@@ -301,7 +293,7 @@ def _plot_multiple_strf(real_pic, mode_pic):
     fig = make_subplots(1, len(modelnames), horizontal_spacing=0.05, subplot_titles=list(modelnames.keys()), )
 
     for midx, (name, modelname) in enumerate(modelnames.items()):
-        strf = plot_strf(cellid, modelname, batch)
+        strf = plot_strf(cellid, modelname, batch_map[cellid])
         fig.add_traces(strf['data'], rows=[1] * len(strf['data']), cols=[midx + 1] * len(strf['data']))
 
     # make common colorbar
@@ -337,15 +329,12 @@ def _plot_multiple_stategains(real_pic, mod_pic):
                         subplot_titles=list(modelnames.keys()) + ([''] * len(modelnames))  # title only on top row
                         )
 
-
-
-
     for mm, (nickname, modelname) in enumerate(modelnames.items()):
         if nickname not in selected_mod:
             # skips those models without stategain
             continue
-        mod_plot = plot_pop_modulation(cellid, modelnames[nickname], batch, contexts, probe)
-        weight_plot = plot_pop_stategain(cellid, modelnames[nickname], batch, orientation='h')
+        mod_plot = plot_pop_modulation(cellid, modelnames[nickname], batch_map[cellid], contexts, probe)
+        weight_plot = plot_pop_stategain(cellid, modelnames[nickname], batch_map[cellid], orientation='h')
 
         fig.add_traces(mod_plot['data'], rows=[1] * len(mod_plot['data']), cols=[mm + 1] * len(mod_plot['data']))
         fig.add_traces(weight_plot['data'], rows=[2] * len(weight_plot['data']),
@@ -392,7 +381,7 @@ app.layout = html.Div([
         id='model_predictions'
     ),
     html.Div(children=[
-        dcc.RadioItems(id='error_style', options=['mean', 'instance','PCA'], value='mean'),
+        dcc.RadioItems(id='error_style', options=['mean', 'instance', 'PCA'], value='mean'),
         dcc.Graph(id='model_errors')
     ]),
     dcc.Graph(

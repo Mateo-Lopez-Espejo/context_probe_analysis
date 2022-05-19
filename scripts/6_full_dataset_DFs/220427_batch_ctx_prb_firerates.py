@@ -7,12 +7,15 @@ import numpy as np
 import pandas as pd
 from tqdm import tqdm
 
-from src.data.load import get_site_ids
 from src.data.rasters import load_site_formated_raster
 from src.root_path import config_path
+from src.utils.subsets import good_sites as sites
 
 """
-
+Corrected version of old FR dataframe which was pulling data from the wrong part of the recording
+see: 210917_batch_context_firerates.py
+This is simplified as it is not pulling firing rates per time bin, but rather the mean across different
+quarters, or all the data
 """
 
 config = ConfigParser()
@@ -25,16 +28,10 @@ meta = {'reliability': 0.1,  # r value
         'zscore': True,
         'stim_type': 'permutations'}
 
-fr_DF_file = pl.Path(config['paths']['analysis_cache']) / f'220427_probe_firerates'
+fr_DF_file = pl.Path(config['paths']['analysis_cache']) / f'220427_ctx_prb_firerates'
 fr_DF_file.parent.mkdir(parents=True, exist_ok=True)
 
-sites = set(get_site_ids(316).keys())
-badsites = {'AMT031a', 'DRX008b', 'DRX021a', 'DRX023a', 'ley074a', 'TNC010a'}  # empirically decided
-no_perm = {'ley058d'}  # sites without permutations
-sites = sites.difference(badsites).difference(no_perm)
 print(f'all sites: \n{sites}\n')
-
-
 
 recacheDF = True
 if fr_DF_file.exists() and not recacheDF:
@@ -46,13 +43,10 @@ if fr_DF_file.exists() and not recacheDF:
 else:
     to_concat = list()
 
-
-
 for site in tqdm(sites):
 
     trialR, goodcells = load_site_formated_raster(site, contexts='all', probes='all', raster_fs=meta['raster_fs'],
                                                   part='all')
-
 
     rep, chn, ctx, prb, tme = trialR.shape
 
@@ -63,17 +57,19 @@ for site in tqdm(sites):
     R = np.mean(trialR, axis=(0))  # shape chn x ctx x prb x tme
 
     # slices either the contexts responses or the probe response
-    half_bin = int(trialR.shape[-1]/2) # defines transision between contexte and probe
-    part_dict = {'context': np.s_[..., :half_bin], 'probe': np.s_[...,half_bin:]}
+    half_bin = int(trialR.shape[-1] / 2)  # defines transision between contexte and probe
+    part_dict = {'context': np.s_[..., :half_bin], 'probe': np.s_[..., half_bin:]}
     for part_name, part_slicer in part_dict.items():
-        part_R = R[part_slicer] # shape chn x ctx x prb x tme
+        part_R = R[part_slicer]  # shape chn x ctx x prb x tme
 
         # averages across reasonable chunks of the response
-        q = int(part_R.shape[-1]/4)
-        chunk_dict = {'A': np.s_[...,:q], 'B':np.s_[...,q:q*2], 'C':np.s_[...,q*2:q*3], 'D':np.s_[...,q*3:]}
+        q = int(part_R.shape[-1] / 4)
+        chunk_dict = {'A': np.s_[..., :q], 'B': np.s_[..., q:q * 2], 'C': np.s_[..., q * 2:q * 3],
+                      'D': np.s_[..., q * 3:],
+                      'full': np.s_[...]}
         for chunk_name, chunk_slicer in chunk_dict.items():
 
-            chunk_R = part_R[chunk_slicer].mean(axis=-1) # shape chn x ctx x prb
+            chunk_R = part_R[chunk_slicer].mean(axis=-1)  # shape chn x ctx x prb
 
             df = list()
 
@@ -92,7 +88,7 @@ for site in tqdm(sites):
 
             if part_name == 'probe':
                 # get the overal probe mean firing rate independent of context
-                probe_R = chunk_R.mean(axis=1) # shape chn x pro
+                probe_R = chunk_R.mean(axis=1)  # shape chn x pro
 
                 for (uu, unit), (pp, prb) in itt.product(enumerate(goodcells), enumerate(range(1, prb + 1))):
                     d = {'id': unit,
@@ -106,7 +102,6 @@ for site in tqdm(sites):
                     df.append(d)
 
             to_concat.append(pd.DataFrame(df))
-
 
 DF = pd.concat(to_concat, ignore_index=True, axis=0)
 

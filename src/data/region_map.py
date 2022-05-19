@@ -1,14 +1,14 @@
-from src.data.load import get_site_ids
+from src.data.load import get_batch_ids
 from nems.db import pd_query
 from warnings import warn
 
 
 # get CPN sites
-all_sites = get_site_ids(316)
+all_sites = get_batch_ids(316).siteid.unique().tolist()
 
 
 region_map = dict()
-for site in all_sites.keys():
+for site in all_sites:
     # pulls the region from celldb
     BF_querry = "select area from gCellMaster where siteid=%s"
     raw_area = pd_query(BF_querry, params=(site,)).iloc[0, 0]

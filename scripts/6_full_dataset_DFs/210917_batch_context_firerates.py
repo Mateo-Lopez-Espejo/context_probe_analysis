@@ -1,18 +1,19 @@
 # from src.data.load import set_name
-from src.root_path import  config_path
-from src.data.rasters import load_site_formated_raster
-from src.data.load import get_batch_ids
-
 import itertools as itt
+import pathlib as pl
+from configparser import ConfigParser
+
+import joblib as jl
 import numpy as np
 import pandas as pd
-from configparser import ConfigParser
-import pathlib as pl
-import joblib as jl
 from tqdm import tqdm
 
+from src.data.load import get_batch_ids
+from src.data.rasters import load_site_formated_raster
+from src.root_path import config_path
 
 """
+# this version is broken and deprecated, Use instead: 220427_batch_probe_firerates.py
 this version proceses the 10 sound permutation dataset.
 Only works for permutations
 mean 
@@ -39,15 +40,14 @@ sites = sites.difference(badsites).difference(no_perm)
 
 
 def firing_rates_to_DF(trialR, goodcells, meta):
-
     rep, chn, ctx, prb, tme = trialR.shape
 
     t = np.linspace(0, tme / meta['raster_fs'], tme,
-                endpoint=False) * 1000
+                    endpoint=False) * 1000
     R = np.mean(trialR, axis=0)
     DF = list()
     for (uu, unit), (cc, ctx), (pp, prb) in itt.product(
-            enumerate(goodcells), enumerate(range(0, ctx)), enumerate(range(1, prb+1))):
+            enumerate(goodcells), enumerate(range(0, ctx)), enumerate(range(1, prb + 1))):
         df = pd.DataFrame()
         df['time (ms)'] = t
         df['firing rate'] = R[uu, cc, pp, :]
@@ -61,7 +61,7 @@ def firing_rates_to_DF(trialR, goodcells, meta):
 
 
 # grows existing DF if any
-recache=True
+recache = True
 if ctx_fr_DF_file.exists() and not recache:
     DF = jl.load(ctx_fr_DF_file)
     ready_sites = set(DF.siteid.unique())
@@ -76,7 +76,6 @@ for site in tqdm(sites):
     trialR, goodcells = load_site_formated_raster(site, contexts='all', probes='all', meta=meta, part='context')
     toconcat.append(firing_rates_to_DF(trialR, goodcells, meta))
 
-
 DF = pd.concat(toconcat, ignore_index=True)
 
 DF.drop_duplicates(inplace=True)
@@ -84,4 +83,3 @@ DF.drop_duplicates(inplace=True)
 if ctx_fr_DF_file.parent.exists() is False:
     ctx_fr_DF_file.parent.mkdir()
 jl.dump(DF, ctx_fr_DF_file)
-

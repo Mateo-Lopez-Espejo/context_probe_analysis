@@ -1,19 +1,22 @@
 import itertools as itt
 import pathlib as pl
+from configparser import ConfigParser
 
 import numpy as np
-
+from joblib import Memory
 
 from nems import epoch as nep
-from nems.recording import load_recording
-from nems.xform_helper import find_model_xform_file
 
 from src.data.load import load, load_pred
 from src.metrics.reliability import signal_reliability
-from src.utils import tools as tools
 from src.utils.cpp_parameter_handlers import _channel_handler
-from src.utils.tools import raster_smooth
+from src.utils.tools import raster_smooth, zscore as myzscore
+from src.root_path import config_path
 
+config = ConfigParser()
+config.read_file(open(config_path / 'settings.ini'))
+resp_memory = Memory(str(pl.Path(config['paths']['tensors_cache']) / 'SC'))
+pred_memory = Memory(str(pl.Path(config['paths']['tensors_cache']) / 'pred'))
 
 def _make_full_array(signal, channels='all', smooth_window=None, raster_fs=None, zscore=False):
     '''
@@ -31,7 +34,7 @@ def _make_full_array(signal, channels='all', smooth_window=None, raster_fs=None,
 
     # Zscores de data in a cell by cell manner
     if zscore:
-        signal._data = tools.zscore(signal._data, axis=1)
+        signal._data = myzscore(signal._data, axis=1)
     elif zscore is False:
         pass
     else:
@@ -252,7 +255,11 @@ def raster_from_sig(signal, probes, channels, contexts, smooth_window, raster_fs
 
     return raster
 
-def load_site_formated_raster(site, contexts='all', probes='all', part='probe', recache_rec=False, **kwargs):
+
+@resp_memory.cache(ignore=['recache_rec'])
+def load_site_formated_raster(site, contexts='all', probes='all', part='probe', stim_type = 'permutations',
+                              raster_fs=20, reliability=0.1, smoothing_window=0,
+                              zscore=True, recache_rec=False):
     """
     wrapper of wrappers. Load a recording, selects the subset of data (triplets, or permutations), generates raster using
     selected  probes and transitions
@@ -260,29 +267,24 @@ def load_site_formated_raster(site, contexts='all', probes='all', part='probe', 
     :param site: str e.g. "TNC050"
     :param contexts: list[int] or "all",
     :param probes: list[int] or "all",
-    :param meta: dict with fields: "raster_fs": samps/s, "reliability" r^2, "smooth_window":ms ,
-    "stim_type": 'triplets' or 'permutations', "zscore": boolean.
     :param part: "context", "probe", "all" default "probe"
+    :param raster_fs: samps/s
+    :param reliability: r^2
+    :param smooth_window: ms
+    :param stim_type: 'triplets' or 'permutations'
+    :param zscore: boolean.
     :param recache_rec: boolean, Default False
-    :return: raster with shape Repetitions x Cells x Contexts x Probes x Time_bins
+    :return: nd.array, a raster with shape Repetitions x Cells x Contexts x Probes x Time_bins
     """
 
-    meta = {'raster_fs': 30,
-            'reliability': 0.1,
-            'smoothing_window': 0,
-            'stim_type': 'permutations',
-            'zscore': True}
-
-    meta.update(kwargs)
-
-    recs, _ = load(site, rasterfs=meta['raster_fs'], recache=recache_rec)
+    recs, _ = load(site, rasterfs=raster_fs, recache=recache_rec)
     if len(recs) > 2:
         print(f'\n\n{recs.keys()}\n\n')
 
     # pulls the right recording depending on stimulus type and pulls the signal from it.
-    if meta['stim_type'] == 'triplets':
+    if stim_type == 'triplets':
         type_key = 'trip0'
-    elif meta['stim_type'] == 'permutations':
+    elif stim_type== 'permutations':
         type_key = 'perm0'
     else:
         raise ValueError(f"unknown stim type, use 'triplets' or 'permutations'")
@@ -290,17 +292,18 @@ def load_site_formated_raster(site, contexts='all', probes='all', part='probe', 
     sig = recs[type_key]['resp']
 
     # calculates response realiability and select only good cells to improve analysis
-    r_vals, goodcells = signal_reliability(sig, r'\ASTIM_sequence*', threshold=meta['reliability'])
+    r_vals, goodcells = signal_reliability(sig, r'\ASTIM_sequence*', threshold=reliability)
     goodcells = goodcells.tolist()
 
     # get the full data raster Context x Probe x Rep x Neuron x Time
     raster = raster_from_sig(sig, probes=probes, channels=goodcells, contexts=contexts,
-                             smooth_window=meta['smoothing_window'], raster_fs=meta['raster_fs'],
-                             stim_type=meta['stim_type'],
-                             zscore=meta['zscore'], part=part)
+                             smooth_window=smoothing_window, raster_fs=raster_fs,
+                             stim_type=stim_type,
+                             zscore=zscore, part=part)
     return raster, goodcells
 
 
+@pred_memory.cache(ignore=['recache_rec'])
 def load_site_formated_prediction(site, contexts='all', probes='all', part='probe', modelname=None, batch=None, **kwargs):
 
     print(f'loading predicted response for {site} with modelspec\n'
@@ -342,15 +345,9 @@ if __name__ == "__main__":
     batch = 326
     cellid = 'TNC014a-22-2'
 
-    raster_cell, goodcell  = load_site_formated_prediction(site=cellid[:7], part='all',
-                                               modelname=modelname, batch=batch, cellid=cellid)
-    print(f'cell raster shape: {raster_cell.shape}')
-
-    raster_site, goodcells  = load_site_formated_prediction(site=cellid[:7], part='all',
-                                               modelname=modelname, batch=batch)
-
-    print(f'site raster shape: {raster_site.shape}')
-
-    # the single neuron and the site sliced neuron rasters should be the same!
-    sliced = raster_site[:, goodcells.index(cellid), ...].squeeze()
-    print(f'are rasters consistent?: {np.all(sliced == raster_cell.squeeze())}')
+    # raster_cell, goodcell  = load_site_formated_prediction(site=cellid[:7], part='all',
+    #                                            modelname=modelname, batch=batch, cellid=cellid)
+    # print(f'cell raster shape: {raster_cell.shape}')
+    #
+    # raster_site, goodcells  = load_site_formated_prediction(site=cellid[:7], part='all',
+    #                                            modelname=modelname, batch=batch)

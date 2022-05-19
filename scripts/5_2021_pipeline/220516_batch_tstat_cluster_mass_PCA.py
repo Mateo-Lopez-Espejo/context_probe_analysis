@@ -7,21 +7,26 @@ import pandas as pd
 import joblib as jl
 from tqdm import tqdm
 
-from src.data.load import get_site_ids
 from src.data.region_map import region_map
-from src.metrics.consolidated_tstat import single_cell_tstat_cluster_mass as tstat_cluster_mass
+from src.metrics.consolidated_tstat import tstat_cluster_mass
 from src.metrics.significance import _significance
 from src.metrics.time_series_summary import metrics_to_DF
 from src.root_path import config_path
 from src.utils.dataframes import ndim_array_to_long_DF
+from src.utils.subsets import good_sites
 
-"""
-
-"""
 
 config = ConfigParser()
 config.read_file(open(config_path / 'settings.ini'))
 
+meta = {'reliability': 0.1,  # r value
+        'smoothing_window': 0,  # ms
+        'raster_fs': 30,
+        'montecarlo': 11000,
+        'zscore': True,
+        'stim_type': 'permutations'}
+
+# test meta todo DELETEME
 meta = {'reliability': 0.1,  # r value
         'smoothing_window': 0,  # ms
         'raster_fs': 20,
@@ -29,16 +34,15 @@ meta = {'reliability': 0.1,  # r value
         'zscore': True,
         'stim_type': 'permutations'}
 
-""" 
-note the different files the differences being the addition of integral_A(B,C,D) or the change of firing rate from 
-30hz to 20hz
-"""
-
-summary_DF_file = pl.Path(config['paths']['analysis_cache']) / f'220310_ctx_mod_metric_DF_tstat_cluster_mass_BS' # og
-summary_DF_file = pl.Path(config['paths']['analysis_cache']) / f'220310_ctx_mod_metric_DF_tstat_cluster_20hz'
+summary_DF_file = pl.Path(config['paths']['analysis_cache']) / f'220516_ctx_mod_metric_DF_tstat_cluster_mass_PCA'
+summary_DF_file = pl.Path(config['paths']['analysis_cache']) / f'220518_shift_corr_metrics_test_DF'
 summary_DF_file.parent.mkdir(parents=True, exist_ok=True)
 
-analysis_functions = {'SC': tstat_cluster_mass}
+# different functions to either load the whole single cell data or some dim reduction of it
+loading_functions = ['SC',
+                     # 'PCA',
+                     ]
+
 
 alpha = 0.05
 cluster_thresholds = [0.05,
@@ -52,10 +56,8 @@ multiple_corrections = {'bf_cp': ([1, 2], 0),
 metrics = ['mass_center', 'integral', 'last_bin', 'mass_center_trunc1.5', 'integral_trunc1.5',
            'integral_A', 'integral_B', 'integral_C', 'integral_D']
 
-sites = set(get_site_ids(316).keys())
-badsites = {'AMT031a', 'DRX008b', 'DRX021a', 'DRX023a', 'ley074a', 'TNC010a'}  # empirically decided
-no_perm = {'ley058d'}  # sites without permutations
-sites = sites.difference(badsites).difference(no_perm)
+sites = good_sites
+sites = {'TNC019a'}
 print(f'all sites: \n{sites}\n')
 
 recacheDF = True
@@ -68,23 +70,26 @@ if summary_DF_file.exists() and not recacheDF:
 else:
     to_concat = list()
 
-for site, (fname, func), clust_thresh in tqdm(itt.product(
-        sites, analysis_functions.items(), cluster_thresholds),
-        total=len(sites)*len(analysis_functions)*len(cluster_thresholds)):
+for site, fname, clust_thresh in tqdm(itt.product(
+        sites, loading_functions, cluster_thresholds),
+        total=len(sites)*len(loading_functions)*len(cluster_thresholds)):
 
-    if func.check_call_in_cache(site, contexts='all', probes='all',
-                                cluster_threshold=float(clust_thresh), meta=meta):
-        tstat, clust_quant_pval, goodcells, shuffled_eg = func(site, contexts='all', probes='all',
-                                                               cluster_threshold=float(clust_thresh), meta=meta)
+    if tstat_cluster_mass.check_call_in_cache(
+            site, contexts='all', probes='all',cluster_threshold=float(clust_thresh), meta=meta,load_fn=fname):
+
+        tstat, clust_quant_pval, goodcells, shuffled_eg = tstat_cluster_mass(
+            site, contexts='all', probes='all',cluster_threshold=float(clust_thresh), meta=meta,load_fn=fname)
     else:
-        print(f'{site}, {func}, {clust_thresh} not yet in cache, skipping')
+        print(f'{site}, {fname}, {clust_thresh} not yet in cache, skipping')
         continue
 
     # for analysis with dimensionality reduction, changes the cellname to nan for proper dimension labeling.
-    if 'SC' in fname:
+    if fname == 'SC':
         chan_name = goodcells
+    elif fname == 'PCA':
+        chan_name = list(goodcells.keys())
     else:
-        chan_name = site
+        raise ValueError(f'unknown loading funciton name {fname}')
 
     # literal contexts and probe for dimlabdict
     contexts = list(range(0, tstat.shape[2] + 1))

@@ -1,4 +1,3 @@
-import collections as col
 from configparser import ConfigParser
 from time import time
 
@@ -12,7 +11,7 @@ from nems.xform_helper import find_model_xform_file
 from nems.signal import RasterizedSignal
 from nems.recording import  Recording, load_recording
 
-from src.data.stim_paradigm import split_recording
+from src.data.stim_structure import split_recording
 from src.root_path import config_path
 
 from nems.db import pd_query
@@ -26,26 +25,7 @@ resp_memory = Memory(str(pl.Path(config['paths']['recording_cache']) / 'rasters'
 pred_memory = Memory(str(pl.Path(config['paths']['recording_cache']) / 'predictions'))
 
 
-
 ###### functions to find cells and  sites given conditions ######
-
-def get_site_ids(batch):
-    '''
-    returns a list of the site ids for all experiments of a given batch. This site ID helps finding all the cells within
-    a population recorded simultaneusly
-    :param batch:
-    :return:
-    '''
-    print('deprecated, rather use get_batch_ids(batch)')
-    batch_cells = nd.get_batch_cells(batch)
-
-    cellids = batch_cells.cellid.unique().tolist()
-    site_IDs = col.defaultdict(list)
-    for cell in cellids:
-        site_ID = cell.split('-')[0]
-        site_IDs[site_ID].append(cell)
-
-    return dict(site_IDs)
 
 def get_batch_ids(batch):
     df = nd.get_batch_cells(batch)
@@ -60,7 +40,6 @@ def get_runclass_ids(runclass):
     querry = f"SELECT gSingleCell.siteid, gSingleCell.cellid FROM " \
              f"((gSingleCell INNER JOIN sCellFile ON gSingleCell.id=sCellFile.singleid) " \
              f"INNER JOIN  gRunClass on sCellFile.runclassid=gRunClass.id) WHERE gRunClass.name = '{runclass}'"
-    # print(BF_querry)
     df = pd_query(querry)
     return df
 
@@ -99,6 +78,10 @@ def get_CPN_ids(nsounds, structure):
     raw_site_df =pd_query(querry).rename(columns={'cellid':'siteid', 'id':'rawid'})
     raw_site_df = raw_site_df.loc[~raw_site_df.siteid.str.contains('tst'),:]
 
+    # for some reason this bad marked experiment got passed and saved. delete it
+    raw_site_df = raw_site_df.query("rawid != 134847")
+
+
     # takes all CPN data and filters first by selected site/rawid then adds sound indices based on rawid
     df = get_runclass_ids('CPN').merge(
         raw_site_df, on='siteid', validate='m:1'
@@ -109,8 +92,8 @@ def get_CPN_ids(nsounds, structure):
 
 ###### actual loading  functions ######
 
-@resp_memory.cache
-def load(site, **kwargs):
+# @resp_memory.cache(ignore=['recache']) # This cache is mostly for working from home but does not add significant efficiency
+def load(site, recache=False, **kwargs):
     # defaults
 
     options = {'batch': 316,
@@ -119,10 +102,10 @@ def load(site, **kwargs):
                'rasterfs': 100,
                'runclass': 'CPN',
                'stim': False,
-               'resp':True,
-               'recache': False}
+               'resp':True}
 
     options.update(**kwargs)
+    options['recache'] = recache
 
     manager = BAPHYExperiment(cellid=site, batch=options['batch'])
 
@@ -135,7 +118,7 @@ def load(site, **kwargs):
 
 
 
-@pred_memory.cache
+# @pred_memory.cache # This cache is mostly for working from home but does not add significant efficiency
 def load_pred(id, modelspec, batch, **kwargs):
     """
     load an individual cell or all cells in a site and concatenates
@@ -153,7 +136,7 @@ def load_pred(id, modelspec, batch, **kwargs):
         # loads all single neurons and concatenate in a new recording
         site = id
         print(f'loading and concatenating all cell predictions in {site}')
-        cellids = list(get_site_ids(batch)[site])
+        cellids = get_batch_ids(batch).query(f"siteid == {site}").sort_values(ascending=True).tolist()
         rasters = list()
 
         tic = time()
@@ -190,11 +173,12 @@ if __name__ == '__main__':
 
     batch = 326
     # rec = load_pred(cellid, modelname, batch)
+    rec = load(siteid)
     # print(f"done loading cell with shape{rec['pred'].shape}")
     # rec = load_pred(siteid, modelname, batch)
     # print(f"done loading site with shape{rec['pred'].shape}")
     # out = get_runclass_ids('CPN')
-    out1 = get_CPN_ids(10, 'AllPermutations')
+    # out1 = get_CPN_ids(10, 'AllPermutations')
     # out2 = get_CPN_ids(2, 'Triplets')
     # get_batch_ids(326)
 

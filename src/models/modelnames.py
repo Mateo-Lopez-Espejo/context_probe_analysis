@@ -64,35 +64,96 @@ STP_STRF2_relu = "ozgf.fs100.ch18-ld-norm.l1-epcpn.seq-avgreps_" \
                  "jk.nf10-tfinit.n.lr1e3.et3.cont-newtf.n.lr1e4.cont-svpred"
 
 ## Third generation models. have matched sets of parameters, and shuffle parts (self, pop, all) as necesary
+# these turned out to have a bad bias, the sbb stands for shuffled bad bias, and lack state gain normalization
 
-match_STRF = "ozgf.fs100.ch18-ld.popstate-norm.l1-shfcat.i.resp0.state0.o.state-dline.15.15.1-epcpn.seq-avgreps_" \
+match_sbb_STRF = "ozgf.fs100.ch18-ld.popstate-norm.l1-epcpn.seq-avgreps-shfcat.i.resp0.state0.o.state-dline.15.15.1_" \
              "wc.18x1.g-fir.1x15-lvl.1-stategain.S.d-relu.1_" \
              "jk.nf10-tfinit.n.lr1e3.et3.cont-newtf.n.lr1e4.cont-svpred"
 
-match_pop = "ozgf.fs100.ch18-ld.popstate-norm.l1-shfcat.i.resp0.state.o.state-dline.15.15.1-epcpn.seq-avgreps_" \
+match_sbb_pop = "ozgf.fs100.ch18-ld.popstate-norm.l1-epcpn.seq-avgreps-shfcat.i.resp0.state.o.state-dline.15.15.1_" \
             "wc.18x1.g-fir.1x15-lvl.1-stategain.S.d-relu.1_" \
             "jk.nf10-tfinit.n.lr1e3.et3.cont-newtf.n.lr1e4.cont-svpred"
 
-match_self = "ozgf.fs100.ch18-ld.popstate-norm.l1-shfcat.i.resp.state0.o.state-dline.15.15.1-epcpn.seq-avgreps_" \
+match_sbb_self = "ozgf.fs100.ch18-ld.popstate-norm.l1-epcpn.seq-avgreps-shfcat.i.resp.state0.o.state-dline.15.15.1_" \
              "wc.18x1.g-fir.1x15-lvl.1-stategain.S.d-relu.1_" \
              "jk.nf10-tfinit.n.lr1e3.et3.cont-newtf.n.lr1e4.cont-svpred"
 
-match_full = "ozgf.fs100.ch18-ld.popstate-norm.l1-shfcat.i.resp.state.o.state-dline.15.15.1-epcpn.seq-avgreps_" \
+match_bb_full = "ozgf.fs100.ch18-ld.popstate-norm.l1-epcpn.seq-avgreps-shfcat.i.resp.state.o.state-dline.15.15.1_" \
              "wc.18x1.g-fir.1x15-lvl.1-stategain.S.d-relu.1_" \
              "jk.nf10-tfinit.n.lr1e3.et3.cont-newtf.n.lr1e4.cont-svpred"
 
-# quick test of rolled instead of shuffled regressors
-matchr_STRF = "ozgf.fs100.ch18-ld.popstate-norm.l1-shfcat.i.resp1.state1.o.state-dline.15.15.1-epcpn.seq-avgreps_" \
+# quick test of rolled instead of shuffled regressors, r stands for rolled,
+# these also had the wrong bias. and lack state gain normalization
+match_rbb_STRF = "ozgf.fs100.ch18-ld.popstate-norm.l1-epcpn.seq-avgreps-shfcat.i.resp1.state1.o.state-dline.15.15.1_" \
               "wc.18x1.g-fir.1x15-lvl.1-stategain.S.d-relu.1_" \
               "jk.nf10-tfinit.n.lr1e3.et3.cont-newtf.n.lr1e4.cont-svpred"
 
-matchr_pop = "ozgf.fs100.ch18-ld.popstate-norm.l1-shfcat.i.resp1.state.o.state-dline.15.15.1-epcpn.seq-avgreps_" \
+match_rbb_pop = "ozgf.fs100.ch18-ld.popstate-norm.l1-epcpn.seq-avgreps-shfcat.i.resp1.state.o.state-dline.15.15.1_" \
              "wc.18x1.g-fir.1x15-lvl.1-stategain.S.d-relu.1_" \
              "jk.nf10-tfinit.n.lr1e3.et3.cont-newtf.n.lr1e4.cont-svpred"
 
-matchr_self = "ozgf.fs100.ch18-ld.popstate-norm.l1-shfcat.i.resp.state1.o.state-dline.15.15.1-epcpn.seq-avgreps_" \
+match_rbb_self = "ozgf.fs100.ch18-ld.popstate-norm.l1-epcpn.seq-avgreps-shfcat.i.resp.state1.o.state-dline.15.15.1_" \
               "wc.18x1.g-fir.1x15-lvl.1-stategain.S.d-relu.1_" \
               "jk.nf10-tfinit.n.lr1e3.et3.cont-newtf.n.lr1e4.cont-svpred"
+
+# old incorrect order models, epcpn and avgreps happens after rolling/shufflign. rbo stands for rolled bad order
+match_rbo_STRF = "ozgf.fs100.ch18-ld.popstate-norm.l1-shfcat.i.resp1.state1.o.state-dline.15.15.1-epcpn.seq-avgreps_" \
+              "wc.18x1.g-fir.1x15-lvl.1-stategain.S.d-relu.1_" \
+              "jk.nf10-tfinit.n.lr1e3.et3.cont-newtf.n.lr1e4.cont-svpred"
+
+match_rbo_pop = "ozgf.fs100.ch18-ld.popstate-norm.l1-shfcat.i.resp1.state.o.state-dline.15.15.1-epcpn.seq-avgreps_" \
+             "wc.18x1.g-fir.1x15-lvl.1-stategain.S.d-relu.1_" \
+             "jk.nf10-tfinit.n.lr1e3.et3.cont-newtf.n.lr1e4.cont-svpred"
+
+match_rbo_self = "ozgf.fs100.ch18-ld.popstate-norm.l1-shfcat.i.resp.state1.o.state-dline.15.15.1-epcpn.seq-avgreps_" \
+              "wc.18x1.g-fir.1x15-lvl.1-stategain.S.d-relu.1_" \
+              "jk.nf10-tfinit.n.lr1e3.et3.cont-newtf.n.lr1e4.cont-svpred"
+
+match_rbo_full = "ozgf.fs100.ch18-ld.popstate-norm.l1-shfcat.i.resp.state.o.state-dline.15.15.1-epcpn.seq-avgreps_" \
+             "wc.18x1.g-fir.1x15-lvl.1-stategain.S.d-relu.1_" \
+             "jk.nf10-tfinit.n.lr1e3.et3.cont-newtf.n.lr1e4.cont-svpred"
+
+
+# model with rolling, correct state gain normalization, and no erroneous extra bias/baseline
+match_STRF = "ozgf.fs100.ch18-ld.popstate-epcpn.seq-avgreps-shfcat.i.resp1.state1.o.state.mm-dline.15.15.1-norm.l1_" \
+             "wc.18x1.g-fir.1x15-lvl.1-stategain.S.d-relu.1_" \
+             "jk.nf10-tfinit.n.lr1e3.et3.cont-newtf.n.lr1e4.cont-svpred"
+
+match_pop = "ozgf.fs100.ch18-ld.popstate-epcpn.seq-avgreps-shfcat.i.resp1.state.o.state.mm-dline.15.15.1-norm.l1_" \
+            "wc.18x1.g-fir.1x15-lvl.1-stategain.S.d-relu.1_" \
+            "jk.nf10-tfinit.n.lr1e3.et3.cont-newtf.n.lr1e4.cont-svpred"
+
+match_self = "ozgf.fs100.ch18-ld.popstate-epcpn.seq-avgreps-shfcat.i.resp.state1.o.state.mm-dline.15.15.1-norm.l1_" \
+             "wc.18x1.g-fir.1x15-lvl.1-stategain.S.d-relu.1_" \
+             "jk.nf10-tfinit.n.lr1e3.et3.cont-newtf.n.lr1e4.cont-svpred"
+
+match_full = "ozgf.fs100.ch18-ld.popstate-epcpn.seq-avgreps-shfcat.i.resp.state.o.state.mm-dline.15.15.1-norm.l1_" \
+             "wc.18x1.g-fir.1x15-lvl.1-stategain.S.d-relu.1_" \
+             "jk.nf10-tfinit.n.lr1e3.et3.cont-newtf.n.lr1e4.cont-svpred"
+
+# test
+matcht_STRF = "ozgf.fs100.ch18-ld.popstate-epcpn.seq-avgreps-shfcat.i.resp1.state1.o.state.mm-dline.15.15.1-norm.l1_" \
+             "wc.18x1.g-fir.1x15-lvl.1-stategain.S.d-relu.1_" \
+             "jk.nf10.o-tfinit.n.lr1e3.et3.cont-newtf.n.lr1e4.cont-svpred"
+
+
+# model with rolling, correct state gain normalization, and no erroneous extra bias/baseline. Extende STRF
+matchl_STRF = "ozgf.fs100.ch18-ld.popstate-epcpn.seq-avgreps-shfcat.i.resp1.state1.o.state.mm-dline.15.15.1-norm.l1_" \
+             "wc.18x1.g-fir.1x30-lvl.1-stategain.S.d-relu.1_" \
+             "jk.nf10-tfinit.n.lr1e3.et3.cont-newtf.n.lr1e4.cont-svpred"
+
+matchl_pop = "ozgf.fs100.ch18-ld.popstate-epcpn.seq-avgreps-shfcat.i.resp1.state.o.state.mm-dline.15.15.1-norm.l1_" \
+            "wc.18x1.g-fir.1x30-lvl.1-stategain.S.d-relu.1_" \
+            "jk.nf10-tfinit.n.lr1e3.et3.cont-newtf.n.lr1e4.cont-svpred"
+
+matchl_self = "ozgf.fs100.ch18-ld.popstate-epcpn.seq-avgreps-shfcat.i.resp.state1.o.state.mm-dline.15.15.1-norm.l1_" \
+             "wc.18x1.g-fir.1x30-lvl.1-stategain.S.d-relu.1_" \
+             "jk.nf10-tfinit.n.lr1e3.et3.cont-newtf.n.lr1e4.cont-svpred"
+
+matchl_full = "ozgf.fs100.ch18-ld.popstate-epcpn.seq-avgreps-shfcat.i.resp.state.o.state.mm-dline.15.15.1-norm.l1_" \
+             "wc.18x1.g-fir.1x30-lvl.1-stategain.S.d-relu.1_" \
+             "jk.nf10-tfinit.n.lr1e3.et3.cont-newtf.n.lr1e4.cont-svpred"
+
 
 # for easy export
 modelnames = {'STRF_no_jk': STRF_no_jk,
@@ -107,11 +168,30 @@ modelnames = {'STRF_no_jk': STRF_no_jk,
               'self_lone_relu': self_lone_relu,
               'STP_STRF1_relu': STP_STRF1_relu,
               'STP_STRF2_relu': STP_STRF2_relu,
+
+              'match_sbb_STRF': match_sbb_STRF,
+              'match_sbb_self': match_sbb_self,
+              'match_sbb_pop': match_sbb_pop,
+              'match_bb_full': match_bb_full,
+
+              'match_rbb_STRF': match_rbb_STRF,
+              'match_rbb_self': match_rbb_self,
+              'match_rbb_pop': match_rbb_pop,
+
+              'match_rbo_STRF': match_rbo_STRF,
+              'match_rbo_self': match_rbo_self,
+              'match_rbo_pop': match_rbo_pop,
+              'match_rbo_full': match_rbo_full,
+
               'match_STRF': match_STRF,
               'match_self': match_self,
               'match_pop': match_pop,
               'match_full': match_full,
-              'matchr_STRF': matchr_STRF,
-              'matchr_self': matchr_self,
-              'matchr_pop': matchr_pop,
+
+              'matchl_STRF': matchl_STRF,
+              'matchl_self': matchl_self,
+              'matchl_pop': matchl_pop,
+              'matchl_full': matchl_full,
+
+              'matcht_STRF': matcht_STRF,
               }

@@ -137,6 +137,12 @@ def get_pred_err(cellid, batch, modelname, part, retur_diffs=False):
 #### more complex prediction comparisons ###
 
 def model_independence_comparison(cellid, batch, independent_models, dependent_model, part):
+    """
+    parses models prediction to compare whether they are linearly summed or not e.g. is pop + STRF == pop_STRF (fit together)
+    :independent_models: list(str), ['pop', 'STRF'] as per example
+    :dependent_model: str, 'pop_STRF' as per example
+    :part: str 'context', 'probe' or 'all'
+    """
     site = cellid.split('-')[0]
     rasters = dict()
     modelnames = independent_models + [dependent_model, ]
@@ -161,15 +167,16 @@ def model_independence_comparison(cellid, batch, independent_models, dependent_m
 
 
 if __name__ == '__main__':
-    from src.models.modelnames import pop_mod_relu
+    from src.models.modelnames import pop_mod_relu, STRF_long_relu
 
     cellid = 'TNC014a-22-2'
     batch = 326
 
     modelname = pop_mod_relu
+    modelnames = [pop_mod_relu,  STRF_long_relu]
 
     # mean_pop_gain = get_population_weights(cellid=cellid, batch=batch, modelname=modelname)
     # mean_pop_gain = get_strf(cellid=cellid, batch=batch, modelname=modelname)
     # mean_pop_gain = get_population_influence(cellid=cellid, batch=batch, modelname=modelname)
-
-    acc, diff_acc = get_pred_err(cellid, batch, modelname, part='probe')
+    out = get_model_performances(cellid, batch, modelnames)
+    # acc, diff_acc = get_pred_err(cellid, batch, modelname, part='probe')
