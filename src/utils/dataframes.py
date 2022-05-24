@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 
+
 def ndim_array_to_long_DF(array, label_dict):
     """
     turns an ndimensional array into a long format pandas dataframe, where the axis position on the array are translated
@@ -45,3 +46,5 @@ def add_classified_contexts(DF):
 
     DF['trans_pair'] = comp_name_arr
     return DF
+
+

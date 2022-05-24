@@ -11,13 +11,11 @@ executable_path = '/auto/users/mateo/miniconda3/envs/cpa_tf_gpu/bin/python'
 script_path = '/auto/users/mateo/code/context_probe_analysis/scripts/0_cluster/encoding_model_fitting/script.py'
 
 
-# from this old set of models the main ones todo revisit: 'long_STRF_relu', 'STP_STRF1_relu' and 'STP_STRF2_relu'
-# selected = {'STRF_long_relu', 'pop_lone_relu', 'pop_mod_relu', 'self_mod_relu', 'self_lone_relu',
-#             'STP_STRF1_relu', 'STP_STRF2_relu',
-#             'match_STRF', 'match_self', 'match_pop', 'match_full'}
+# from this old set of models the main ones
+# selected = {'STP_STRF1_relu', 'STP_STRF2_relu'}
 
-selected = {'match_STRF', 'match_self', 'match_pop', 'match_full'}
-selected = {'matchl_STRF', 'matchl_self', 'matchl_pop', 'matchl_full'}
+selected = {'match_STRF', 'match_self', 'match_pop', 'match_full',
+            'matchl_STRF', 'matchl_self', 'matchl_pop', 'matchl_full'}
 selected_modelnames = [modelname for nickname, modelname in modelnames.items() if nickname in selected]
 
 n_added = 0

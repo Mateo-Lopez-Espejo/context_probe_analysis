@@ -75,7 +75,7 @@ def _raw_pvalue(real_val, mont_array, tails='both'):
 
     return pvalues
 
-def  _significance(pvalue, multiple_comparisons_axis=None, consecutive=0, alpha=0.01, verbose=False):
+def  _significance(pvalue, multiple_comparisons_axis=None, alpha=0.01, verbose=False):
     """
     calculates significance (boolean) for the values of array using the montecarlo method e.g. n simulations or shuffles of the
     original data in array. These n repetitions are specified in the mont_array, therefore mont_array should have the
@@ -86,7 +86,6 @@ def  _significance(pvalue, multiple_comparisons_axis=None, consecutive=0, alpha=
     pvalue.
     :param pvalue: ndarray e.g. Unit x Context x ...
     :param multiple_comparisons_axis: None, list of ints. default None.
-        :param consecutive: int, default None. If int, multiple_comparisons_axis must be a singleton
     :param alpha: float [0:1]
     :param tails: str, 'lesser', 'Greater', 'Both', only used with full montecarlo array.
     :return:
@@ -105,17 +104,6 @@ def  _significance(pvalue, multiple_comparisons_axis=None, consecutive=0, alpha=
     signif_corr = pvalue < corrected_alpha
 
     significance = signif_corr
-
-    # sketchy consecutive criterium
-    if consecutive > 0:
-        if len(multiple_comparisons_axis) != 1:
-            raise ValueError('when counting consecutive True, multiple_comparisons_axis must be singleton')
-
-        print(f'considering contiguous chunks, overrides multiple comparisons')
-        chunk_idx = where_contiguous_chunks(significance, multiple_comparisons_axis[0], consecutive, func='>=')
-        chunk_signif = np.full_like(significance, False)
-        chunk_signif[chunk_idx] = True
-        significance = chunk_signif
 
     return significance
 

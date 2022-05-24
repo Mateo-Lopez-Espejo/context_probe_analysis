@@ -18,7 +18,7 @@ config.read_file(open(config_path / 'settings.ini'))
 
 meta = {'reliability': 0.1,  # r value
         'smoothing_window': 0,  # ms
-        'raster_fs': 30,
+        'raster_fs': 20,
         'montecarlo': 11000,
         'zscore': True,
         'stim_type': 'permutations'}
@@ -28,7 +28,7 @@ summary_DF_file = pl.Path(config['paths']['analysis_cache']) / f'220310_ctx_mod_
 
 # quick cache
 dash_DF_file = pl.Path(config['paths']['analysis_cache']) / f'220516_dim_red_dashboad'
-recache_DF = False
+recache_DF = True
 
 # TNC014a best example for the model fitting subset
 start_prb = 8 - 1
@@ -40,26 +40,33 @@ batch = 326
 metrics = ['integral', 'mass_center', 'last_bin']
 
 # subset of sites wit CPN0 and NTI
-selected_sites = ['TNC014a','TNC024a']
-selected_sites = ['TNC020a','TNC045a'] # odd sitese, bad??
+selected_sites = ['TNC022a','TNC010a', 'TNC014a'] # used to be bad, now corrected
 
 
 def get_formated_DF():
     # load, filter and concat SC and PCA data. The analysis column indicates the source
-    SC_DF_file = pl.Path(config['paths']['analysis_cache']) / f'220310_ctx_mod_metric_DF_tstat_cluster_mass_BS'
-    PCA_DF_file = pl.Path(config['paths']['analysis_cache']) / f'220516_ctx_mod_metric_DF_tstat_cluster_mass_PCA'
 
-    DF = list()
-    for file in [SC_DF_file, PCA_DF_file]:
-        filtered = jl.load(file).query(
-            f"metric in {metrics} and mult_comp_corr == 'bf_cp' and source == 'real' and "
-            f"cluster_threshold == 0.05 and value > 0 and "
-            f"site in {selected_sites}")
+    # SC_DF_file = pl.Path(config['paths']['analysis_cache']) / f'220310_ctx_mod_metric_DF_tstat_cluster_mass_BS'
+    # PCA_DF_file = pl.Path(config['paths']['analysis_cache']) / f'220516_ctx_mod_metric_DF_tstat_cluster_mass_PCA'
+    #
+    # DF = list()
+    # for file in [SC_DF_file, PCA_DF_file]:
+    #     filtered = jl.load(file).query(
+    #         f"metric in {metrics} and mult_comp_corr == 'bf_cp' and source == 'real' and "
+    #         f"cluster_threshold == 0.05 and value > 0 and "
+    #         f"site in {selected_sites}")
+    #
+    #     DF.append(filtered)
+    #
+    # DF = pd.concat(DF)
 
-        DF.append(filtered)
+    DF_file = pl.Path(config['paths']['analysis_cache']) / f'220520_minimal_DF'
+    DF = jl.load(DF_file).query(f"metric in {metrics} and mult_comp_corr == 'bf_cp' and source == 'real' and "
+            f"cluster_threshold == 0.05 and value > 0")
 
-    DF = pd.concat(DF)
-
+    # odd super high t values
+    # print(DF.loc[DF['value'] > 10000])
+    DF.loc[DF['value'] > 10000, 'value'] = 10000
 
     # adds a PC number  column for easy filtering
     DF['PC'] = DF.id.str.extract(r'-PC-(\d+)\Z').astype(float)
@@ -189,9 +196,9 @@ def _plot_sample_details(SC_pic, PC_pic, raw_type):
     cellid, contexts, probe = callbacks_to_input(SC_pic, PC_pic, only_update_cp=True)
 
     fig = make_subplots(1, 2, subplot_titles=(f'contexts: {contexts}; probe: {probe}', 'significant regions p<0.05'))
-    psth = plot_raw_pair(cellid, contexts, probe, type=raw_type)
+    psth = plot_raw_pair(cellid, contexts, probe, type=raw_type, raster_fs=meta['raster_fs'])
     quant_diff = plot_time_ser_quant(cellid, contexts, probe,
-                                     multiple_comparisons_axis=[1, 2], consecutive=0, cluster_threshold=0.05,
+                                     multiple_comparisons_axis=[1, 2], cluster_threshold=0.05,
                                      meta=meta)
 
     fig.add_traces(psth['data'], rows=[1] * len(psth['data']), cols=[1] * len(psth['data']))
@@ -219,9 +226,9 @@ def _plot_PC_details(SC_pic, PCA_pic, sel_PC):
     cellid = f"{cellid.split('-')[0]}-PC-{sel_PC}"
 
     fig = make_subplots(1, 2, subplot_titles=(f'contexts: {contexts}; probe: {probe}', 'significant regions p<0.05'))
-    psth = plot_raw_pair(cellid, contexts, probe, type='psth')
+    psth = plot_raw_pair(cellid, contexts, probe, type='psth', raster_fs=meta['raster_fs'])
     quant_diff = plot_time_ser_quant(cellid, contexts, probe,
-                                     multiple_comparisons_axis=[1, 2], consecutive=0, cluster_threshold=0.05,
+                                     multiple_comparisons_axis=[1, 2], cluster_threshold=0.05,
                                      meta=meta)
     fig.add_traces(psth['data'], rows=[1] * len(psth['data']), cols=[1] * len(psth['data']))
     fig.add_vline(x=0, line_width=2, line_color='black', line_dash='dot', opacity=1, row=1, col=1)

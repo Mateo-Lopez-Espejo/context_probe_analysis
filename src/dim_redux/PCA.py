@@ -94,15 +94,15 @@ def load_site_formated_PCs(site, part='probe', recache_rec=False, **kwargs):
     dict with PC names and fractional variance explained
     """
 
-    # uses only the probe response to fit the model
-    raster, goodcells = load_site_formated_raster(site, part='probe', recache_rec=recache_rec, **kwargs)
+    # Load full raster but uses only the probe to fit the PCA.
+    raster, goodcells = load_site_formated_raster(site, part='all', recache_rec=recache_rec, **kwargs)
 
     raster_fit = raster[...,int(raster.shape[-1]/2):]
 
     assert len(raster.shape) == 5
     rep, neu, ctx, prb, tme = raster_fit.shape
 
-    # fits the data with the mean
+    # fits data on trial averages, we don't want to fit noise.
     reshaped = raster_fit.mean(axis=0).reshape([neu, ctx*prb*tme])
     pca = PCA(n_components=0.9)
     pca.fit(reshaped.T)

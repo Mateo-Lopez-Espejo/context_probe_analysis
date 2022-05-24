@@ -21,16 +21,18 @@ site = sys.argv[1]
 cluster_threshold = float(sys.argv[2])
 load_fn = sys.argv[3]
 montecarlo = int(sys.argv[4])
+raster_fs = int(sys.argv[5])
 
 raster_meta = {'reliability': 0.1,  # r value
-        'smoothing_window': 0,  # ms
-        'raster_fs': 20,  # thus can divide in four chunks
-        'zscore': True,
-        'stim_type': 'permutations'}
+               'smoothing_window': 0,  # ms
+               'raster_fs': raster_fs,  # 20 for even quarters, 30 for old analysis
+               'zscore': True,
+               'stim_type': 'permutations'}
 
 print(f"running single_cell_dprimes for site {site} with threshold {cluster_threshold} and meta:{raster_meta} ")
 
-_ = tstat_cluster_mass(site, cluster_threshold=cluster_threshold, montecarlo=montecarlo,
+# the call method, instead of normal function call, forces recache!
+_ = tstat_cluster_mass.call(site, cluster_threshold=cluster_threshold, montecarlo=montecarlo,
                        raster_meta=raster_meta, load_fn=load_fn)
 
 # Mark completed in the queue. Note that this should happen last thing!

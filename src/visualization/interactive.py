@@ -484,7 +484,7 @@ def plot_model_prediction_comparison(cellid, batch, independent_models, dependen
 
 
 def plot_time_ser_quant(cellid, contexts, probe,
-                        multiple_comparisons_axis, consecutive, cluster_threshold,
+                        multiple_comparisons_axis, cluster_threshold,
                         alpha=0.05, source='real', meta={}):
     raster_meta = {'montecarlo': 11000,
                    'raster_fs': 30,
@@ -518,7 +518,6 @@ def plot_time_ser_quant(cellid, contexts, probe,
 
     significance = _significance(pvalue,
                                  multiple_comparisons_axis=multiple_comparisons_axis,
-                                 consecutive=consecutive,
                                  alpha=alpha)
 
     # new alphas corrected by multiple comparisons
