@@ -133,6 +133,26 @@ def get_pred_err(cellid, batch, modelname, part, retur_diffs=False):
     else:
         return err, diff_err
 
+def get_pop_eg_psth(cellid, batch, modelname, part='all'):
+    ctx = load_model_xform_faster(cellid=cellid, batch=batch, modelname=modelname)
+
+    stim = ctx['val']['stim']
+    resp = ctx['val']['resp']
+    state_raw = ctx['val']['state_raw']
+
+    resp_raster = raster_from_sig(resp, probes='all', channels=resp.chans[0], contexts='all',
+                             smooth_window=0, raster_fs=resp.fs,
+                             stim_type='permutations',
+                             zscore=False, part=part)
+
+    pop_raster = raster_from_sig(state_raw, probes='all', channels=state_raw.chans, contexts='all',
+                             smooth_window=0, raster_fs=resp.fs,
+                             stim_type='permutations',
+                             zscore=False, part=part)
+
+    pop_raster = pop_raster / np.max(pop_raster,axis=1)[:,None,:,:,:]
+
+    return resp_raster, pop_raster
 
 #### more complex prediction comparisons ###
 
@@ -167,16 +187,13 @@ def model_independence_comparison(cellid, batch, independent_models, dependent_m
 
 
 if __name__ == '__main__':
-    from src.models.modelnames import pop_mod_relu, STRF_long_relu
+    from src.models.modelnames import matchl_full as modelname
 
     cellid = 'TNC014a-22-2'
     batch = 326
 
-    modelname = pop_mod_relu
-    modelnames = [pop_mod_relu,  STRF_long_relu]
-
     # mean_pop_gain = get_population_weights(cellid=cellid, batch=batch, modelname=modelname)
     # mean_pop_gain = get_strf(cellid=cellid, batch=batch, modelname=modelname)
     # mean_pop_gain = get_population_influence(cellid=cellid, batch=batch, modelname=modelname)
-    out = get_model_performances(cellid, batch, modelnames)
     # acc, diff_acc = get_pred_err(cellid, batch, modelname, part='probe')
+    out = get_pop_eg_psth(cellid, batch, modelname, part='all')
