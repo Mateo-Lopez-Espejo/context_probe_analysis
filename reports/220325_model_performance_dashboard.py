@@ -27,21 +27,20 @@ meta = {'reliability': 0.1,  # r value
         'stim_type': 'permutations'}
 
 # source raw DFs
-summary_DF_file = pl.Path(config['paths']['analysis_cache']) / f'220310_ctx_mod_metric_DF_tstat_cluster_mass_BS'
-# summary_DF_file = pl.Path(config['paths']['analysis_cache']) / f'220310_ctx_mod_metric_DF_tstat_cluster_20hz' # todo make sure is good
+summary_DF_file = pl.Path(config['paths']['analysis_cache']) / f'220520_minimal_DF'
 model_DF_file = pl.Path(config['paths']['analysis_cache']) / f'220412_resp_pred_metrics_by_chunks'
 
 # quick cache
 dash_DF_file = pl.Path(config['paths']['analysis_cache']) / f'220324_model_dashboad'
-recache_DF = False
+recache_DF = True
 
 # TNC014a best example for the model fitting subset
 start_prb = 8 - 1
 start_ctxp = '00_08'
 start_cellid = 'TNC014a-22-2'
 
-selected = ['match_STRF', 'match_self', 'match_pop',
-            'match_full']  # all displayed modelnames (must contain STRF) # all displayed modelnames (must contain STRF)
+selected = ['matchl_STRF', 'matchl_self', 'matchl_pop',
+            'matchl_full']  # all displayed modelnames (must contain STRF) # all displayed modelnames (must contain STRF)
 selected_mod = selected
 modelnames = {sel: modelnames[sel] for sel in selected}
 
@@ -50,12 +49,13 @@ metrics = ['integral', 'mass_center', 'last_bin']
 
 cellids = list(cellid_A1_fit_set.union(cellid_PEG_fit_set))
 
+cellids = ["TNC014a-22-2"]
+
 
 ### load and preformat some of the main data
 
 def get_formated_DF():
     # real values, defines filtering
-    summary_DF_file = pl.Path(config['paths']['analysis_cache']) / f'220310_ctx_mod_metric_DF_tstat_cluster_mass_BS'
     DF_mass = jl.load(summary_DF_file)
     filtered = DF_mass.query(f"metric in {metrics} and mult_comp_corr == 'bf_cp' and source == 'real' and "
                              f"cluster_threshold == 0.05 and "
@@ -77,7 +77,6 @@ def get_formated_DF():
     del (DF_mass, filtered)
 
     # model related metrics
-    model_DF_file = pl.Path(config['paths']['analysis_cache']) / f'220412_resp_pred_metrics_by_chunks'
     DF = jl.load(model_DF_file)
     pred_filtered = DF.query(f"metric in {metrics} and "
                              f"id in {cellids} and "

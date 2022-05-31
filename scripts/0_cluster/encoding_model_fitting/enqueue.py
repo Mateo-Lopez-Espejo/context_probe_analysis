@@ -1,7 +1,7 @@
 import nems.db as nd
 
 from src.models.modelnames import modelnames
-from src.utils.subsets import cellid_A1_fit_set, cellid_PEG_fit_set, cellid_subset_02
+from src.utils.subsets import cellid_A1_fit_set, cellid_PEG_fit_set
 
 ##### enqueue.py #####
 print('enqueuing jobs')

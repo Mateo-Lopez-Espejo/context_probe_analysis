@@ -303,7 +303,7 @@ def load_site_formated_raster(site, contexts='all', probes='all', part='probe', 
     return raster, goodcells
 
 
-@pred_memory.cache(ignore=['recache_rec'])
+@pred_memory.cache
 def load_site_formated_prediction(site, contexts='all', probes='all', part='probe', modelname=None, batch=None, **kwargs):
 
     print(f'loading predicted response for {site} with modelspec\n'

@@ -28,6 +28,7 @@ def plot_raw_pair(cellid, contexts, probe, type='psth', raster_fs=30, **kwargs):
     if 'modelname' in kwargs.keys() and 'batch' in kwargs.keys():
         is_pred = True
         fs = int(re.findall('\.fs\d*\.', kwargs['modelname'])[0][3:-1])
+        if raster_fs != fs: print("enforcing model raster_fs")
         # fs = 100 # hard code for now for model fittings
         site_raster, goodcells = load_site_formated_prediction(cellid[:7], part='all', raster_fs=fs, cellid=cellid,
                                                                **kwargs)
@@ -726,7 +727,7 @@ def plot_tiling(picked_id, df, time_metric='last_bin'):
     return fig
 
 
-def plot_model_goodness(cellids, modelnames, nicknames=None, stat='r_test', mode='bars'):
+def plot_model_fitness(cellids, modelnames, nicknames=None, stat='r_test', mode='bars'):
     """
     parses data from CPN experiments (batchs) and models into a figure displaying r-test
     """
@@ -747,7 +748,7 @@ def plot_model_goodness(cellids, modelnames, nicknames=None, stat='r_test', mode
 
     wide = pd.merge(DF, regdf, on='cellid').rename(columns={'cellid': 'id', 'siteid': 'site'})
 
-    if mode == 'bar':
+    if mode == 'bars':
         long = pd.melt(wide, id_vars=['id', 'site', 'region'], value_vars=mod_cols, var_name='model', value_name=stat)
         fig = px.box(long, x='model', y=stat, color='region', points='all')
 
@@ -756,9 +757,7 @@ def plot_model_goodness(cellids, modelnames, nicknames=None, stat='r_test', mode
 
 if __name__ == '__main__':
     from configparser import ConfigParser
-
     from plotly.subplots import make_subplots
-
     from src.root_path import config_path
 
     config = ConfigParser()
@@ -785,8 +784,8 @@ if __name__ == '__main__':
     # # rawish data plots, aka psth, raster and quantification
     # fig = make_subplots(1,4)
     # raster = plot_raw_pair(cellid, contexts, probes, type='raster')
-    psth = plot_raw_pair(cellid, contexts, probe, type='psth')
-    psth.show()
+    # psth = plot_raw_pair(cellid, contexts, probe, type='psth')
+    # psth.show()
     # quant0 = plot_time_ser_quant(cellid, contexts, probe, source='real',
     #                              multiple_comparisons_axis=[1, 2], consecutive=0, cluster_threshold=0.05,
     #                              fn_name='big_shuff')
@@ -838,7 +837,14 @@ if __name__ == '__main__':
     #                                  part='probe', grand_mean=False)
     # fig.show()
 
-    # mnames = {nick:modelnames[nick] for nick in ['match_STRF', 'match_self', 'match_pop','match_full']}
-    # cellids = cellid_A1_fit_set.union(cellid_PEG_fit_set)
-    # fig = plot_model_goodness(cellids, mnames.values(), nicknames=mnames.keys())
-    # fig.show()
+
+
+
+
+    ###
+    from src.models.modelnames import modelnames
+    from src.utils.subsets import cellid_A1_fit_set, cellid_PEG_fit_set
+    mnames = {nick:modelnames[nick] for nick in ['matchl_STRF', 'matchl_self', 'matchl_pop','matchl_full']}
+    cellids = cellid_A1_fit_set.union(cellid_PEG_fit_set)
+    fig = plot_model_fitness(cellids, mnames.values(), nicknames=mnames.keys())
+    fig.show()

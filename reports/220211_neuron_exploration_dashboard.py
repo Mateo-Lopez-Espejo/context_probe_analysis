@@ -23,7 +23,6 @@ meta = {'reliability': 0.1,  # r value
         'zscore': True,
         'stim_type': 'permutations'}
 
-summary_DF_file = pl.Path(config['paths']['analysis_cache']) / f'220310_ctx_mod_metric_DF_tstat_cluster_mass_BS'
 
 
 # quick cache
@@ -41,7 +40,6 @@ metrics = ['integral', 'mass_center', 'last_bin']
 
 # subset of sites wit CPN0 and NTI
 selected_sites = ['TNC022a','TNC010a', 'TNC014a'] # used to be bad, now corrected
-
 
 def get_formated_DF():
     # load, filter and concat SC and PCA data. The analysis column indicates the source

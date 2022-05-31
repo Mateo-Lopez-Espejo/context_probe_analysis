@@ -36,10 +36,12 @@ def signif_abs_mass_center(array, label_dictionary):
 
 
 def signif_last_bin(array, label_dictionary):
+    # since the last bin can be the first one (zeroth) temroally shift the times so the number reported is the next bin (first)
     t = label_dictionary['time']
+    dt = np.mean(np.diff(t)) # delta time to add to every time point
     newshape = np.asarray(array.shape)
     newshape[-1] = 1
-    ttile = np.ma.array(np.tile(t, newshape), mask=array.mask)
+    ttile = np.ma.array(np.tile(t + dt, newshape), mask=array.mask)
     metric = np.max(ttile, axis=3)
     metric = metric.filled(fill_value=0)
     updated_label_dict = copy.deepcopy(label_dictionary)

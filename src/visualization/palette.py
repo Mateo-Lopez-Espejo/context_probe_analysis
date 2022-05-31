@@ -1,3 +1,6 @@
+from webcolors import hex_to_rgb
+
+
 # # plos recomendation
 # Blue =  '#90CAF9'
 # Green = '#C5E1A5'
@@ -23,6 +26,10 @@ Grey = '#BAB0AC'
 ColorDict = dict(Blue=Blue, Green=Green, Orange=Orange, Yellow=Yellow, Purple=Purple, Red=Red, Pink=Pink, Grey=Grey,
                   Teal=Teal, Brown=Brown)
 ColorList = list(ColorDict.values())
+
+
+def add_opacity(hex, opacity):
+     return  f'rgba{(*hex_to_rgb(hex), opacity)}'
 
 if __name__ == "__main__":
     colors = dict(Blue=Blue, Green=Green, Orange=Orange, Yellow=Yellow, Purple=Purple, Red=Red, Pink=Pink, Grey=Grey,
