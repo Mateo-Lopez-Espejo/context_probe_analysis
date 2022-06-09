@@ -626,7 +626,8 @@ def plot_time_ser_quant(cellid, contexts, probe,
     return fig
 
 
-def plot_tiling(picked_id, df, time_metric='last_bin'):
+def plot_tiling(picked_id, df, zmax=None, time_metric='last_bin',
+                show_coloraxis=True, orientation='h', cscales=None):
     # turns long format data into an array with dimension Probe * context_pair
     if len(picked_id) == 7:
         # site case, get max projection across neurons
@@ -638,13 +639,21 @@ def plot_tiling(picked_id, df, time_metric='last_bin'):
         to_pivot = df.query(f"id == '{picked_id}' and metric in ['integral', '{time_metric}']")
     val_df = to_pivot.pivot_table(index=['metric', 'probe'], columns=['context_pair'], values='value')
 
-    cscales = {'integral': pc.make_colorscale(['#000000', Green]),
-               time_metric: pc.make_colorscale(['#000000', Purple])}
+    if cscales is None:
+        cscales = {'integral': pc.make_colorscale(['#FFFFFF', Green]),
+                   time_metric: pc.make_colorscale(['#FFFFFF', Purple])}
+
     max_vals = dict()
+
     # normalizes,saves max values and get colors for each metric
     color_df = val_df.copy()
     for metric in color_df.index.levels[0]:
-        max_vals[metric] = val_df.loc[metric].values.max()
+        if zmax is None:
+            max_vals[metric] = val_df.loc[metric].values.max()
+        else:
+            assert type(zmax) is dict
+            max_vals = zmax
+
         colors = pc.sample_colorscale(cscales[metric],
                                       (val_df.loc[metric] / max_vals[metric]).values.flatten())
         color_df.loc[metric] = np.asarray(colors).reshape(color_df.loc[metric].shape)
@@ -656,18 +665,31 @@ def plot_tiling(picked_id, df, time_metric='last_bin'):
     amp_color = color_df.loc[('integral'), :].values
     dur_color = color_df.loc[(time_metric), :].values
 
-    amplitudes = val_df.loc[('integral'), :]
-    durations = val_df.loc[(time_metric), :]
+    amplitudes = val_df.loc[('integral'), :].values
+    durations = val_df.loc[(time_metric), :].values
+
+    if orientation == 'h':
+        pass
+    elif orientation == 'v':
+        amp_color = amp_color.T
+        dur_color = dur_color.T
+        amplitudes = amplitudes.T
+        durations = durations.T
+    else:
+        raise ValueError(f"invalid orientation value {orientation}")
 
     fig = go.Figure()
 
     for nn, (p, c) in enumerate(np.ndindex(amp_color.shape)):
         # note the use of transparent markers to define the colorbars internally
         # amplitud uppe half
+        if amplitudes[p, c] == 0:
+            continue
+
         _ = fig.add_scatter(x=xu + c, y=yu + p, mode='lines+markers',
                             line_width=1, line_color='#222222',
                             fill='toself', fillcolor=amp_color[p, c],
-                            marker=dict(color=(amplitudes.values[p, c],) * len(xu),
+                            marker=dict(color=(amplitudes[p, c],) * len(xu),
                                         coloraxis='coloraxis',
                                         opacity=0,
                                         cmin=0, cmax=max_vals['integral'],
@@ -679,7 +701,7 @@ def plot_tiling(picked_id, df, time_metric='last_bin'):
         _ = fig.add_scatter(x=xl + c, y=yl + p, mode='lines+markers',
                             line_width=1, line_color='#222222',
                             fill='toself', fillcolor=dur_color[p, c],
-                            marker=dict(color=(durations.values[p, c],) * len(xl),
+                            marker=dict(color=(durations[p, c],) * len(xl),
                                         coloraxis='coloraxis2',
                                         opacity=0,
                                         cmin=0, cmax=max_vals[time_metric],
@@ -687,42 +709,89 @@ def plot_tiling(picked_id, df, time_metric='last_bin'):
                             showlegend=False
                             )
 
-    # strip left zero padding for better display
-    ticktexts = [f"{int(pp.split('_')[0])}_{int(pp.split('_')[1])}"
-                 for pp in amplitudes.columns.to_list()]
-    _ = fig.update_xaxes(dict(scaleanchor=f'y',
-                              constrain='domain',
-                              range=[0, amplitudes.columns.size], fixedrange=True,
-                              title_text='context pairs',
-                              tickmode='array',
-                              tickvals=np.arange(amplitudes.columns.size) + 0.5,
-                              ticktext=ticktexts))
+    # adds encasing margin
+    h, w = amplitudes.shape
+    x = [0, w, w, 0, 0]
+    y = [0, 0, h, h, 0]
+    fig.add_trace(go.Scatter(x=x, y=y, mode='lines',
+                             line=dict(color='black',
+                                       width=2),
+                             showlegend=False)
+                  )
 
-    _ = fig.update_yaxes(dict(title=dict(text=f'{picked_id}<br>probes'),
-                              constrain='domain',
-                              range=[0, amplitudes.index.size], fixedrange=True,
-                              tickmode='array',
-                              tickvals=np.arange(amplitudes.index.size) + 0.5,
-                              ticktext=amplitudes.index.to_list()))
+    # label handling
+    context_pairs = [f"{int(pp.split('_')[0])}_{int(pp.split('_')[1])}"
+                     for pp in val_df.columns.to_list()]
+    probes = val_df.index.get_level_values(1).unique().to_list()
 
+    if orientation == 'h':
+        xrange = [0, len(context_pairs)]
+        xtitle = 'context pairs'
+        xtickvals = np.arange(len(context_pairs)) + 0.5
+        xticktext = context_pairs
+
+        yrange = [0, len(probes)]
+        ytitle = 'probes'
+        ytickvals = np.arange(len(probes)) + 0.5
+        yticktext = probes
+
+    elif orientation == 'v':
+        xrange = [0, len(probes)]
+        xtitle = 'probes'
+        xtickvals = np.arange(len(probes)) + 0.5,
+        xticktext = probes
+
+        yrange = [0, len(context_pairs)]
+        ytitle = 'context pairs'
+        ytickvals = np.arange(len(context_pairs)) + 0.5,
+        yticktext = context_pairs
+    else:
+        raise ValueError(f"invalid orientation value {orientation}")
+
+    fig.update_xaxes(dict(scaleanchor='y',
+                          constrain='domain',
+                          range=xrange, fixedrange=True,
+                          title_text=xtitle,
+                          tickmode='array',
+                          tickvals=xtickvals,
+                          ticktext=xticktext,
+                          showticklabels=True)
+                     )
+    fig.update_yaxes(dict(constrain='domain',
+                          range=yrange, fixedrange=True,
+                          title_text=f'{picked_id}<br>{ytitle}',
+                          tickmode='array',
+                          tickvals=ytickvals,
+                          ticktext=yticktext,
+                          showticklabels=True)
+
+                     )
     # set the positions of the colorbars
-    fig.update_layout(coloraxis=dict(colorscale=cscales['integral'],
-                                     colorbar=dict(
-                                         thickness=10, len=0.6,
-                                         title_text='integral',
-                                         title_side='right',
-                                         tickangle=-90,
-                                         xanchor='left', x=1)
-                                     ),
-                      coloraxis2=dict(colorscale=cscales[time_metric],
-                                      colorbar=dict(
-                                          thickness=10, len=0.6,
-                                          title_text=time_metric,
-                                          title_side='right',
-                                          tickangle=-90,
-                                          xanchor='left', x=1.1)
-                                      )
-                      )
+    if show_coloraxis:
+        fig.update_layout(coloraxis=dict(colorscale=cscales['integral'],
+                                         colorbar=dict(
+                                             thickness=10, len=0.6,
+                                             title_text='integral',
+                                             title_side='right',
+                                             tickangle=-90,
+                                             xanchor='left', x=1)
+                                         ),
+                          coloraxis2=dict(colorscale=cscales[time_metric],
+                                          colorbar=dict(
+                                              thickness=10, len=0.6,
+                                              title_text=time_metric,
+                                              title_side='right',
+                                              tickangle=-90,
+                                              xanchor='left', x=1.1)
+                                          )
+                          )
+    else:
+        fig.update_layout(
+            coloraxis=dict(showscale=False),
+            coloraxis2=dict(showscale=False)
+        )
+
+    fig.update_layout(template='simple_white')
 
     return fig
 
@@ -759,6 +828,8 @@ if __name__ == '__main__':
     from configparser import ConfigParser
     from plotly.subplots import make_subplots
     from src.root_path import config_path
+    import joblib as jl
+    import pathlib as pl
 
     config = ConfigParser()
     config.read_file(open(config_path / 'settings.ini'))
@@ -772,14 +843,33 @@ if __name__ == '__main__':
     cellid, contexts, probe = 'TNC019a-042-5', (0, 3), 3
     cellid, contexts, probe = 'TNC019a-PC-1', (0, 3), 3
 
-    # # digested metric plots aka tile plots
-    # df = jl.load(pl.Path(config['paths']['analysis_cache']) / f'220310_ctx_mod_metric_DF_tstat_cluster_mass_BS')
-    # to_plot = df.query("metric in ['integral', 'last_bin', 'mass_center'] and mult_comp_corr == 'bf_cp' and source == 'real' and "
-    #                    "cluster_threshold == 0.05")
-    # tile = plot_tiling(cellid, to_plot, time_metric='last_bin')
-    # tile.show()
-    # tile = plot_tiling(cellid, to_plot, time_metric='mass_center')
-    # tile.show()
+    # digested metric plots aka tile plots
+    df = jl.load(pl.Path(config['paths']['analysis_cache']) / f'220310_ctx_mod_metric_DF_tstat_cluster_mass_BS')
+    df = jl.load(pl.Path(config['paths']['analysis_cache']) / f'220520_minimal_DF')
+    df.query("source == 'real' and mult_comp_corr ==  'bf_cp'  and metric in ['integral', 'last_bin']", inplace=True)
+    tile = plot_tiling('ARM021b-36-8', df,
+                       time_metric='last_bin',
+                       show_coloraxis=False,
+                       # cscales={'integral': 'Greens',
+                       #          'last_bin': 'Purples'}
+                       )
+    tile.show()
+
+    tile = plot_tiling('ARM021b-36-8', df,
+                       time_metric='last_bin',
+                       show_coloraxis=False,
+                       cscales={'integral': 'Greens',
+                                'last_bin': 'Purples'}
+                       )
+    tile.show()
+
+    tile = plot_tiling('ARM021b-36-8', df,
+                       time_metric='last_bin',
+                       show_coloraxis=True,
+                       orientation='h',
+                       cscales={'integral': 'BuGn',
+                                'last_bin': 'BuPu'})
+    tile.show()
 
     # # rawish data plots, aka psth, raster and quantification
     # fig = make_subplots(1,4)
@@ -837,14 +927,10 @@ if __name__ == '__main__':
     #                                  part='probe', grand_mean=False)
     # fig.show()
 
-
-
-
-
-    ###
-    from src.models.modelnames import modelnames
-    from src.utils.subsets import cellid_A1_fit_set, cellid_PEG_fit_set
-    mnames = {nick:modelnames[nick] for nick in ['matchl_STRF', 'matchl_self', 'matchl_pop','matchl_full']}
-    cellids = cellid_A1_fit_set.union(cellid_PEG_fit_set)
-    fig = plot_model_fitness(cellids, mnames.values(), nicknames=mnames.keys())
-    fig.show()
+    # ###
+    # from src.models.modelnames import modelnames
+    # from src.utils.subsets import cellid_A1_fit_set, cellid_PEG_fit_set
+    # mnames = {nick:modelnames[nick] for nick in ['matchl_STRF', 'matchl_self', 'matchl_pop','matchl_full']}
+    # cellids = cellid_A1_fit_set.union(cellid_PEG_fit_set)
+    # fig = plot_model_fitness(cellids, mnames.values(), nicknames=mnames.keys())
+    # fig.show()

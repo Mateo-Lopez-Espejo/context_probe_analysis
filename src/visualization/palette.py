@@ -28,6 +28,18 @@ ColorDict = dict(Blue=Blue, Green=Green, Orange=Orange, Yellow=Yellow, Purple=Pu
 ColorList = list(ColorDict.values())
 
 
+# global color parameters for CPN relevant categories
+
+# region
+A1_COLOR = Orange
+PEG_COLOR = Blue
+REGION_COLORMAP = {'A1': A1_COLOR, 'PEG': PEG_COLOR}
+
+# metric
+AMPCOLOR = Green
+DURCOLOR = Purple
+
+
 def add_opacity(hex, opacity):
      return  f'rgba{(*hex_to_rgb(hex), opacity)}'
 

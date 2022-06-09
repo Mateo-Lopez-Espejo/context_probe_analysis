@@ -61,14 +61,14 @@ def create_summary_DF(sites, loading_functions, cluster_thresholds, alpha, monte
 
         # iterates over real data and shuffled example
         for source in sources:
+            if source == 'real':
+                ts = tstat
+                pvals = clust_quant_pval['pvalue']
+            elif source == 'shuffled_eg':
+                ts = shuffled_eg['dprime']
+                pvals = shuffled_eg['pvalue']
             # consider different multiple comparisons corrections for the significance dependent metrics
             for corr_name, corr in multiple_corrections.items():
-                if source == 'real':
-                    ts = tstat
-                    pvals = clust_quant_pval['pvalue']
-                elif source == 'shuffled_eg':
-                    ts = shuffled_eg['dprime']
-                    pvals = shuffled_eg['pvalue']
 
                 significance = _significance(pvals, corr, alpha=alpha)
 
