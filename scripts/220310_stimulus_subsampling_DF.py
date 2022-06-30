@@ -14,12 +14,10 @@ config = ConfigParser()
 config.read_file(open(config_path / 'settings.ini'))
 
 # Source DF
-# t_statistic = pl.Path(config['paths']['analysis_cache']) / f'220310_ctx_mod_metric_DF_tstat_cluster_mass_BS' # old and questionable
-mass_clust_pval_DF_file = pl.Path(config['paths']['analysis_cache']) / f'220602_SC_pvals_subsample'
+mass_clust_pval_DF_file = pl.Path(config['paths']['analysis_cache']) / f'220602_SC_pvals_subsample' #mate to be subsampled
 longDF = jl.load(mass_clust_pval_DF_file)
 
 # Destination DF
-# subsampling_path = pl.Path(config['paths']['analysis_cache']) / '220310_pval_subsamp_DF' # the output of the  old and questionable
 subsampling_path = pl.Path(config['paths']['analysis_cache']) / '220310_pval_subsamp_DF_update'
 recache = False
 calc_site_coverage = False

@@ -27,8 +27,11 @@ ColorDict = dict(Blue=Blue, Green=Green, Orange=Orange, Yellow=Yellow, Purple=Pu
                   Teal=Teal, Brown=Brown)
 ColorList = list(ColorDict.values())
 
-
 # global color parameters for CPN relevant categories
+
+# 4 sound subset
+FOURCOLOR = [Grey, Yellow, Red, Teal, Brown]
+TENCOLOR = ColorList
 
 # region
 A1_COLOR = Orange

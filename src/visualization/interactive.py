@@ -6,6 +6,7 @@ import pandas as pd
 import plotly.colors as pc
 import plotly.express as px
 import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 from sklearn.decomposition import PCA
 from webcolors import hex_to_rgb
 
@@ -22,7 +23,7 @@ from src.visualization.fancy_plots import squarefy
 from src.visualization.palette import *
 
 
-def plot_raw_pair(cellid, contexts, probe, type='psth', raster_fs=30, **kwargs):
+def plot_raw_pair(cellid, contexts, probe, type='psth', raster_fs=30, colors=FOURCOLOR, **kwargs):
     prb_idx = probe - 1  # probe names start at 1 but we have zero idex
 
     if 'modelname' in kwargs.keys() and 'batch' in kwargs.keys():
@@ -66,9 +67,6 @@ def plot_raw_pair(cellid, contexts, probe, type='psth', raster_fs=30, **kwargs):
     duration = nsamps / fs
     time = np.linspace(0 - duration / 2, duration / 2, nsamps, endpoint=False)
     halfs = [np.s_[:int(nsamps / 2)], np.s_[int(nsamps / 2):]]
-
-    # rotation of colors for the silence + 4 sound examples
-    colors = [Grey, Yellow, Red, Teal, Brown]
 
     fig = go.Figure()
     for cc, ctx_idx in enumerate(contexts):
@@ -486,7 +484,14 @@ def plot_model_prediction_comparison(cellid, batch, independent_models, dependen
 
 def plot_time_ser_quant(cellid, contexts, probe,
                         multiple_comparisons_axis, cluster_threshold,
-                        alpha=0.05, source='real', meta={}):
+                        alpha=0.05, source='real', secondary_y=False, meta={}):
+    """
+    plot shoing the quantification of time series differences (PSTHs) between context effects.
+    it shows the difference metric (t-score), its threshold for cluster deffinition, the t-score sume for each cluster,
+    and the threshold for cluster significance based on the spermutation distribution.
+    It also displays the are of time bins in clusters that are significant, alongside the center of mass of this
+    significant area.
+    """
     raster_meta = {'montecarlo': 11000,
                    'raster_fs': 30,
                    'reliability': 0.1,
@@ -585,45 +590,63 @@ def plot_time_ser_quant(cellid, contexts, probe,
     # if np.isnan(significant_abs_mass_center): significant_abs_mass_center = 0
     print(f'last bin: {last_bin * 1000:.2f} ms')
 
-    fig = go.Figure()
-    # plots dprime and cluster threshold on primary axis
+    fig = make_subplots(specs=[[{"secondary_y": secondary_y}]])
+
+    # holds tracese for the left and potentially right y axes in lists for easy addition to figure and extraction for more
+    # complex figures. e.g paper
+    main_traces = list()
+    secondary_traces = list()
+
+    # plots main metric e.g. t-stat and cluster threshold on primary axis
     tt, mmdd = squarefy(t, DP)
-    _ = fig.add_trace(go.Scatter(x=tt, y=mmdd, mode='lines', line_color='black', line_width=3,
+
+    main_traces.append(go.Scatter(x=tt, y=mmdd, mode='lines', line_color='black', line_width=3,
                                  name='t-statistic'))
-    _ = fig.add_trace(go.Scatter(x=tt[[0, -1]], y=[CTT] * 2, mode='lines',
+    main_traces.append(go.Scatter(x=tt[[0, -1]], y=[CTT] * 2, mode='lines',
                                  line=dict(color='Black', dash='dash', width=2),
                                  name='t-stat thresold'))
 
-    # cluster and corrected confidence interval of the shuffled clusters
-    tt, mmcc = squarefy(t, CT)
-    _ = fig.add_trace(go.Scatter(x=tt, y=mmcc, mode='lines', line_color=Green, line_dash='dot', line_width=3,
-                                 name='cluster sum'))
-    _ = fig.add_trace(go.Scatter(x=tt[[0, -1]], y=[CI] * 2, mode='lines',
-                                 line=dict(color=Green, dash='dash', width=2),
-                                 name='cluster threshold'))
-
     # significant area under the curve
-    # little hack to add gaps into the area, set d' value to zero where no significance
     _, smm = squarefy(t, signif_mask)
-    wmmdd = np.where(smm, mmdd, 0)
+    wmmdd = np.where(smm, mmdd, 0)# little hack to add gaps into the area, set y value to zero where no significance
     rgb = hex_to_rgb(Green)
     rgba = f'rgba({rgb[0]}, {rgb[1]}, {rgb[2]}, 0.5)'
 
-    _ = fig.add_trace(go.Scatter(x=tt, y=wmmdd, mode='none',
-                                 fill='tozeroy', fillcolor=rgba))
+    main_traces.append(go.Scatter(x=tt, y=wmmdd, mode='none',
+                                 fill='tozeroy', fillcolor=rgba,
+                                 name='integral'))
 
     # center of mass indication: line fom zero to the time series value at that time point
     if not np.isnan(mass_center):
         ytop = DP[np.abs(t - mass_center).argmin()]
-        _ = fig.add_trace(go.Scatter(x=[mass_center] * 2, y=[0, ytop], mode='lines',
-                                     line=dict(color=Purple, width=4)))
+        main_traces.append(go.Scatter(x=[mass_center] * 2, y=[0, ytop], mode='lines',
+                                     line=dict(color=Purple, width=4),
+                                     name='center of mass'))
+
+    for trace in main_traces:
+        fig.add_trace(trace, secondary_y=False) # forces main traces to be on the primary y ax
+
+
+    # cluster and corrected confidence interval of the shuffled clusters, this can be on a secondary y axis
+    tt, mmcc = squarefy(t, CT)
+    secondary_traces.append(go.Scatter(x=tt, y=mmcc, mode='lines',
+                                       line=dict(color=Green, dash='solid',width=3),
+                                 name='cluster sum'))
+    secondary_traces.append(go.Scatter(x=tt[[0, -1]], y=[CI] * 2, mode='lines',
+                                 line=dict(color=Green, dash='dash', width=2),
+                                 name='cluster threshold'))
+
+    for trace in secondary_traces:
+        fig.add_trace(trace, secondary_y=secondary_y)
 
     # formats axis, legend and so on.
     _ = fig.update_xaxes(title=dict(text='time from probe onset (s)', standoff=0))
 
-    _ = fig.update_yaxes(title=dict(text="contexts d'", standoff=0))
+    _ = fig.update_yaxes(title=dict(text="difference (t-score)", standoff=0))
+    if secondary_y:
+        _ = fig.update_yaxes(title=dict(text="cluster sum (t-score)", standoff=0), secondary_y=secondary_y)
 
-    return fig
+    return fig, main_traces, secondary_traces
 
 
 def plot_tiling(picked_id, df, zmax=None, time_metric='last_bin',
@@ -715,7 +738,7 @@ def plot_tiling(picked_id, df, zmax=None, time_metric='last_bin',
     y = [0, 0, h, h, 0]
     fig.add_trace(go.Scatter(x=x, y=y, mode='lines',
                              line=dict(color='black',
-                                       width=2),
+                                       width=1),
                              showlegend=False)
                   )
 
