@@ -3,6 +3,7 @@ import re
 
 import numpy as np
 import pandas as pd
+from scipy.stats import sem
 import plotly.colors as pc
 import plotly.express as px
 import plotly.graph_objects as go
@@ -23,7 +24,7 @@ from src.visualization.fancy_plots import squarefy
 from src.visualization.palette import *
 
 
-def plot_raw_pair(cellid, contexts, probe, type='psth', raster_fs=30, colors=FOURCOLOR, **kwargs):
+def plot_raw_pair(cellid, contexts, probe, type='psth', raster_fs=30, colors=FOURCOLOR, errortype='std', **kwargs):
     prb_idx = probe - 1  # probe names start at 1 but we have zero idex
 
     if 'modelname' in kwargs.keys() and 'batch' in kwargs.keys():
@@ -80,11 +81,16 @@ def plot_raw_pair(cellid, contexts, probe, type='psth', raster_fs=30, colors=FOU
         for nn, (half, color) in enumerate(zip(halfs, part_color)):
 
             if type == 'psth':
-                # find mean and estandard error of the mean for line and confidence interval
+                # find mean and standard error of the mean for line and confidence interval
                 mean_resp = np.mean(eg_raster[:, ctx_idx, :], axis=0)
-                std_resp = np.std(eg_raster[:, ctx_idx, :], axis=0)
+                if errortype == 'std':
+                    err_resp = np.std(eg_raster[:, ctx_idx, :], axis=0)
+                elif errortype == 'sem':
+                    err_resp = sem(eg_raster[:, ctx_idx, :], axis=0)
+                else:
+                    raise ValueError(f"Unknown errortype value {errortype}. Use 'std' or 'sem'")
                 x, y = squarefy(time[half], mean_resp[half])
-                _, ystd = squarefy(time[half], std_resp[half])
+                _, ystd = squarefy(time[half], err_resp[half])
 
                 if not is_pred:
                     # add confidence intervals for real multi trial data
@@ -577,14 +583,16 @@ def plot_time_ser_quant(cellid, contexts, probe,
 
     # calculates center of mass and integral
     integral = np.sum(np.abs(DP[signif_mask])) * np.mean(np.diff(t))
-    print(f"integral: {integral * 1000:.2f} d'*ms")
+    print(f"integral: {integral * 1000:.2f} t-score*ms")
 
     mass_center = np.sum(np.abs(DP[signif_mask]) * t[signif_mask]) / np.sum(np.abs(DP[signif_mask]))
     if np.isnan(mass_center): mass_center = 0
     print(f'center of mass: {mass_center * 1000:.2f} ms')
 
     if np.any(signif_mask):
-        last_bin = np.max(t[signif_mask])
+        dt = np.mean(np.diff(t))
+        mt = t + dt
+        last_bin = np.max(mt[signif_mask])
     else:
         last_bin = 0
     # if np.isnan(significant_abs_mass_center): significant_abs_mass_center = 0
@@ -606,22 +614,30 @@ def plot_time_ser_quant(cellid, contexts, probe,
                                  line=dict(color='Black', dash='dash', width=2),
                                  name='t-stat thresold'))
 
-    # significant area under the curve
+    ## significant area under the curve
     _, smm = squarefy(t, signif_mask)
     wmmdd = np.where(smm, mmdd, 0)# little hack to add gaps into the area, set y value to zero where no significance
-    rgb = hex_to_rgb(Green)
+    rgb = hex_to_rgb(AMPCOLOR)
     rgba = f'rgba({rgb[0]}, {rgb[1]}, {rgb[2]}, 0.5)'
 
     main_traces.append(go.Scatter(x=tt, y=wmmdd, mode='none',
                                  fill='tozeroy', fillcolor=rgba,
                                  name='integral'))
 
-    # center of mass indication: line fom zero to the time series value at that time point
+    ## center of mass indication: line fom zero to the time series value at that time point
     if not np.isnan(mass_center):
         ytop = DP[np.abs(t - mass_center).argmin()]
         main_traces.append(go.Scatter(x=[mass_center] * 2, y=[0, ytop], mode='lines',
-                                     line=dict(color=Purple, width=4),
+                                     line=dict(color=DURCOLOR, width=4),
                                      name='center of mass'))
+
+    ## adds star at the last time bin position
+    if last_bin > 0:
+        main_traces.append(go.Scatter(x=[last_bin], y=[0], mode='markers',
+                                      marker=dict(symbol='star',
+                                                  color=DURCOLOR,
+                                                  size=15),
+                                      name='last bin'))
 
     for trace in main_traces:
         fig.add_trace(trace, secondary_y=False) # forces main traces to be on the primary y ax
@@ -865,44 +881,45 @@ if __name__ == '__main__':
 
     cellid, contexts, probe = 'TNC019a-042-5', (0, 3), 3
     cellid, contexts, probe = 'TNC019a-PC-1', (0, 3), 3
+    cellid, contexts, probe = 'ARM021b-36-8', (0,1), 3 # from paper figur examples
 
-    # digested metric plots aka tile plots
-    df = jl.load(pl.Path(config['paths']['analysis_cache']) / f'220310_ctx_mod_metric_DF_tstat_cluster_mass_BS')
-    df = jl.load(pl.Path(config['paths']['analysis_cache']) / f'220520_minimal_DF')
-    df.query("source == 'real' and mult_comp_corr ==  'bf_cp'  and metric in ['integral', 'last_bin']", inplace=True)
-    tile = plot_tiling('ARM021b-36-8', df,
-                       time_metric='last_bin',
-                       show_coloraxis=False,
-                       # cscales={'integral': 'Greens',
-                       #          'last_bin': 'Purples'}
-                       )
-    tile.show()
-
-    tile = plot_tiling('ARM021b-36-8', df,
-                       time_metric='last_bin',
-                       show_coloraxis=False,
-                       cscales={'integral': 'Greens',
-                                'last_bin': 'Purples'}
-                       )
-    tile.show()
-
-    tile = plot_tiling('ARM021b-36-8', df,
-                       time_metric='last_bin',
-                       show_coloraxis=True,
-                       orientation='h',
-                       cscales={'integral': 'BuGn',
-                                'last_bin': 'BuPu'})
-    tile.show()
+    # # digested metric plots aka tile plots
+    # df = jl.load(pl.Path(config['paths']['analysis_cache']) / f'220310_ctx_mod_metric_DF_tstat_cluster_mass_BS')
+    # df = jl.load(pl.Path(config['paths']['analysis_cache']) / f'220520_minimal_DF')
+    # df.query("source == 'real' and mult_comp_corr ==  'bf_cp'  and metric in ['integral', 'last_bin']", inplace=True)
+    # tile = plot_tiling('ARM021b-36-8', df,
+    #                    time_metric='last_bin',
+    #                    show_coloraxis=False,
+    #                    # cscales={'integral': 'Greens',
+    #                    #          'last_bin': 'Purples'}
+    #                    )
+    # tile.show()
+    #
+    # tile = plot_tiling('ARM021b-36-8', df,
+    #                    time_metric='last_bin',
+    #                    show_coloraxis=False,
+    #                    cscales={'integral': 'Greens',
+    #                             'last_bin': 'Purples'}
+    #                    )
+    # tile.show()
+    #
+    # tile = plot_tiling('ARM021b-36-8', df,
+    #                    time_metric='last_bin',
+    #                    show_coloraxis=True,
+    #                    orientation='h',
+    #                    cscales={'integral': 'BuGn',
+    #                             'last_bin': 'BuPu'})
+    # tile.show()
 
     # # rawish data plots, aka psth, raster and quantification
     # fig = make_subplots(1,4)
     # raster = plot_raw_pair(cellid, contexts, probes, type='raster')
     # psth = plot_raw_pair(cellid, contexts, probe, type='psth')
     # psth.show()
-    # quant0 = plot_time_ser_quant(cellid, contexts, probe, source='real',
-    #                              multiple_comparisons_axis=[1, 2], consecutive=0, cluster_threshold=0.05,
-    #                              fn_name='big_shuff')
-    # quant0.show()
+    quant0,_,_ = plot_time_ser_quant(cellid, contexts, probe, source='real',
+                                 multiple_comparisons_axis=[1, 2], cluster_threshold=0.05,secondary_y=True,
+                                 meta=dict(raster_fs=20))
+    quant0.show()
     # quant1 = plot_time_ser_quant(cellid, contexts, probe, source='real',
     #                              multiple_comparisons_axis=[1,2], consecutive=0, cluster_threshold=0.05,
     #                              fn_name='big_shuff', meta={'montecarlo': 11000})
