@@ -24,7 +24,8 @@ from src.visualization.fancy_plots import squarefy
 from src.visualization.palette import *
 
 
-def plot_raw_pair(cellid, contexts, probe, type='psth', raster_fs=30, colors=FOURCOLOR, errortype='std', **kwargs):
+def plot_raw_pair(cellid, contexts, probe, type='psth', raster_fs=30, colors=FOURCOLOR, errortype='std',
+                  pupil=False, **kwargs):
     prb_idx = probe - 1  # probe names start at 1 but we have zero idex
 
     if 'modelname' in kwargs.keys() and 'batch' in kwargs.keys():
@@ -38,6 +39,8 @@ def plot_raw_pair(cellid, contexts, probe, type='psth', raster_fs=30, colors=FOU
         if type != 'psth':
             print('can only plot psth for predictions, forcing...')
             type = 'psth'
+        if pupil is not False:
+            raise NotImplementedError('cannot make pupil distinction for model predicitonse')
 
     else:
         is_pred = False
@@ -61,6 +64,23 @@ def plot_raw_pair(cellid, contexts, probe, type='psth', raster_fs=30, colors=FOU
         else:
             site_raster, goodcells = load_site_formated_raster(cellid[:7], part='all',
                                                                smoothing_window=smoothing_window, raster_fs=fs)
+
+        if pupil:
+            pup_raster, _ = load_site_formated_raster(cellid[:7], part='all',
+                                                      smoothing_window=0, raster_fs=fs,
+                                                      pupil=True)
+
+            pup_raster = pup_raster.mean(axis=-1, keepdims=True)
+            pup_thresh = np.median(pup_raster)
+
+            if pupil == 'big':
+                pupil_mask = np.broadcast_to(pup_raster < pup_thresh, site_raster.shape)
+            elif pupil == 'small':
+                pupil_mask = np.broadcast_to(pup_raster >= pup_thresh, site_raster.shape)
+            else:
+                raise ValueError(f"pupil parameter must be False, 'big' or 'small. receivede {pupil}")
+
+            site_raster = np.ma.masked_where(pupil_mask, site_raster, copy=False)
 
     eg_raster = site_raster[:, goodcells.index(cellid), :, prb_idx, :]
 
@@ -881,7 +901,7 @@ if __name__ == '__main__':
 
     cellid, contexts, probe = 'TNC019a-042-5', (0, 3), 3
     cellid, contexts, probe = 'TNC019a-PC-1', (0, 3), 3
-    cellid, contexts, probe = 'ARM021b-36-8', (0,1), 3 # from paper figur examples
+    cellid, contexts, probe = 'ARM021b-36-8', (0,1), 3 # from paper figure examples
 
     # # digested metric plots aka tile plots
     # df = jl.load(pl.Path(config['paths']['analysis_cache']) / f'220310_ctx_mod_metric_DF_tstat_cluster_mass_BS')
@@ -914,12 +934,15 @@ if __name__ == '__main__':
     # # rawish data plots, aka psth, raster and quantification
     # fig = make_subplots(1,4)
     # raster = plot_raw_pair(cellid, contexts, probes, type='raster')
-    # psth = plot_raw_pair(cellid, contexts, probe, type='psth')
-    # psth.show()
-    quant0,_,_ = plot_time_ser_quant(cellid, contexts, probe, source='real',
-                                 multiple_comparisons_axis=[1, 2], cluster_threshold=0.05,secondary_y=True,
-                                 meta=dict(raster_fs=20))
-    quant0.show()
+    psth = plot_raw_pair(cellid, contexts, probe, type='psth', raster_fs=20, pupil='big')
+    psth.show()
+
+    psth = plot_raw_pair(cellid, contexts, probe, type='psth', raster_fs=20, pupil='small')
+    psth.show()
+    # quant0,_,_ = plot_time_ser_quant(cellid, contexts, probe, source='real',
+    #                              multiple_comparisons_axis=[1, 2], cluster_threshold=0.05,secondary_y=True,
+    #                              meta=dict(raster_fs=20))
+    # quant0.show()
     # quant1 = plot_time_ser_quant(cellid, contexts, probe, source='real',
     #                              multiple_comparisons_axis=[1,2], consecutive=0, cluster_threshold=0.05,
     #                              fn_name='big_shuff', meta={'montecarlo': 11000})

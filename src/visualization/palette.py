@@ -34,8 +34,8 @@ FOURCOLOR = [Grey, Yellow, Red, Teal, Brown]
 TENCOLOR = ColorList
 
 # region
-A1_COLOR = Orange
-PEG_COLOR = Blue
+A1_COLOR = Blue
+PEG_COLOR = Orange
 REGION_COLORMAP = {'A1': A1_COLOR, 'PEG': PEG_COLOR}
 
 # metric

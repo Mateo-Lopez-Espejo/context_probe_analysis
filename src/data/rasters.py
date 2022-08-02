@@ -2,6 +2,7 @@ import itertools as itt
 import pathlib as pl
 from configparser import ConfigParser
 
+import matplotlib.pyplot as plt
 import numpy as np
 from joblib import Memory
 
@@ -259,7 +260,7 @@ def raster_from_sig(signal, probes, channels, contexts, smooth_window, raster_fs
 @resp_memory.cache(ignore=['recache_rec'])
 def load_site_formated_raster(site, contexts='all', probes='all', part='probe', stim_type = 'permutations',
                               raster_fs=20, reliability=0.1, smoothing_window=0,
-                              zscore=True, recache_rec=False):
+                              zscore=True, recache_rec=False, pupil=False):
     """
     wrapper of wrappers. Load a recording, selects the subset of data (triplets, or permutations), generates raster using
     selected  probes and transitions
@@ -277,7 +278,7 @@ def load_site_formated_raster(site, contexts='all', probes='all', part='probe', 
     :return: nd.array, a raster with shape Repetitions x Cells x Contexts x Probes x Time_bins
     """
 
-    recs, _ = load(site, rasterfs=raster_fs, recache=recache_rec)
+    recs, _ = load(site, rasterfs=raster_fs, recache=recache_rec, pupil=pupil)
     if len(recs) > 2:
         print(f'\n\n{recs.keys()}\n\n')
 
@@ -289,11 +290,23 @@ def load_site_formated_raster(site, contexts='all', probes='all', part='probe', 
     else:
         raise ValueError(f"unknown stim type, use 'triplets' or 'permutations'")
 
-    sig = recs[type_key]['resp']
 
-    # calculates response realiability and select only good cells to improve analysis
-    r_vals, goodcells = signal_reliability(sig, r'\ASTIM_sequence*', threshold=reliability)
-    goodcells = goodcells.tolist()
+    if pupil is False:
+        sig = recs[type_key]['resp']
+
+        # calculates response realiability and select only good cells to improve analysis
+        r_vals, goodcells = signal_reliability(sig, r'\ASTIM_sequence*', threshold=reliability)
+        goodcells = goodcells.tolist()
+
+    elif pupil is True:
+        # instead of folding the neuron responses into a 5 dim array
+        # does the same folding on the pupil values. The output array should be
+        # broadcastable to the response array
+        sig = recs[type_key]['pupil']
+        goodcells = ['pupil']
+    else:
+        raise ValueError(f'pupil must be bool but is {pupil}')
+
 
     # get the full data raster Context x Probe x Rep x Neuron x Time
     raster = raster_from_sig(sig, probes=probes, channels=goodcells, contexts=contexts,

@@ -1,5 +1,6 @@
 from src.data.rasters import load_site_formated_raster
 from src.dim_redux.PCA import load_site_formated_PCs
+from src.dim_redux.dPCA import load_site_formated_dPCs
 
 """
 One cannot pass a cached function as a parameter to another cached function.
@@ -9,4 +10,6 @@ This is necessary so I can pass the string reference as a parameter to other fun
 analysis
 """
 tensor_loaders = {'SC': load_site_formated_raster,
-                  'PCA': load_site_formated_PCs}
+                  'PCA': load_site_formated_PCs,
+                  'dPCA': load_site_formated_dPCs,
+                  }

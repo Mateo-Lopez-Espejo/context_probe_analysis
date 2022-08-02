@@ -2,7 +2,7 @@ import collections as col
 import numpy as np
 from nems import epoch as nep
 from nems.recording import Recording
-from nems.signal import PointProcess
+from nems.signal import PointProcess, RasterizedSignal, TiledSignal
 
 """
 Collection of functions to identify and separate different stimulation paradigms (triplets or all_permuations) when 
@@ -18,7 +18,7 @@ def split_recording(recording, parameters):
 
     def _split_signal(signal, parameters):
         # finds in epochs the transition between one experiment and the next
-        assert type(signal) is PointProcess
+        # assert type(signal) is PointProcess
 
         epochs = signal.epochs
         epoch_names = nep.epoch_names_matching(epochs, '\AFILE_[a-zA-Z]{3}\d{3}[a-z]\d{2}_[ap]_CPN\Z')
@@ -35,9 +35,20 @@ def split_recording(recording, parameters):
             sub_epochs = epochs.loc[(epochs.start >= file.start) & (epochs.end <= file.end), :].copy()
             sub_epochs[['start', 'end']] = sub_epochs[['start', 'end']] - file.start
 
-            sub_data = {cell: spikes[np.logical_and(spikes >= file.start, spikes < file.end)] - file.start
-                        for cell, spikes in signal._data.copy().items()}
+            if type(signal) is PointProcess:
+                sub_data = {cell: spikes[np.logical_and(spikes >= file.start, spikes < file.end)] - file.start
+                            for cell, spikes in signal._data.copy().items()}
+            elif type(signal) is RasterizedSignal:
+                start_idx, end_idx = signal.get_epoch_indices(file['name']).squeeze()
+                sub_data = signal._data[:, start_idx:end_idx]
+            elif type(signal) is TiledSignal:
+                sub_data = {epname: tile for epname, tile in signal._data.items() if epname in sub_epochs.name.unique()}
+            else:
+                raise NotImplementedError('can only split by AllPermutations or Triplets for '
+                                          'PointProcess, RasterizedSignal and TiledSignals'
+                                          f'not {type(signal)}')
 
+            # copies meta over
             try:
                 meta = signal.meta.copy()
                 meta['rawid'] = [meta['rawid'][ff]]
@@ -65,6 +76,11 @@ def split_recording(recording, parameters):
     rec_dict = col.defaultdict(dict)
     metas = dict()
     for signame, signal in recording.signals.items():
+
+        # ignorese unecesary signals, these are dropped in the output
+        if signame in ['pupil_extras']:
+            continue
+
         sub_signals = _split_signal(signal, parameters)
 
         for sig_type, sub_signal in sub_signals.items():

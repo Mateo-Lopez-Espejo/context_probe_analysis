@@ -32,6 +32,9 @@ meta = {'reliability': 0.1,  # r value
 """ 
 note the different files the differences being the addition of integral_A(B,C,D) or the change of firing rate from 
 30hz to 20hz
+
+this script is superceded by 220520_minimal_DF.py for the minimum metrics calculated across the whole duration of the 
+probe response, and by 220719_chunked_amplitude_.py for the metrics calculated on intervals of the probe reponse
 """
 
 summary_DF_file = pl.Path(config['paths']['analysis_cache']) / f'220310_ctx_mod_metric_DF_tstat_cluster_mass_BS' # og

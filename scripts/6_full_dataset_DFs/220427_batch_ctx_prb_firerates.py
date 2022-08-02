@@ -15,20 +15,21 @@ from src.utils.subsets import good_sites as sites
 Corrected version of old FR dataframe which was pulling data from the wrong part of the recording
 see: 210917_batch_context_firerates.py
 This is simplified as it is not pulling firing rates per time bin, but rather the mean across different
-quarters, or all the data
+quarters, or all the data.
+The output of this script is mostly used on the regression analysis relating
 """
 
 config = ConfigParser()
 config.read_file(open(config_path / 'settings.ini'))
 
-meta = {'reliability': 0.1,  # r value
-        'smoothing_window': 0,  # ms
-        'raster_fs': 30,
-        'montecarlo': 11000,
-        'zscore': True,
-        'stim_type': 'permutations'}
+raster_meta = {'reliability': 0.1,  # r value
+               'smoothing_window': 0,  # ms
+               'raster_fs': 20,
+               'zscore': True,
+               'stim_type': 'permutations'}
 
-fr_DF_file = pl.Path(config['paths']['analysis_cache']) / f'220427_ctx_prb_firerates'
+# fr_DF_file = pl.Path(config['paths']['analysis_cache']) / f'220427_ctx_prb_firerates' # 30hz old
+fr_DF_file = pl.Path(config['paths']['analysis_cache']) / f'220719_ctx_prb_firerates' # 20hz
 fr_DF_file.parent.mkdir(parents=True, exist_ok=True)
 
 print(f'all sites: \n{sites}\n')
@@ -45,8 +46,11 @@ else:
 
 for site in tqdm(sites):
 
-    trialR, goodcells = load_site_formated_raster(site, contexts='all', probes='all', raster_fs=meta['raster_fs'],
-                                                  part='all')
+    trialR, goodcells = load_site_formated_raster(site, contexts='all', probes='all',
+                                                  part='all',
+                                                  raster_fs=raster_meta['raster_fs'],
+                                                  reliability=raster_meta['reliability'],
+                                                  smoothing_window=raster_meta['smoothing_window'])
 
     rep, chn, ctx, prb, tme = trialR.shape
 
@@ -110,5 +114,6 @@ if dups > 0:
     print(f'{dups} duplicated rows, what is wrong?, dropping duplicates')
     DF.drop_duplicates(inplace=True)
 
-print(DF.head(10), DF.shape)
+print(DF.head(10))
+print(DF.shape)
 jl.dump(DF, fr_DF_file)

@@ -51,7 +51,7 @@ def create_summary_DF(sites, loading_functions, cluster_thresholds, alpha, monte
         contexts = list(range(0, tstat.shape[2] + 1))
         probes = list(range(1, tstat.shape[2] + 1))
 
-        # creates label dictionalry
+        # creates label dictionary
         dim_labl_dict = {'id': chan_name,
                          'context_pair': [f'{c1:02d}_{c2:02d}' for c1, c2 in itt.combinations(contexts, 2)],
                          'probe': probes,
