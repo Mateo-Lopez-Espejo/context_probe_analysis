@@ -1,4 +1,5 @@
 import itertools as itt
+from warnings import warn
 
 import joblib as jl
 import numpy as np
@@ -6,6 +7,7 @@ import pandas as pd
 from tqdm import tqdm
 
 from src.data.region_map import region_map
+from src.metrics.delta_fr import pairwise_delta_FR
 from src.metrics.consolidated_tstat import tstat_cluster_mass
 from src.metrics.significance import _significance
 from src.metrics.time_series_summary import metrics_to_DF
@@ -13,7 +15,7 @@ from src.utils.dataframes import ndim_array_to_long_DF
 
 
 def create_summary_DF(sites, loading_functions, cluster_thresholds, alpha, montecarlo, raster_meta,
-                      metrics, sources, multiple_corrections, DF_file, recacheDF=True):
+                      metrics, sources, multiple_corrections, DF_file, recacheDF=True, diff_metrics=('T-Score')):
 
     print(f'all sites: \n{sites}\n')
     if DF_file.exists() and not recacheDF:
@@ -58,32 +60,15 @@ def create_summary_DF(sites, loading_functions, cluster_thresholds, alpha, monte
                          'time': np.linspace(0, tstat.shape[-1] / raster_meta['raster_fs'], tstat.shape[-1],
                                              endpoint=False) * 1000}
 
-
         # iterates over real data and shuffled example
         for source in sources:
+            # saves the raw p values  independent of the different  metrics, but for both real and shuffled calculations
             if source == 'real':
-                ts = tstat
                 pvals = clust_quant_pval['pvalue']
             elif source == 'shuffled_eg':
-                ts = shuffled_eg['dprime']
                 pvals = shuffled_eg['pvalue']
-            # consider different multiple comparisons corrections for the significance dependent metrics
-            for corr_name, corr in multiple_corrections.items():
-
-                significance = _significance(pvals, corr, alpha=alpha)
-
-                masked_dprime = np.ma.array(ts, mask=significance == 0)
-
-                df = metrics_to_DF(masked_dprime, dim_labl_dict, metrics=metrics)
-                df['mult_comp_corr'] = corr_name
-                df['analysis'] = fname
-                df['site'] = site
-                df['region'] = region_map[site]
-                df['source'] = source
-                df['cluster_threshold'] = clust_thresh
-                df['stim_count'] = len(probes)
-
-                to_concat.append(df)
+            else:
+                raise ValueError(f'unrecoginzed source {source}')
 
             # keeps raw p values
             pval_lbl_dict = dim_labl_dict.copy()
@@ -99,6 +84,38 @@ def create_summary_DF(sites, loading_functions, cluster_thresholds, alpha, monte
             df['stim_count'] = len(probes)
 
             to_concat.append(df)
+
+            # consider different multiple comparisons corrections for the significance dependent metrics
+            for corr_name, corr in multiple_corrections.items():
+                significance = _significance(pvals, corr, alpha=alpha)
+
+                # Use delta FR as an alternative metric of difference
+                for diff_met_name in diff_metrics:
+                    if diff_met_name == 'T-score':
+                        if source == 'real':
+                            diff_metric = tstat
+                        elif source == 'shuffled_eg':
+                            diff_metric = shuffled_eg['dprime'] # this is a misnomer, it's not a dprime but a T-score
+                    elif diff_met_name == 'delta_FR':
+                        if source == 'real':
+                            diff_metric = pairwise_delta_FR(site, raster_meta=raster_meta, load_fn=fname)
+                        else:
+                            warn(f'delta_FR has only real as source but {source} was given, skipping')
+                            continue
+                    else:
+                        raise ValueError(f'unrecognized diff_metric {diff_met_name}')
+
+                    masked_dprime = np.ma.array(diff_metric, mask=significance == 0)
+                    df = metrics_to_DF(masked_dprime, dim_labl_dict, metrics=metrics)
+                    df['mult_comp_corr'] = corr_name
+                    df['analysis'] = fname
+                    df['site'] = site
+                    df['region'] = region_map[site]
+                    df['source'] = source
+                    df['cluster_threshold'] = clust_thresh
+                    df['stim_count'] = len(probes)
+
+                    to_concat.append(df)
 
     DF = pd.concat(to_concat, ignore_index=True, axis=0)
 

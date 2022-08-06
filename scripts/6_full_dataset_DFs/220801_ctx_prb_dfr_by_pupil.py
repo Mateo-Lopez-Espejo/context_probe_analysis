@@ -14,8 +14,6 @@ from src.utils.subsets import good_sites as sites
 from math import factorial
 
 """
-
-
 the mean of differences is equal to the difference of of means (for paired values).  A smaller and straighforward 
 dataframe can be made by skipping the delta FR, and just calculating the firing rate.
 
