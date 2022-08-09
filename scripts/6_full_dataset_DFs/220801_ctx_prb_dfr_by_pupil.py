@@ -29,7 +29,8 @@ raster_meta = {'reliability': 0.1,  # r value
                'zscore': True,
                'stim_type': 'permutations'}
 
-fr_DF_file = pl.Path(config['paths']['analysis_cache']) / f'220801_pupil_delta_firerates'  # 20hz
+fr_DF_file = pl.Path(config['paths']['analysis_cache']) / f'220801_pupil_delta_firerates'  # OG
+fr_DF_file = pl.Path(config['paths']['analysis_cache']) / f'220808_pupil_fr_by_instance'  # pupil split calculated by instance
 fr_DF_file.parent.mkdir(parents=True, exist_ok=True)
 
 # sites = ['ARM021b']
@@ -76,16 +77,18 @@ for site in tqdm(sites):
 
     # we wanna find instances i.e. cell*ctx*prb that have on average high or low pupil
     # we therefore make the clasification of pupil size on the full instance repetition pupil size
+    # furthermore, the split shoud be done independently per instance
     pupil = np.mean(pupil, axis=-1, keepdims=True)
-    threshold = np.median(pupil)
-    # notices that in numpy masked arrasy, the values marked as True, are masked OUT,
+    thresholds = np.median(pupil, axis=[0, -1], keepdims=True)
+
+    # notices that in numpy masked arrays, the values marked as True, are masked OUT,
     # and not considered during array operations
     for pup_size in ['small', 'big', 'full']:
 
         if pup_size == 'small':
-            mask = np.broadcast_to(pupil >= threshold, trialR.shape)
+            mask = np.broadcast_to(pupil >= thresholds, trialR.shape)
         elif pup_size == 'big':
-            mask = np.broadcast_to(pupil < threshold, trialR.shape)
+            mask = np.broadcast_to(pupil < thresholds, trialR.shape)
         elif pup_size == 'full':
             mask = np.zeros_like(trialR)
 
