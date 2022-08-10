@@ -79,7 +79,7 @@ for site in tqdm(sites):
     # we therefore make the clasification of pupil size on the full instance repetition pupil size
     # furthermore, the split shoud be done independently per instance
     pupil = np.mean(pupil, axis=-1, keepdims=True)
-    thresholds = np.median(pupil, axis=[0, -1], keepdims=True)
+    thresholds = np.median(pupil, axis=0, keepdims=True) # median per trials in each instance.
 
     # notices that in numpy masked arrays, the values marked as True, are masked OUT,
     # and not considered during array operations

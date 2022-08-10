@@ -25,7 +25,7 @@ from src.visualization.palette import *
 
 
 def plot_raw_pair(cellid, contexts, probe, type='psth', raster_fs=30, colors=FOURCOLOR, errortype='std',
-                  pupil=False, **kwargs):
+                  pupil=False, simplify=False, part='all', error_opacity=0.2, **kwargs):
     prb_idx = probe - 1  # probe names start at 1 but we have zero idex
 
     if 'modelname' in kwargs.keys() and 'batch' in kwargs.keys():
@@ -70,8 +70,9 @@ def plot_raw_pair(cellid, contexts, probe, type='psth', raster_fs=30, colors=FOU
                                                       smoothing_window=0, raster_fs=fs,
                                                       pupil=True)
 
-            pup_raster = pup_raster.mean(axis=-1, keepdims=True)
-            pup_thresh = np.median(pup_raster)
+            pup_raster = np.mean(pup_raster, axis=-1, keepdims=True)
+            pup_thresh = np.median(pup_raster, axis=0, keepdims=True)
+
 
             if pupil == 'big':
                 pupil_mask = np.broadcast_to(pup_raster < pup_thresh, site_raster.shape)
@@ -87,7 +88,13 @@ def plot_raw_pair(cellid, contexts, probe, type='psth', raster_fs=30, colors=FOU
     nreps, _, nsamps = eg_raster.shape
     duration = nsamps / fs
     time = np.linspace(0 - duration / 2, duration / 2, nsamps, endpoint=False)
-    halfs = [np.s_[:int(nsamps / 2)], np.s_[int(nsamps / 2):]]
+
+    if part == 'all':
+        halfs = [np.s_[:int(nsamps / 2)], np.s_[int(nsamps / 2):]]
+    elif part == 'probe':
+        halfs = [np.s_[int(nsamps / 2):]]
+    else:
+        raise ValueError(f'undefined value for part paramete: {part}')
 
     fig = go.Figure()
     for cc, ctx_idx in enumerate(contexts):
@@ -95,8 +102,14 @@ def plot_raw_pair(cellid, contexts, probe, type='psth', raster_fs=30, colors=FOU
         if is_pred:
             part_color = [colors[ctx_idx % len(colors)], colors[ctx_idx % len(colors)]]
         else:
-            # probe and context lines have different colors since areas color help identify probes
-            part_color = [colors[ctx_idx % len(colors)], colors[probe % len(colors)]]
+            if simplify is False:
+                # probe and context lines have different colors since areas color help identify probes
+                part_color = [colors[ctx_idx % len(colors)], colors[probe % len(colors)]]
+            elif simplify is True:
+                # the color asociated with the context is also used for the probe
+                part_color = [colors[ctx_idx % len(colors)], colors[ctx_idx % len(colors)]]
+            else:
+                raise ValueError(f'simplify must be bool but is {simplify}')
 
         for nn, (half, color) in enumerate(zip(halfs, part_color)):
 
@@ -112,31 +125,30 @@ def plot_raw_pair(cellid, contexts, probe, type='psth', raster_fs=30, colors=FOU
                 x, y = squarefy(time[half], mean_resp[half])
                 _, ystd = squarefy(time[half], err_resp[half])
 
+
                 if not is_pred:
-                    # add confidence intervals for real multi trial data
-                    if nn == 0:
-                        # same color of ci border line and fill for left-hand side
-                        _ = fig.add_trace(go.Scatter(x=x, y=y + ystd, mode='lines', line_color=color, line_width=1,
-                                                     showlegend=False))
-                        _ = fig.add_trace(go.Scatter(x=x, y=y - ystd, mode='lines', line_color=color, line_width=1,
-                                                     fill='tonexty', showlegend=False))
-                    else:
-                        # different color of ci border line and fill for right-hand side
-                        # to set a transparent fillcolor changes the 'rgb(x,y,z)' into 'rgba(x,y,z,a)'
-                        rgb = hex_to_rgb(part_color[0])  # tuple
-                        fill_opacity = 0.5
-                        rgba = f'rgba({rgb[0]}, {rgb[1]}, {rgb[2]}, {fill_opacity})'
+                    # shadow of confidence interval for data with multiple trials
+                    rgb = hex_to_rgb(part_color[0])  # tuple
+                    fill_color = f'rgba({rgb[0]}, {rgb[1]}, {rgb[2]}, {error_opacity})'
+                    line_color = 'rgba(0,0,0,0)' # transparent line in case its width is changed later outside this func
 
-                        _ = fig.add_trace(go.Scatter(x=x, y=y + ystd, mode='lines', line_color=color, line_width=1,
-                                                     showlegend=False))
-                        _ = fig.add_trace(go.Scatter(x=x, y=y - ystd, mode='lines', line_color=color, line_width=1,
-                                                     fill='tonexty', fillcolor=rgba, showlegend=False))
+                    _ = fig.add_trace(go.Scatter(x=x, y=y + ystd, mode='lines', line_color=line_color, line_width=0,
+                                                 showlegend=False))
+                    _ = fig.add_trace(go.Scatter(x=x, y=y - ystd, mode='lines', line_color=line_color, line_width=0,
+                                                 fill='tonexty', fillcolor=fill_color, showlegend=False))
 
+                ## Main PSHT line ##
                 # add labels to the mean line for the probe only for the simulation ,
-                if nn == 0:
+                if nn == 0 and part == 'all':
                     name = f'context {ctx_idx}'
                 else:
                     name = f'probe {probe} after context {ctx_idx}'
+
+
+                # for the second half prepend the last sample of the first half to create a connector
+                if part == 'all' and nn == 1:
+                    x = np.insert(x, 0, x[0])
+                    y = np.insert(y, 0, mean_resp[halfs[0]][-1])
 
                 # set the mean lines second so they lie on top of the colored areas
                 _ = fig.add_trace(go.Scatter(x=x, y=y, mode='lines', line_color=color, line_width=3,
@@ -168,18 +180,116 @@ def plot_raw_pair(cellid, contexts, probe, type='psth', raster_fs=30, colors=FOU
             else:
                 raise ValueError("undefined plot type, choose psht or raster")
 
+
+    if part == 'all':
+        x_range = [0 - duration / 2, duration / 2]
+    elif part == 'probe':
+        x_range = [0, duration/2]
+    else:
+        raise ValueError(f'undefined value for part paramete: {part}')
+
+
     _ = fig.update_xaxes(title_text='time from probe onset (s)', title_standoff=0,
-                         range=[0 - duration / 2, duration / 2])
+                         range=x_range)
     _ = fig.add_vline(x=0, line_width=2, line_color='black', line_dash='dot', opacity=1)
 
     if type == 'psth':
         _ = fig.update_yaxes(title_text='firing rate (z-score)', title_standoff=0)
     elif type == 'raster':
         _ = fig.update_yaxes(title_text='trials', title_standoff=0, showticklabels=False, range=[0, nreps * 2])
-        fig.update_layout()
+    fig.update_layout(template='simple_white')
 
     return fig
 
+
+def plot_pupil_so_effects(cellid, contexts, probe, raster_fs=30, error_opacity=0.2,):
+
+    prb_idx = probe - 1
+    fs = raster_fs
+    smoothing_window = 50
+
+
+    site_raster, goodcells = load_site_formated_raster(cellid[:7], part='probe',
+                                                       smoothing_window=smoothing_window, raster_fs=fs)
+
+    # pupil size selected for the time average across context and probe response
+    # this is for consistency with the same analysis done on scripts and jupyte notebooks
+    pup_raster, _ = load_site_formated_raster(cellid[:7], part='all',
+                                              smoothing_window=0, raster_fs=fs,
+                                              pupil=True)
+
+
+    # selects neuron, probe and pair of contexts to compare
+    sel_raster = site_raster[:, goodcells.index(cellid), contexts, prb_idx, :]
+    sel_pup = pup_raster[:, 0, contexts, prb_idx, :]
+
+    # define pupil size threhsld independently for each context instance
+    sel_pup = np.mean(sel_pup, axis=-1, keepdims=True)
+    pup_thresh = np.median(sel_pup, axis=0, keepdims=True)
+
+    # masks out trials with opossing pupil size
+    small_mask = np.broadcast_to(sel_pup >= pup_thresh, sel_raster.shape)
+    big_mask = np.broadcast_to(sel_pup < pup_thresh, sel_raster.shape)
+
+    # defines common time values. No need to get
+    _, _, nsamps = sel_raster.shape
+    duration = nsamps / fs
+    time = np.linspace(0, duration, nsamps, endpoint=False)
+
+
+    fig = go.Figure()
+
+    flipper = 1
+
+    for pp,(pup_size, dash, pup_mask) in enumerate(zip(['big', 'small'],
+                                                       ['solid', 'dot'],
+                                                       [big_mask, small_mask])):
+
+        pup_raster = np.ma.masked_where(pup_mask, sel_raster, copy=False)
+        PSTHs = np.mean(pup_raster, axis=0)
+
+        # delta FR
+        DFR = PSTHs[0, :] - PSTHs[1, :]
+
+        # confidence interval: standard error of the difference
+        std = np.sqrt(
+        (sem(np.ma.compress_nd(pup_raster[:,0,:],axis=0), axis=0)**2) +
+        (sem(np.ma.compress_nd(pup_raster[:,1,:],axis=0), axis=0)**2)
+        )
+
+        # check if big pupil DFR is negative, and sets flipper
+        # both  big and small pupil traces are flipped together
+        if pp == 0 and DFR.mean() < 0:
+            flipper = -1
+        DFR *= flipper
+
+        x, y = squarefy(time, DFR)
+        _, yerr = squarefy(time, std)
+
+        # confidence interval shadow area
+        rgb = hex_to_rgb('#000000')  # white -> tuple
+        fill_color = f'rgba({rgb[0]}, {rgb[1]}, {rgb[2]}, {error_opacity})'
+        line_color = 'rgba(0,0,0,0)'  # transparent line in case its width is changed later outside this func
+
+        _ = fig.add_trace(go.Scatter(x=x, y=y + yerr, mode='lines', line_color=line_color, line_width=0,
+                                     showlegend=False))
+        _ = fig.add_trace(go.Scatter(x=x, y=y - yerr, mode='lines', line_color=line_color, line_width=0,
+                                     fill='tonexty', fillcolor=fill_color, showlegend=False))
+
+
+        # meand Delta firing rate
+        _ = fig.add_trace(go.Scatter(x=x, y=y, mode='lines',
+                                     line=dict(color='black',
+                                               dash=dash,
+                                               width=3),
+                                     name=pup_size, showlegend=True))
+
+
+    _ = fig.update_xaxes(title_text='time from probe onset (s)', title_standoff=0)
+    _ = fig.update_yaxes(title_text='delta firing rate (z-score)', title_standoff=0)
+    fig.update_layout(template='simple_white')
+
+    return fig
 
 def plot_pop_modulation(cellid, modelname, batch, contexts, probe, **kwargs):
     fs = int(re.findall('\.fs\d*\.', modelname)[0][3:-1])
@@ -934,11 +1044,14 @@ if __name__ == '__main__':
     # # rawish data plots, aka psth, raster and quantification
     # fig = make_subplots(1,4)
     # raster = plot_raw_pair(cellid, contexts, probes, type='raster')
-    psth = plot_raw_pair(cellid, contexts, probe, type='psth', raster_fs=20, pupil='big')
-    psth.show()
+    # psth = plot_raw_pair(cellid, contexts, probe, type='psth', raster_fs=20, pupil='big')
+    # psth.show()
+    # psth = plot_raw_pair(cellid, contexts, probe, type='psth', raster_fs=20, pupil='small',simplify=True, error_opacity=0.1)
+    # psth.show()
 
-    psth = plot_raw_pair(cellid, contexts, probe, type='psth', raster_fs=20, pupil='small')
-    psth.show()
+    dfr = plot_pupil_so_effects(cellid, contexts, probe, raster_fs=30, error_opacity=0.2)
+    dfr.show()
+
     # quant0,_,_ = plot_time_ser_quant(cellid, contexts, probe, source='real',
     #                              multiple_comparisons_axis=[1, 2], cluster_threshold=0.05,secondary_y=True,
     #                              meta=dict(raster_fs=20))
