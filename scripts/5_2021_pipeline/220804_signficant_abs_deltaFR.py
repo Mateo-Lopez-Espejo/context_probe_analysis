@@ -28,7 +28,7 @@ raster_meta = {'reliability': 0.1,  # r value
                'raster_fs': 20,
                'zscore': True,
                'stim_type': 'permutations'}
-metrics = ['integral', 'integral_A', 'integral_B', 'integral_C', 'integral_D']
+metrics = ['integral', 'integral_A', 'integral_B', 'integral_C', 'integral_D', 'last_bin']
 sources = ['real', ]
 diff_metrics = ['delta_FR', ]
 multiple_corrections = {'bf_cp': [1, 2]}
