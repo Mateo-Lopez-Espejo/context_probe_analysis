@@ -6,7 +6,7 @@ import pandas as pd
 from joblib import Memory
 import pathlib as pl
 
-from nems import db as nd
+from nems.db import pd_query, get_batch_cells
 from nems.xform_helper import find_model_xform_file
 from nems.signal import RasterizedSignal
 from nems.recording import  Recording, load_recording
@@ -14,7 +14,7 @@ from nems.recording import  Recording, load_recording
 from src.data.stim_structure import split_recording
 from src.root_path import config_path
 
-from nems.db import pd_query
+
 from nems_lbhb.baphy_experiment import BAPHYExperiment
 
 
@@ -28,7 +28,7 @@ pred_memory = Memory(str(pl.Path(config['paths']['recording_cache']) / 'predicti
 ###### functions to find cells and  sites given conditions ######
 
 def get_batch_ids(batch):
-    df = nd.get_batch_cells(batch)
+    df = get_batch_cells(batch)
     df['siteid'] = df.cellid.str[:7]
     df.drop(columns='batch', inplace=True)
     return df

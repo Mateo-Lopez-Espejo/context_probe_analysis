@@ -6,9 +6,13 @@ from src.metrics.summaryDF import create_summary_DF
 from src.utils.subsets import good_sites
 
 """
-in this script we use the T-score cluster mass significance test to define significant time bins, and then calculate
-the absolute integral (a measure of amplitude) for the delta firing rate, see diff_metrics = ['delta_FR', ],
-This is the first script implementing and using this new feature, which simplifies the units of the metrics we are displaying
+Following the simplification of the amplitude metric ( the absolute integral of the delta firign rate on significant time bins)
+here we just calculate the absolute delta firing rate disregarding significance, for the quarters of time.
+
+note the "nosig" tag on the metric names. 
+
+I am keeping the significance for the whole integral calculation, as i will use it to filter instances that show any
+significant effects
 """
 
 config = ConfigParser()
@@ -27,13 +31,14 @@ raster_meta = {'reliability': 0.1,  # r value
                'raster_fs': 20,
                'zscore': True,
                'stim_type': 'permutations'}
-metrics = ['integral', 'integral_A', 'integral_B', 'integral_C', 'integral_D', 'last_bin']
+metrics = ['integral', 'integral_nosig_A', 'integral_nosig_B', 'integral_nosig_C', 'integral_nosig_D']
 sources = ['real', ]
 diff_metrics = ['delta_FR', ]
 multiple_corrections = {'bf_cp': [1, 2]}
 
-summary_DF_file = pl.Path(config['paths']['analysis_cache']) / f'220804_significant_abs_deltaFR_DF'
+summary_DF_file = pl.Path(config['paths']['analysis_cache']) / f'220818_abs_deltaFR_DF'
 
 create_summary_DF(sites, loading_functions, cluster_thresholds, alpha, montecarlo, raster_meta, metrics, sources,
-                  multiple_corrections, summary_DF_file, recacheDF=True, diff_metrics=diff_metrics)
+                  multiple_corrections, summary_DF_file, recacheDF=True, diff_metrics=diff_metrics,
+                  keep_pvalues=False)
 

@@ -1,6 +1,5 @@
 import itertools as itt
 import nems.db as nd
-from src.data.load import get_batch_ids
 from src.utils.subsets import good_sites
 
 ##### enqueue.py #####
@@ -12,13 +11,18 @@ script_path = '/auto/users/mateo/code/context_probe_analysis/scripts/0_cluster/t
 
 # Parameters to pass to each job i.e. each function call.
 sites = good_sites
-# sites = {'TNC019a'} # test site
-# cluster_thresholds = [0.05, 0.01] # the more astringent threshold is perhaps not necesary
+
+# some neurons were added and renamed,and must be reprocecced
+sites = {'AMT020a', 'AMT026a', 'AMT028b', 'AMT030a', 'AMT032a', 'ARM017a', 'ARM018a', 'ARM019a', 'ARM029a', 'ARM032a',
+         'CRD002a', 'CRD003b', 'CRD004a', 'CRD005b', 'CRD011c', 'CRD012b', 'CRD019b', 'TNC012a', 'TNC017a', 'TNC019a',
+         'TNC020a', 'TNC021a', 'TNC023a', 'TNC024a', 'TNC028a', 'TNC029a', 'TNC043a', 'TNC044a', 'TNC045a', 'TNC047a',
+         'TNC048a', 'TNC050a', 'TNC051a', 'TNC062a', 'ley070a', 'ley072b', 'ley075b'}
+
+
 cluster_thresholds = [0.05]
 load_fns = ['SC', 'PCA']
-load_fns = ['PCA']
 montecarlo = 11000
-raster_fs = 30
+raster_fs = 20
 
 # iterates over every mode, checks what cells have not been fitted with it and runs the fit command.
 for nn, (site, clust_thresh, load_fn) in enumerate(itt.product(sites, cluster_thresholds, load_fns)):

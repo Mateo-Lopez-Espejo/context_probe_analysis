@@ -15,7 +15,8 @@ from src.utils.dataframes import ndim_array_to_long_DF
 
 
 def create_summary_DF(sites, loading_functions, cluster_thresholds, alpha, montecarlo, raster_meta,
-                      metrics, sources, multiple_corrections, DF_file, recacheDF=True, diff_metrics=('T-Score')):
+                      metrics, sources, multiple_corrections, DF_file, recacheDF=True, diff_metrics=('T-Score'),
+                      keep_pvalues=True):
 
     print(f'all sites: \n{sites}\n')
     if DF_file.exists() and not recacheDF:
@@ -71,19 +72,20 @@ def create_summary_DF(sites, loading_functions, cluster_thresholds, alpha, monte
                 raise ValueError(f'unrecoginzed source {source}')
 
             # keeps raw p values
-            pval_lbl_dict = dim_labl_dict.copy()
-            pval_lbl_dict.pop('time')
-            min_pval = np.min(pvals, axis=-1)
-            df = ndim_array_to_long_DF(min_pval, pval_lbl_dict)
-            df['metric'] = 'pvalue'
-            df['analysis'] = fname
-            df['site'] = site
-            df['region'] = region_map[site]
-            df['source'] = source
-            df['cluster_threshold'] = clust_thresh
-            df['stim_count'] = len(probes)
+            if keep_pvalues:
+                pval_lbl_dict = dim_labl_dict.copy()
+                pval_lbl_dict.pop('time')
+                min_pval = np.min(pvals, axis=-1)
+                df = ndim_array_to_long_DF(min_pval, pval_lbl_dict)
+                df['metric'] = 'pvalue'
+                df['analysis'] = fname
+                df['site'] = site
+                df['region'] = region_map[site]
+                df['source'] = source
+                df['cluster_threshold'] = clust_thresh
+                df['stim_count'] = len(probes)
 
-            to_concat.append(df)
+                to_concat.append(df)
 
             # consider different multiple comparisons corrections for the significance dependent metrics
             for corr_name, corr in multiple_corrections.items():
@@ -122,10 +124,16 @@ def create_summary_DF(sites, loading_functions, cluster_thresholds, alpha, monte
     dups = np.sum(DF.duplicated().values)
     if dups > 0:
         print(f'{dups} duplicated rows, what is wrong?, droping duplicates')
-        DF.drop_duplicates(inplace=True)
+        DF.drop_duplicates(inplace=True, ignore_index=True)
+
+
+    # use categorical columns to save a ton of memory space
+    for col in ['id', 'context_pair', 'probe', 'metric', 'mult_comp_corr',
+                'analysis', 'site', 'region', 'source', 'cluster_threshold',
+                'stim_count']:
+        DF[col] = DF[col].astype('category')
 
     print(DF.head(10))
     print(DF.shape)
     jl.dump(DF, DF_file)
-
     return None

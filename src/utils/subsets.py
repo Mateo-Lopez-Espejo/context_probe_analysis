@@ -9,28 +9,41 @@ from src.data.load import get_CPN_ids, get_runclass_ids, get_batch_ids
 config = ConfigParser()
 config.read_file(open(config_path / 'settings.ini'))
 
-summary_DF_file = pl.Path(config['paths']['analysis_cache']) / f'220310_ctx_mod_metric_DF_tstat_cluster_mass_BS'
-DF = jl.load(summary_DF_file)
+########################################################################################################################
+# site subsets
+
+# bad sites for different reasons
+bad_empirical = {'AMT031a', 'DRX008b', 'DRX021a', 'DRX023a', 'ley074a'}
+no_permutations = {'ley058d'}
+time_shift = {}
+bad_sites = bad_empirical.union(no_permutations).union(time_shift)
+
+# all good sites
+good_sites = set(get_batch_ids(316).siteid)
+good_sites = good_sites.difference(bad_sites)
+
+########################################################################################################################
+# this will get less neurons as it also runs a filter on isolation: >= 95%
+all_cells = set(get_batch_ids(316).query(f"siteid not in {list(bad_sites)}").cellid)
+
+# permutation sites with enough reps, carefull, as this does not filter by isolation
+cell_10 = set(get_CPN_ids(10,'AllPermutations').query(f"siteid not in {list(bad_sites)}").cellid)
 
 # full CPN10_NTI A1 cellid set for model fitting
-selected_sites = set(get_CPN_ids(10,'AllPermutations').siteid
-                     ).intersection(set(get_runclass_ids("NTI").siteid)
-                                    ).intersection(set(get_batch_ids(326).siteid))
-filtered = DF.query("metric in ['integral'] and mult_comp_corr == 'bf_cp' and source == 'real' and "
-                    "cluster_threshold == 0.05 and  value > 0 and "
-                    f"site in {list(selected_sites)}")
-cellid_A1_fit_set = set(filtered['id'].unique())
+all_A1_cells = set(get_batch_ids(326).cellid) # no isolation filter
+cellid_A1_fit_set = all_A1_cells.intersection(cell_10).intersection(all_cells)
 
 
 # full CPN10_NTI PEG cellid set for model fitting
-selected_sites = set(get_CPN_ids(10,'AllPermutations').siteid
-                     ).intersection(set(get_runclass_ids("NTI").siteid)
-                                    ).intersection(set(get_batch_ids(327).siteid))
-filtered = DF.query("metric in ['integral'] and mult_comp_corr == 'bf_cp' and source == 'real' and "
-                    "cluster_threshold == 0.05 and  value > 0 and "
-                    f"site in {list(selected_sites)}")
-cellid_PEG_fit_set = set(filtered['id'].unique())
+all_PEG_cells = set(get_batch_ids(327).cellid)
+cellid_PEG_fit_set = all_PEG_cells.intersection(cell_10).intersection(all_cells)
 
+
+########################################################################################################################
+# smaller subsets used to prototype models
+
+summary_DF_file = pl.Path(config['paths']['analysis_cache']) / f'220310_ctx_mod_metric_DF_tstat_cluster_mass_BS'
+DF = jl.load(summary_DF_file)
 
 # subset 01: CPN10 + NTI, A1, top 20 highest mean(of instancese)-amplitude-integration neurons excluding non significant
 selected_sites = set(get_CPN_ids(10,'AllPermutations').siteid
@@ -54,18 +67,6 @@ top_cells = filtered.groupby(['id', 'metric']).agg(mean_value=("value", 'mean'))
 top_cells = top_cells.reset_index().sort_values(['mean_value'], ascending=False)
 cellid_subset_02 = set(top_cells.head(20)['id'])
 
-########################################################################################################################
-# site subsets
-
-# bad sites for different reasons
-bad_empirical = {'AMT031a', 'DRX008b', 'DRX021a', 'DRX023a', 'ley074a'}
-no_permutations = {'ley058d'}
-time_shift = {}
-bad_sites = bad_empirical.union(no_permutations).union(time_shift)
-
-# all good sites
-good_sites = set(get_batch_ids(316).siteid)
-good_sites = good_sites.difference(bad_sites)
 
 ########################################################################################################################
 # maps neurons to batches. Makes sense since these are brain region dependent batches

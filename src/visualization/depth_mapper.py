@@ -15,8 +15,8 @@ from PyQt5.QtWidgets import QMainWindow
 
 from PyQt5.QtWidgets import QWidget
 from PyQt5.QtWidgets import QSlider
-from qtrangeslider import QRangeSlider
-from qtrangeslider import QLabeledRangeSlider
+# from qtrangeslider import QRangeSlider
+# from qtrangeslider import QLabeledRangeSlider
 from PyQt5.QtWidgets import QLineEdit
 from PyQt5.QtWidgets import QPushButton
 from PyQt5.QtWidgets import QCheckBox

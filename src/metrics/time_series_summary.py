@@ -78,15 +78,19 @@ def _mass_center_chunk_base(array, label_dictionary, start, end):
     return metric, updated_label_dict
 
 
-def _integral_chunk_base(array, label_dictionary, start, end):
+def _integral_chunk_base(array, label_dictionary, start, end, ignore_mask=False):
     """
     :array: shape Cell x Context_Pair x Probe x Time
     :label_dictionary: dict of lists describing each position in the array dimensions
     :start: start of slice in ms
     :end: end of slice in ms
+    :ignore_mask: boolean, if true unmasks the data
     """
     t = np.asarray(label_dictionary['time'])
     idxr = np.argwhere((t >= start) & (t<end)).squeeze(axis=1)
+
+    if ignore_mask:
+        array = array.data
 
     array = array[..., idxr]
     t = t[idxr]
@@ -116,6 +120,23 @@ def integral_D(array, label_dictionary):
     return _integral_chunk_base(array, label_dictionary, start=750, end=1000)
 
 
+# calculates the integral across all data, independent of significance, see ignore_mask = True
+def integral_nosig(array, label_dictionary):
+    return _integral_chunk_base(array, label_dictionary, start=0, end=1000, ignore_mask=True)
+
+def integral_nosig_A(array, label_dictionary):
+    return _integral_chunk_base(array, label_dictionary, start=0, end=250, ignore_mask=True)
+
+def integral_nosig_B(array, label_dictionary):
+    return _integral_chunk_base(array, label_dictionary, start=250, end=500, ignore_mask=True)
+
+def integral_nosig_C(array, label_dictionary):
+    return _integral_chunk_base(array, label_dictionary, start=500, end=750, ignore_mask=True)
+
+def integral_nosig_D(array, label_dictionary):
+    return _integral_chunk_base(array, label_dictionary, start=750, end=1000, ignore_mask=True)
+
+
 all_metrics = {'mass_center': signif_abs_mass_center,
                'integral': signif_abs_sum,
                'last_bin': signif_last_bin,
@@ -124,7 +145,13 @@ all_metrics = {'mass_center': signif_abs_mass_center,
                'integral_A':integral_A,
                'integral_B':integral_B,
                'integral_C':integral_C,
-               'integral_D':integral_D}
+               'integral_D':integral_D,
+               'integral_nosig':integral_nosig,
+               'integral_nosig_A':integral_nosig_A,
+               'integral_nosig_B':integral_nosig_B,
+               'integral_nosig_C':integral_nosig_C,
+               'integral_nosig_D':integral_nosig_D,
+               }
 
 
 ################################################
