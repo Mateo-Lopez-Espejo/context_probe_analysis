@@ -24,8 +24,9 @@ predictions)
 config = ConfigParser()
 config.read_file(open(config_path / 'settings.ini'))
 
-summary_DF_file = pl.Path(config['paths']['analysis_cache']) / f'220412_resp_pred_metrics_by_chunks'
-# summary_DF_file = pl.Path(config['paths']['analysis_cache']) / f'220412_resp_pred_metrics_by_chunks_test'
+summary_DF_file = pl.Path(config['paths']['analysis_cache']) / f'220412_resp_pred_metrics_by_chunks_bak' # old bakcup
+summary_DF_file = pl.Path(config['paths']['analysis_cache']) / f'220412_resp_pred_metrics_by_chunks' # refreshed neuron names/models
+
 summary_DF_file.parent.mkdir(parents=True, exist_ok=True)
 
 metrics = ['integral', 'mass_center', 'integral_trunc1.5', 'mass_center_trunc1.5']

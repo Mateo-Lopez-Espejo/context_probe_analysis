@@ -15,7 +15,7 @@ from src.utils.dataframes import ndim_array_to_long_DF
 
 
 def create_summary_DF(sites, loading_functions, cluster_thresholds, alpha, montecarlo, raster_meta,
-                      metrics, sources, multiple_corrections, DF_file, recacheDF=True, diff_metrics=('T-Score'),
+                      metrics, sources, multiple_corrections, DF_file, recacheDF=True, diff_metrics=('T-score',),
                       keep_pvalues=True):
 
     print(f'all sites: \n{sites}\n')
