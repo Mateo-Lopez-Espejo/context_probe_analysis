@@ -10,6 +10,7 @@ import nems_lbhb.baphy_io as io
 
 from src.root_path import config_path
 from src.data.cell_type import cluster_by_metrics, get_waveform_metrics, get_phototags
+from src.utils.subsets import all_cells as goodcells
 
 
 """
@@ -21,18 +22,10 @@ config = ConfigParser()
 config.read_file(open(config_path / 'settings.ini'))
 
 
-##### get a list of the relevant neurons ####
-summary_DF_file = pl.Path(config['paths']['analysis_cache']) / f'220804_significant_abs_deltaFR_DF'
-DF = jl.load(summary_DF_file).query(f"source == 'real' and metric == 'integral' and "
-                                    f"cluster_threshold == 0.05 and mult_comp_corr == 'bf_cp' and "
-                                    f"analysis == 'SC'")
-
-goodcells = DF.id.unique().tolist()
-
 ##### get waveforms from the selected neurons #####
 print('loading all waveforms into dataframe ...')
 
-df_file = pl.Path(config['paths']['analysis_cache']) / '210816_CPN_celltype_DF'
+df_file = pl.Path(config['paths']['analysis_cache']) / '220816_CPN_celltype_DF'
 recache = True
 
 
@@ -73,7 +66,6 @@ for cellid in tqdm(goodcells):
     df['es'] = (es,)
     df['bs'] = (bs,)
     df['trough'] = (trough,)
-    # df['waveform'] = (mean_waveform.tolist(),) # big lists, avoid for space
     df['waveform_norm'] = (wf.tolist(),)
     df['isolation'] = (isolation,)
 

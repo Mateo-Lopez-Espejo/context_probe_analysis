@@ -31,6 +31,7 @@ raster_meta = {'reliability': 0.1,  # r value
 
 fr_DF_file = pl.Path(config['paths']['analysis_cache']) / f'220801_pupil_delta_firerates'  # OG
 fr_DF_file = pl.Path(config['paths']['analysis_cache']) / f'220808_pupil_fr_by_instance'  # pupil split calculated by instance
+# fr_DF_file = pl.Path(config['paths']['analysis_cache']) / f'220901_raw_fr_by_instance'  # newest version without zscoring firing rates
 fr_DF_file.parent.mkdir(parents=True, exist_ok=True)
 
 # sites = ['ARM021b']
@@ -54,7 +55,8 @@ for site in tqdm(sites):
                                                   part='all',
                                                   raster_fs=raster_meta['raster_fs'],
                                                   reliability=raster_meta['reliability'],
-                                                  smoothing_window=raster_meta['smoothing_window'])
+                                                  smoothing_window=raster_meta['smoothing_window'],
+                                                  zscore=raster_meta['zscore'])
 
     rep, chn, ctx, prb, tme = trialR.shape
 

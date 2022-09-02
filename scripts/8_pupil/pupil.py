@@ -16,9 +16,9 @@ config.read_file(open(config_path / 'settings.ini'))
 
 
 """
-
+acumulate all pupil traceses into a single data structure, organized by site/recording and caches for speed
 """
-# acumulate all pupil traceses, caches for speed
+
 
 no_pupil= {'ley070a', 'CRD003b', 'ley075b', 'ley072b', 'CRD002a'}
 pupil_traces_file = pl.Path(config['paths']['analysis_cache']) / f'220802_pupil_traces'
