@@ -18,6 +18,7 @@ from src.data.rasters import load_site_formated_raster, load_site_formated_predi
 from src.dim_redux.PCA import load_site_formated_PCs
 from src.metrics.consolidated_tstat import tstat_cluster_mass
 from src.metrics.significance import _significance
+from src.metrics.delta_fr import pairwise_delta_FR
 from src.models.param_tools import get_population_weights, get_strf, get_population_influence, get_pred_err, \
     model_independence_comparison
 from src.visualization.fancy_plots import squarefy
@@ -620,7 +621,8 @@ def plot_model_prediction_comparison(cellid, batch, independent_models, dependen
 
 def plot_time_ser_quant(cellid, contexts, probe,
                         multiple_comparisons_axis, cluster_threshold,
-                        alpha=0.05, source='real', secondary_y=False, meta={}):
+                        alpha=0.05, source='real', secondary_y=False,
+                        deltaFR=False, ignore_quant=False, meta={}):
     """
     plot shoing the quantification of time series differences (PSTHs) between context effects.
     it shows the difference metric (t-score), its threshold for cluster deffinition, the t-score sume for each cluster,
@@ -652,6 +654,10 @@ def plot_time_ser_quant(cellid, contexts, probe,
     else:
         raise ValueError(f'{cellid[:7]}, {tstat_cluster_mass}, {cluster_threshold} not yet in cache')
 
+    # uses the absolute delta FR to calculate integral
+    if deltaFR:
+        dfr = pairwise_delta_FR(cellid[:7], raster_meta=raster_meta, load_fn=load_fn)
+
     if source == 'real':
         pvalue = pval_quantiles['pvalue']
     elif source == 'shuffled_eg':
@@ -674,7 +680,6 @@ def plot_time_ser_quant(cellid, contexts, probe,
     else:
         raise ValueError('I dont know what to do with so many multiple_comparisons_axis')
 
-    mult_comp
 
     if type(goodcells) is dict:
         goodcells = list(goodcells.keys())
@@ -683,15 +688,20 @@ def plot_time_ser_quant(cellid, contexts, probe,
         f'{contexts[0]}_{contexts[1]}')
     prb_idx = probe - 1
 
-    # figurese out if need flip
-    # eg_idx = np.s_[cell_idx, pair_idx, prb_idx, :]
+    # figures out if flip is neede
     DP = dprime[cell_idx, pair_idx, prb_idx, :]
+
     if np.sum(DP) < 0:
         flip = -1
     else:
         flip = 1
 
     DP *= flip
+
+    if deltaFR:
+        dfr = dfr[cell_idx, pair_idx, prb_idx, :]
+        dfr *= flip
+
     if mult_comp in pval_quantiles.keys():
         CI = pval_quantiles[mult_comp][cell_idx, pair_idx, prb_idx, 0]
     else:
@@ -711,22 +721,29 @@ def plot_time_ser_quant(cellid, contexts, probe,
     signif_mask = SIG > 0
     t = np.linspace(0, DP.shape[-1] / raster_meta['raster_fs'], DP.shape[-1], endpoint=False)
 
-    # calculates center of mass and integral
-    integral = np.sum(np.abs(DP[signif_mask])) * np.mean(np.diff(t))
-    print(f"integral: {integral * 1000:.2f} t-score*ms")
+    # calculates integral, center of mass and last bin
+    if not ignore_quant:
+        if deltaFR:
+            to_quantify = dfr
+        else:
+            to_quantify = DP
 
-    mass_center = np.sum(np.abs(DP[signif_mask]) * t[signif_mask]) / np.sum(np.abs(DP[signif_mask]))
-    if np.isnan(mass_center): mass_center = 0
-    print(f'center of mass: {mass_center * 1000:.2f} ms')
+        integral = np.sum(np.abs(to_quantify[signif_mask])) * np.mean(np.diff(t))
+        print(f"integral: {integral * 1000:.2f} t-score*ms")
 
-    if np.any(signif_mask):
-        dt = np.mean(np.diff(t))
-        mt = t + dt
-        last_bin = np.max(mt[signif_mask])
-    else:
-        last_bin = 0
-    # if np.isnan(significant_abs_mass_center): significant_abs_mass_center = 0
-    print(f'last bin: {last_bin * 1000:.2f} ms')
+        mass_center = np.sum(np.abs(to_quantify[signif_mask]) * t[signif_mask]) / np.sum(np.abs(to_quantify[signif_mask]))
+        if np.isnan(mass_center): mass_center = 0
+        print(f'center of mass: {mass_center * 1000:.2f} ms')
+
+
+        if np.any(signif_mask):
+            dt = np.mean(np.diff(t))
+            mt = t + dt
+            last_bin = np.max(mt[signif_mask])
+        else:
+            last_bin = 0
+
+        print(f'last bin: {last_bin * 1000:.2f} ms')
 
     fig = make_subplots(specs=[[{"secondary_y": secondary_y}]])
 
@@ -736,38 +753,54 @@ def plot_time_ser_quant(cellid, contexts, probe,
     secondary_traces = list()
 
     # plots main metric e.g. t-stat and cluster threshold on primary axis
-    tt, mmdd = squarefy(t, DP)
+    # if using delta firing rate, plot it as a solid line, and the T-score as a dotted line
+    if deltaFR:
+        tt, mmdd = squarefy(t, dfr)
+        linename = "delta FR"
+    else:
+        tt, mmdd = squarefy(t, DP)
+        linename = 'T-statistic'
 
     main_traces.append(go.Scatter(x=tt, y=mmdd, mode='lines', line_color='black', line_width=3,
-                                 name='t-statistic'))
+                                 name=linename))
     main_traces.append(go.Scatter(x=tt[[0, -1]], y=[CTT] * 2, mode='lines',
                                  line=dict(color='Black', dash='dash', width=2),
-                                 name='t-stat thresold'))
+                                 name='T-stat thresold'))
+
+    if deltaFR:
+        # here adds the T-score values as a dotted line
+        tt, ttss = squarefy(t, DP)
+        main_traces.append(go.Scatter(x=tt, y=ttss, mode='lines',
+                                      line=dict(color='black',
+                                                dash='dot',
+                                                width=3),
+                                      name='T-statistic'))
 
     ## significant area under the curve
-    _, smm = squarefy(t, signif_mask)
-    wmmdd = np.where(smm, mmdd, 0)# little hack to add gaps into the area, set y value to zero where no significance
-    rgb = hex_to_rgb(AMPCOLOR)
-    rgba = f'rgba({rgb[0]}, {rgb[1]}, {rgb[2]}, 0.5)'
+    if not ignore_quant:
+        _, smm = squarefy(t, signif_mask)
+        wmmdd = np.where(smm, mmdd, 0)# little hack to add gaps into the area, set y value to zero where no significance
+        rgb = hex_to_rgb(AMPCOLOR)
+        rgba = f'rgba({rgb[0]}, {rgb[1]}, {rgb[2]}, 0.5)'
 
-    main_traces.append(go.Scatter(x=tt, y=wmmdd, mode='none',
-                                 fill='tozeroy', fillcolor=rgba,
-                                 name='integral'))
+        main_traces.append(go.Scatter(x=tt, y=wmmdd, mode='none',
+                                     fill='tozeroy', fillcolor=rgba,
+                                     name='integral'))
 
-    ## center of mass indication: line fom zero to the time series value at that time point
-    if not np.isnan(mass_center):
-        ytop = DP[np.abs(t - mass_center).argmin()]
-        main_traces.append(go.Scatter(x=[mass_center] * 2, y=[0, ytop], mode='lines',
-                                     line=dict(color=DURCOLOR, width=4),
-                                     name='center of mass'))
+        ## center of mass indication: line fom zero to the time series value at that time point
+        if not np.isnan(mass_center):
+            ytop = DP[np.abs(t - mass_center).argmin()]
+            main_traces.append(go.Scatter(x=[mass_center] * 2, y=[0, ytop], mode='lines',
+                                         line=dict(color=DURCOLOR, width=4),
+                                         name='center of mass'))
 
-    ## adds star at the last time bin position
-    if last_bin > 0:
-        main_traces.append(go.Scatter(x=[last_bin], y=[0], mode='markers',
-                                      marker=dict(symbol='star',
-                                                  color=DURCOLOR,
-                                                  size=15),
-                                      name='last bin'))
+        ## adds star at the last time bin position
+        if last_bin > 0:
+            main_traces.append(go.Scatter(x=[last_bin], y=[0], mode='markers',
+                                          marker=dict(symbol='star',
+                                                      color=DURCOLOR,
+                                                      size=15),
+                                          name='last bin'))
 
     for trace in main_traces:
         fig.add_trace(trace, secondary_y=False) # forces main traces to be on the primary y ax
@@ -793,6 +826,128 @@ def plot_time_ser_quant(cellid, contexts, probe,
         _ = fig.update_yaxes(title=dict(text="cluster sum (t-score)", standoff=0), secondary_y=secondary_y)
 
     return fig, main_traces, secondary_traces
+
+
+
+def plot_simple_quant(cellid, contexts, probe,
+                        multiple_comparisons_axis, cluster_threshold,
+                        alpha=0.05, meta={}):
+    """
+    plot shoing the quantification of time series differences (PSTHs) between context effects.
+    it shows the difference metric (t-score), its threshold for cluster deffinition, the t-score sume for each cluster,
+    and the threshold for cluster significance based on the spermutation distribution.
+    It also displays the are of time bins in clusters that are significant, alongside the center of mass of this
+    significant area.
+    """
+    raster_meta = {'montecarlo': 11000,
+                   'raster_fs': 30,
+                   'reliability': 0.1,
+                   'smoothing_window': 0,
+                   'stim_type': 'permutations',
+                   'zscore': True}
+
+    raster_meta.update(meta)
+    montecarlo = raster_meta.pop('montecarlo')
+
+    if "-PC-" in cellid:
+        load_fn = 'PCA'
+    else:
+        load_fn = 'SC'
+
+    if tstat_cluster_mass.check_call_in_cache(
+            cellid[:7], cluster_threshold=float(cluster_threshold), montecarlo=montecarlo, raster_meta=raster_meta,
+            load_fn=load_fn):
+        _, pval_quantiles, goodcells, _ = tstat_cluster_mass(
+            cellid[:7], cluster_threshold=float(cluster_threshold), montecarlo=montecarlo, raster_meta=raster_meta,
+            load_fn=load_fn)
+    else:
+        raise ValueError(f'{cellid[:7]}, {tstat_cluster_mass}, {cluster_threshold} not yet in cache')
+
+    # uses the absolute delta FR to calculate integral
+    DFR = pairwise_delta_FR(cellid[:7], raster_meta=raster_meta, load_fn=load_fn)
+
+    significance = _significance(pval_quantiles['pvalue'],
+                                 multiple_comparisons_axis=multiple_comparisons_axis,
+                                 alpha=alpha)
+
+    if type(goodcells) is dict:
+        goodcells = list(goodcells.keys())
+    cell_idx = goodcells.index(cellid)
+    pair_idx = [f'{t0}_{t1}' for t0, t1 in itt.combinations(range(DFR.shape[2] + 1), 2)].index(
+        f'{contexts[0]}_{contexts[1]}')
+    prb_idx = probe - 1
+
+    # figures out if flip is neede
+    DFR = DFR[cell_idx, pair_idx, prb_idx, :]
+    DFR = np.abs(DFR)
+
+    SIG = significance[cell_idx, pair_idx, prb_idx, :]
+
+    signif_mask = SIG > 0
+    t = np.linspace(0, DFR.shape[-1] / raster_meta['raster_fs'], DFR.shape[-1], endpoint=False)
+
+    # calculates center of mass and integral
+    integral = np.sum(np.abs(DFR[signif_mask])) * np.mean(np.diff(t))
+    print(f"integral: {integral * 1000:.2f} t-score*ms")
+
+    mass_center = np.sum(np.abs(DFR[signif_mask]) * t[signif_mask]) / np.sum(np.abs(DFR[signif_mask]))
+    if np.isnan(mass_center): mass_center = 0
+    print(f'center of mass: {mass_center * 1000:.2f} ms')
+
+
+    if np.any(signif_mask):
+        dt = np.mean(np.diff(t))
+        mt = t + dt
+        last_bin = np.max(mt[signif_mask])
+    else:
+        last_bin = 0
+
+    print(f'last bin: {last_bin * 1000:.2f} ms')
+
+    fig = go.Figure()
+    main_traces = list()
+
+    # plots delta firing rate
+    tt, mmdd = squarefy(t, DFR)
+
+    main_traces.append(go.Scatter(x=tt, y=mmdd, mode='lines',
+                                  line=dict(color='black',
+                                            width=3),
+                                 name="delta FR"))
+
+    ## significant area under the curve
+    _, smm = squarefy(t, signif_mask)
+    wmmdd = np.where(smm, mmdd, 0)# little hack to add gaps into the area, set y value to zero where no significance
+    rgb = hex_to_rgb(AMPCOLOR)
+    rgba = f'rgba({rgb[0]}, {rgb[1]}, {rgb[2]}, 0.5)'
+
+    main_traces.append(go.Scatter(x=tt, y=wmmdd, mode='none',
+                                 fill='tozeroy', fillcolor=rgba,
+                                 name='integral'))
+
+    ## center of mass indication: line fom zero to the time series value at that time point
+    if not np.isnan(mass_center):
+        ytop = DFR[np.abs(t - mass_center).argmin()]
+        main_traces.append(go.Scatter(x=[mass_center] * 2, y=[0, ytop], mode='lines',
+                                     line=dict(color=DURCOLOR, width=4),
+                                     name='center of mass'))
+
+    ## adds star at the last time bin position
+    if last_bin > 0:
+        main_traces.append(go.Scatter(x=[last_bin], y=[0], mode='markers',
+                                      marker=dict(symbol='star',
+                                                  color=DURCOLOR,
+                                                  size=15),
+                                      name='last bin'))
+
+    fig.add_traces(main_traces) # forces main traces to be on the primary y ax
+
+    # formats axis, legend and so on.
+    _ = fig.update_xaxes(title=dict(text='time from probe onset (s)', standoff=0))
+
+    _ = fig.update_yaxes(title=dict(text="delta Firing Rate", standoff=0))
+
+    return fig
 
 
 def plot_tiling(picked_id, df, zmax=None, time_metric='last_bin',
@@ -1049,13 +1204,25 @@ if __name__ == '__main__':
     # psth = plot_raw_pair(cellid, contexts, probe, type='psth', raster_fs=20, pupil='small',simplify=True, error_opacity=0.1)
     # psth.show()
 
-    dfr = plot_pupil_so_effects(cellid, contexts, probe, raster_fs=30, error_opacity=0.2)
-    dfr.show()
+    # dfr = plot_pupil_so_effects(cellid, contexts, probe, raster_fs=30, error_opacity=0.2)
+    # dfr.show()
 
     # quant0,_,_ = plot_time_ser_quant(cellid, contexts, probe, source='real',
     #                              multiple_comparisons_axis=[1, 2], cluster_threshold=0.05,secondary_y=True,
     #                              meta=dict(raster_fs=20))
     # quant0.show()
+
+    quant0,_,_ = plot_time_ser_quant(cellid, contexts, probe, source='real',
+                                 multiple_comparisons_axis=[1, 2], cluster_threshold=0.05,secondary_y=True,
+                                 meta=dict(raster_fs=20), deltaFR=False, ignore_quant=True)
+    quant0.show()
+
+    quant0 = plot_simple_quant(cellid, contexts, probe,
+                                 multiple_comparisons_axis=[1, 2], cluster_threshold=0.05,
+                                 meta=dict(raster_fs=20))
+
+    quant0.show()
+
     # quant1 = plot_time_ser_quant(cellid, contexts, probe, source='real',
     #                              multiple_comparisons_axis=[1,2], consecutive=0, cluster_threshold=0.05,
     #                              fn_name='big_shuff', meta={'montecarlo': 11000})
