@@ -6,6 +6,9 @@ from src.metrics.summaryDF import create_summary_DF
 from src.utils.subsets import good_sites
 
 """
+DEPRECATED: use instead 220804_singificant_abs_deltaFR
+
+
 Refactored the DF script to be a function that takes all possible combinations of parameters to calculate and store
 This instance calculates the amplitude as the integral of the cluster mass T-Score, for time intervals (chunks) of the 
 probe response. The output of this script is mostly used on the regression analysis relating firing rate to the

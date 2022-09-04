@@ -111,6 +111,7 @@ def create_summary_DF(sites, loading_functions, cluster_thresholds, alpha, monte
                     df = metrics_to_DF(masked_dprime, dim_labl_dict, metrics=metrics)
                     df['mult_comp_corr'] = corr_name
                     df['analysis'] = fname
+                    df['diff_metric'] = diff_met_name
                     df['site'] = site
                     df['region'] = region_map[site]
                     df['source'] = source
@@ -130,7 +131,7 @@ def create_summary_DF(sites, loading_functions, cluster_thresholds, alpha, monte
     # use categorical columns to save a ton of memory space
     for col in ['id', 'context_pair', 'probe', 'metric', 'mult_comp_corr',
                 'analysis', 'site', 'region', 'source', 'cluster_threshold',
-                'stim_count']:
+                'stim_count', 'diff_metric']:
         DF[col] = DF[col].astype('category')
 
     print(DF.head(10))
