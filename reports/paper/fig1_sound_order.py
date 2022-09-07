@@ -5,6 +5,7 @@ from matplotlib.animation import FuncAnimation
 from scipy import signal
 
 import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 plt.style.use('bmh')
 
 from src.root_path import root_path
@@ -114,18 +115,19 @@ Grey = '#BAB0AC'
 colors = [Grey, Yellow, Red, Teal, Brown]
 
 xbox = np.asarray([0,1,1,0,0])
-# color_box_height = 0.75
-ybox = (np.asarray([0,0,1,1,0])-0.5) * 0.75
+color_box_height = 0.75
+ybox = (np.asarray([0,0,1,1,0])-0.5) * color_box_height
 
 # ensures normalized waves fit snug in boxes
-waves = [ww*0.25 for ww in waves]
+waves = [ww*0.5*color_box_height for ww in waves]
 
 
 egbox_height = 0.8
 
+all_figs = list()
 
 fig = go.Figure()
-
+all_figs.append(fig)
 for ss, seq in enumerate(sequences):
     for ww, wave_idx in enumerate(seq):
         color = colors[wave_idx]
@@ -191,6 +193,7 @@ fig.show()
 panelname = 'transitions'
 
 fig = go.Figure()
+all_figs.append(fig)
 xbox = np.asarray([0, 1, 1, 0, 0])
 ybox = (np.asarray([0, 0, 1, 1, 0]) - 0.5) * 0.75
 
@@ -263,6 +266,58 @@ _ = fig.update_layout(width=96 * 2.5, height=96 * 1.5,
                       yaxis=dict(visible=False))
 
 filename = folder / 'fig1_analysis_order'
+fig.write_image(filename.with_suffix('.png'))
+fig.write_image(filename.with_suffix('.svg'))
+fig.show()
+
+
+# plot both together to ensure shared x axis
+fig = make_subplots(rows=1, cols=2, vertical_spacing=0.1, horizontal_spacing=0.05,)
+# figure size in inches at different PPIs
+ppi = 96  # www standard
+
+heigh = 1.5
+width = 5.5  # in inches
+_ = fig.update_layout(template='simple_white',
+                      margin=dict(l=10, r=10, t=10, b=10),
+                      width=round(ppi * width), height=round(ppi * heigh),
+
+                      # sequences
+                      xaxis=dict(domain=[0, 0.55],
+                                 autorange=True,
+                                 constrain='range',
+                                 tickmode='array',
+                                 tickvals=[0, 1],
+                                 ticktext=[0, 1],
+                                 showline=False),
+                      yaxis=dict(scaleanchor='y2',
+                                 autorange=True,
+                                 constrain='domain',
+                                 tickmode='array',
+                                 tickvals=list(range(4)),
+                                 ticktext=[f'Seq.{i + 1}' for i in range(4)],
+                                 ticks='',
+                                 showline=False),
+
+                      # transitions
+                      xaxis2=dict(domain=[0.55, 1],
+                                  constrain='range',
+                                  scaleanchor='x',
+                                  autorange=True, visible=False),
+                      yaxis2=dict(visible=False),
+
+                      showlegend=False,
+                      font_size=10,
+                      )
+# top left
+pan = all_figs[0]['data']
+fig.add_traces(pan, cols=[1] * len(pan), rows=[1] * len(pan))
+
+# top right
+pan = all_figs[1]['data']
+fig.add_traces(pan, cols=[2] * len(pan), rows=[1] * len(pan))
+
+filename = folder / 'fig1_composite_order'
 fig.write_image(filename.with_suffix('.png'))
 fig.write_image(filename.with_suffix('.svg'))
 fig.show()
