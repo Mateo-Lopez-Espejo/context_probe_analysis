@@ -42,6 +42,11 @@ REGION_COLORMAP = {'A1': A1_COLOR, 'PEG': PEG_COLOR}
 AMPCOLOR = Green
 DURCOLOR = Purple
 
+# model colormap
+MODEL_COLORMAP = {'matchl_STRF': Orange,
+                  'matchl_self': Blue,
+                  'matchl_pop': Green,
+                  'matchl_full': Purple}
 
 def add_opacity(hex, opacity):
      return  f'rgba{(*hex_to_rgb(hex), opacity)}'
