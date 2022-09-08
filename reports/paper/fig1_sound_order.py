@@ -80,7 +80,7 @@ def preprocess(wave):
     # sos = signal.butter(4, 5000, 'low', fs=SAMPLERATE, output='sos')
     # filtered = signal.sosfilt(sos, wave)
     # roughly decimate to the denominator samplig rate
-    decimated = signal.decimate(wave,int(SAMPLERATE/2000))
+    decimated = signal.decimate(wave,int(SAMPLERATE/5000))
     decimated = decimated / np.max(np.absolute(decimated))
     return decimated
 
@@ -184,7 +184,7 @@ fig.update_layout(width=96*3, height=96*1.5,
 #                   plot_bgcolor='rgba(0,0,0,0)')
 
 filename = folder / 'fig1_acquisition_order'
-fig.write_image(filename.with_suffix('.png'))
+fig.write_image(filename.with_suffix('.png'), scale=3)
 fig.write_image(filename.with_suffix('.svg'))
 fig.show()
 
@@ -266,7 +266,7 @@ _ = fig.update_layout(width=96 * 2.5, height=96 * 1.5,
                       yaxis=dict(visible=False))
 
 filename = folder / 'fig1_analysis_order'
-fig.write_image(filename.with_suffix('.png'))
+fig.write_image(filename.with_suffix('.png'), scale=3)
 fig.write_image(filename.with_suffix('.svg'))
 fig.show()
 
@@ -318,6 +318,6 @@ pan = all_figs[1]['data']
 fig.add_traces(pan, cols=[2] * len(pan), rows=[1] * len(pan))
 
 filename = folder / 'fig1_composite_order'
-fig.write_image(filename.with_suffix('.png'))
+fig.write_image(filename.with_suffix('.png'), scale=3)
 fig.write_image(filename.with_suffix('.svg'))
 fig.show()
