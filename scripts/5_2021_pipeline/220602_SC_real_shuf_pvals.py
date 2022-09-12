@@ -14,7 +14,7 @@ config = ConfigParser()
 config.read_file(open(config_path / 'settings.ini'))
 
 
-# Kinda baseline minimal parameterse
+# Kinda baseline minimal parameters
 
 sites = good_sites
 loading_functions = ['SC']
@@ -26,18 +26,20 @@ raster_meta = {'reliability': 0.1,  # r value
                'raster_fs': 20,
                'zscore': True,
                'stim_type': 'permutations'}
+
+diff_metrics = ['T-score', ] # forced to use T scores as its the method that has a shuffled example
 metrics = []  # no need for metrics, just significance
 sources = ['real', 'shuffled_eg']
 multiple_corrections = dict()  # since alphas will be dynamic, cant use these presets
 
 summary_DF_file = pl.Path(config['paths']['analysis_cache']) / f'220602_SC_pvals_subsample'
 create_summary_DF(sites, loading_functions, cluster_thresholds, alpha, montecarlo, raster_meta, metrics, sources,
-                  multiple_corrections, summary_DF_file, recacheDF=False)
+                  multiple_corrections, summary_DF_file, diff_metrics, keep_pvalues=True, recacheDF=True)
 
 
 metrics = ['integral']
 sources = ['real', 'shuffled_eg']
-multiple_corrections = {'bf_cp': [1, 2]}
+multiple_corrections = {'bf_cp': [1, 2]} # only interested in single neurons
 summary_DF_file = pl.Path(config['paths']['analysis_cache']) / f'220602_SC_real_shuffled'
 create_summary_DF(sites, loading_functions, cluster_thresholds, alpha, montecarlo, raster_meta, metrics, sources,
-                  multiple_corrections, summary_DF_file, recacheDF=False)
+                  multiple_corrections, summary_DF_file, diff_metrics, keep_pvalues=False, recacheDF=True)
