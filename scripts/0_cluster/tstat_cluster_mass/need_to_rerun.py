@@ -4,7 +4,7 @@ from configparser import ConfigParser
 import joblib as jl
 from src.data.load import get_batch_ids
 from src.root_path import config_path
-from src.utils.subsets import bad_sites
+from src.utils.subsets import bad_sites, all_cells
 
 config = ConfigParser()
 config.read_file(open(config_path / 'settings.ini'))
@@ -14,8 +14,6 @@ summary_DF_file = pl.Path(config['paths']['analysis_cache']) / f'220520_minimal_
 DF = jl.load(summary_DF_file)
 
 proc_cells = set(DF.query("analysis == 'SC'").id.unique())
-
-all_cells = set(get_batch_ids(316).query(f"siteid not in {list(bad_sites)}").cellid.unique())
 
 to_reprocess = all_cells.difference(proc_cells)
 

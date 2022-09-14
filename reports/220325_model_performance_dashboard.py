@@ -208,7 +208,7 @@ def _plot_sample_details(real_pic, mod_pic):
     cellid, contexts, probe = callbacks_to_input(real_pic, mod_pic)
 
     fig = make_subplots(1, 2, subplot_titles=(f'contexts: {contexts}; probe: {probe}', 'significant regions p<0.05'))
-    psth = plot_raw_pair(cellid, contexts, probe, type=raw_type)
+    psth = plot_raw_pair(cellid, contexts, probe, mode=raw_type)
     quant_diff = plot_time_ser_quant(cellid, contexts, probe,
                                      multiple_comparisons_axis=[1, 2], consecutive=0, cluster_threshold=0.05,
                                      meta=meta)
@@ -237,7 +237,7 @@ def _plot_multiple_predictions(real_pic, mod_pic):
                         shared_xaxes=True, shared_yaxes=True)
 
     for midx, (name, modelname) in enumerate(modelnames.items()):
-        psth = plot_raw_pair(cellid, contexts, probe, type='psth', modelname=modelname, batch=batch_map[cellid])
+        psth = plot_raw_pair(cellid, contexts, probe, mode='psth', modelname=modelname, batch=batch_map[cellid])
         fig.add_traces(psth['data'], rows=[1] * len(psth['data']), cols=[midx + 1] * len(psth['data']))
         fig.add_vline(x=0, line_width=2, line_color='black', line_dash='dot', opacity=1, row=1, col=midx + 1)
 

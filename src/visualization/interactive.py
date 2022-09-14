@@ -20,35 +20,39 @@ from src.metrics.consolidated_tstat import tstat_cluster_mass
 from src.metrics.significance import _significance
 from src.metrics.delta_fr import pairwise_delta_FR
 from src.models.param_tools import get_population_weights, get_strf, get_population_influence, get_pred_err, \
-    model_independence_comparison
+    model_independence_comparison, load_cell_formated_resp_pred
 from src.visualization.fancy_plots import squarefy
 from src.visualization.palette import *
 
 
-def plot_raw_pair(cellid, contexts, probe, type='psth', raster_fs=30, colors=FOURCOLOR, errortype='std',
-                  pupil=False, simplify=False, part='all', error_opacity=0.2, **kwargs):
+def plot_raw_pair(cellid, contexts, probe, mode='psth', raster_fs=30, colors=FOURCOLOR, errortype='std',
+                  pupil=False, simplify=False, part='all', mod_disp='both', fill_between=False, error_opacity=0.2, **kwargs):
     prb_idx = probe - 1  # probe names start at 1 but we have zero idex
 
     if 'modelname' in kwargs.keys() and 'batch' in kwargs.keys():
         is_pred = True
         fs = int(re.findall('\.fs\d*\.', kwargs['modelname'])[0][3:-1])
         if raster_fs != fs: print("enforcing model raster_fs")
-        # fs = 100 # hard code for now for model fittings
-        site_raster, goodcells = load_site_formated_prediction(cellid[:7], part='all', raster_fs=fs, cellid=cellid,
-                                                               **kwargs)
+
+        # LEGACY, uncoment if something breaks
+        # site_raster, goodcells = load_site_formated_prediction(cellid[:7], part='all', raster_fs=fs, cellid=cellid,
+        #                                                        **kwargs)
+
+        site_raster, pred_raster, goodcells = load_cell_formated_resp_pred(cellid, part='all', modelname=kwargs['modelname'],
+                                                                           batch=kwargs['batch'])
         # force PSTH
-        if type != 'psth':
+        if mode != 'psth':
             print('can only plot psth for predictions, forcing...')
-            type = 'psth'
+            mode = 'psth'
         if pupil is not False:
             raise NotImplementedError('cannot make pupil distinction for model predicitonse')
 
     else:
         is_pred = False
-        if type == 'psth':
+        if mode == 'psth':
             fs = raster_fs
             smoothing_window = 50
-        elif type == 'raster':
+        elif mode == 'raster':
             if raster_fs < 100:
                 print(f'raster_fs={raster_fs} is too low for a good scatter. defaulting to 100hz')
                 fs = 100
@@ -74,7 +78,6 @@ def plot_raw_pair(cellid, contexts, probe, type='psth', raster_fs=30, colors=FOU
             pup_raster = np.mean(pup_raster, axis=-1, keepdims=True)
             pup_thresh = np.median(pup_raster, axis=0, keepdims=True)
 
-
             if pupil == 'big':
                 pupil_mask = np.broadcast_to(pup_raster < pup_thresh, site_raster.shape)
             elif pupil == 'small':
@@ -85,6 +88,8 @@ def plot_raw_pair(cellid, contexts, probe, type='psth', raster_fs=30, colors=FOU
             site_raster = np.ma.masked_where(pupil_mask, site_raster, copy=False)
 
     eg_raster = site_raster[:, goodcells.index(cellid), :, prb_idx, :]
+    if is_pred:
+        eg_pred = pred_raster[:, goodcells.index(cellid), :, prb_idx, :]
 
     nreps, _, nsamps = eg_raster.shape
     duration = nsamps / fs
@@ -114,7 +119,7 @@ def plot_raw_pair(cellid, contexts, probe, type='psth', raster_fs=30, colors=FOU
 
         for nn, (half, color) in enumerate(zip(halfs, part_color)):
 
-            if type == 'psth':
+            if mode == 'psth':
                 # find mean and standard error of the mean for line and confidence interval
                 mean_resp = np.mean(eg_raster[:, ctx_idx, :], axis=0)
                 if errortype == 'std':
@@ -123,11 +128,41 @@ def plot_raw_pair(cellid, contexts, probe, type='psth', raster_fs=30, colors=FOU
                     err_resp = sem(eg_raster[:, ctx_idx, :], axis=0)
                 else:
                     raise ValueError(f"Unknown errortype value {errortype}. Use 'std' or 'sem'")
+
+                # Labels the line with
+                if nn == 0 and part == 'all':
+                    name = f'context {ctx_idx}'
+                else:
+                    name = f'probe {probe} after context {ctx_idx}'
+
                 x, y = squarefy(time[half], mean_resp[half])
                 _, ystd = squarefy(time[half], err_resp[half])
 
+                # confidence interval for real data, and prediciton for model fits
+                if is_pred and (mod_disp in ['pred', 'both']):
+                    mean_pred = np.mean(eg_pred[:, ctx_idx, :], axis=0)
 
-                if not is_pred:
+                    name = f'{name} prediction'
+                    xp, yp = squarefy(time[half], mean_pred[half])
+
+                    if part == 'all' and nn == 1:
+                        xp = np.insert(xp, 0, xp[0])
+                        yp = np.insert(yp, 0, mean_resp[halfs[0]][-1])
+
+                    # fill the area between context effects to highlight difference!
+                    if fill_between and part =='probe' and cc == 1:
+                        rgb = hex_to_rgb(Grey)  # tuple
+                        fill_color = f'rgba({rgb[0]}, {rgb[1]}, {rgb[2]}, {error_opacity})'
+                        _ = fig.add_trace(go.Scatter(x=xp, y=yp, mode='lines',
+                                                     line=dict(color='rgba(0,0,0,0)'),
+                                                     fill='tonexty', fillcolor=fill_color,
+                                                     name='difference', showlegend=False))
+
+                    _ = fig.add_trace(go.Scatter(x=xp, y=yp, mode='lines',
+                                                 line=dict(color=color, width=3, dash='dot'),
+                                                 name=name, showlegend=True))
+
+                elif not is_pred and not fill_between:
                     # shadow of confidence interval for data with multiple trials
                     rgb = hex_to_rgb(part_color[0])  # tuple
                     fill_color = f'rgba({rgb[0]}, {rgb[1]}, {rgb[2]}, {error_opacity})'
@@ -139,25 +174,30 @@ def plot_raw_pair(cellid, contexts, probe, type='psth', raster_fs=30, colors=FOU
                                                  fill='tonexty', fillcolor=fill_color, showlegend=False))
 
                 ## Main PSHT line ##
-                # add labels to the mean line for the probe only for the simulation ,
-                if nn == 0 and part == 'all':
-                    name = f'context {ctx_idx}'
-                else:
-                    name = f'probe {probe} after context {ctx_idx}'
-
-
-                # for the second half prepend the last sample of the first half to create a connector
-                if part == 'all' and nn == 1:
-                    x = np.insert(x, 0, x[0])
-                    y = np.insert(y, 0, mean_resp[halfs[0]][-1])
-
                 # set the mean lines second so they lie on top of the colored areas
-                _ = fig.add_trace(go.Scatter(x=x, y=y, mode='lines', line_color=color, line_width=3,
-                                             name=name, showlegend=True))
+
+                if not(is_pred and mod_disp == 'pred'):
+
+                    # for the second half prepend the last sample of the first half to create a connector
+                    if part == 'all' and nn == 1:
+                        x = np.insert(x, 0, x[0])
+                        y = np.insert(y, 0, mean_resp[halfs[0]][-1])
+
+                    if fill_between and part == 'probe' and cc == 1:
+                        rgb = hex_to_rgb(Grey)  # tuple
+                        fill_color = f'rgba({rgb[0]}, {rgb[1]}, {rgb[2]}, {error_opacity})'
+                        _ = fig.add_trace(go.Scatter(x=x, y=y, mode='lines',
+                                                     # line=dict(color='rgba(0,0,0,0)'),
+                                                     line=dict(color='black'),
+                                                     fill='tonexty', fillcolor=fill_color,
+                                                     name='difference', showlegend=False))
+
+                    _ = fig.add_trace(go.Scatter(x=x, y=y, mode='lines', line_color=color, line_width=3,
+                                              name=name, showlegend=True))
 
 
 
-            elif type == 'raster':
+            elif mode == 'raster':
                 y, x = np.where(eg_raster[:, ctx_idx, half] > 0)
                 x_offset = time[half][0]
                 x = (x / fs) + x_offset
@@ -194,9 +234,9 @@ def plot_raw_pair(cellid, contexts, probe, type='psth', raster_fs=30, colors=FOU
                          range=x_range)
     _ = fig.add_vline(x=0, line_width=2, line_color='black', line_dash='dot', opacity=1)
 
-    if type == 'psth':
+    if mode == 'psth':
         _ = fig.update_yaxes(title_text='firing rate (z-score)', title_standoff=0)
-    elif type == 'raster':
+    elif mode == 'raster':
         _ = fig.update_yaxes(title_text='trials', title_standoff=0, showticklabels=False, range=[0, nreps * 2])
     fig.update_layout(template='simple_white')
 
@@ -1167,6 +1207,7 @@ if __name__ == '__main__':
     cellid, contexts, probe = 'TNC019a-042-5', (0, 3), 3
     cellid, contexts, probe = 'TNC019a-PC-1', (0, 3), 3
     cellid, contexts, probe = 'ARM021b-36-8', (0,1), 3 # from paper figure examples
+    cellid, contexts, probe = 'TNC014a-22-2', (0, 8), 3 # form paper modeling figure
 
     # # digested metric plots aka tile plots
     # df = jl.load(pl.Path(config['paths']['analysis_cache']) / f'220310_ctx_mod_metric_DF_tstat_cluster_mass_BS')
@@ -1212,16 +1253,16 @@ if __name__ == '__main__':
     #                              meta=dict(raster_fs=20))
     # quant0.show()
 
-    quant0,_,_ = plot_time_ser_quant(cellid, contexts, probe, source='real',
-                                 multiple_comparisons_axis=[1, 2], cluster_threshold=0.05,secondary_y=True,
-                                 meta=dict(raster_fs=20), deltaFR=False, ignore_quant=True)
-    quant0.show()
-
-    quant0 = plot_simple_quant(cellid, contexts, probe,
-                                 multiple_comparisons_axis=[1, 2], cluster_threshold=0.05,
-                                 meta=dict(raster_fs=20))
-
-    quant0.show()
+    # quant0,_,_ = plot_time_ser_quant(cellid, contexts, probe, source='real',
+    #                              multiple_comparisons_axis=[1, 2], cluster_threshold=0.05,secondary_y=True,
+    #                              meta=dict(raster_fs=20), deltaFR=False, ignore_quant=True)
+    # quant0.show()
+    #
+    # quant0 = plot_simple_quant(cellid, contexts, probe,
+    #                              multiple_comparisons_axis=[1, 2], cluster_threshold=0.05,
+    #                              meta=dict(raster_fs=20))
+    #
+    # quant0.show()
 
     # quant1 = plot_time_ser_quant(cellid, contexts, probe, source='real',
     #                              multiple_comparisons_axis=[1,2], consecutive=0, cluster_threshold=0.05,
@@ -1243,8 +1284,13 @@ if __name__ == '__main__':
     # fig = plot_strf(cellid, modelname, batch)
     # fig.show()
 
-    # # raw prediction plot
-    # psth_pred = plot_raw_pair(cellid, contexts, probes, modelname=modelname, batch=batch)
+    # raw prediction plot
+    # psth_pred = plot_raw_pair(cellid, contexts, probe,
+    #                           modelname=modelname, batch=batch,
+    #                           part='probe', mod_disp='pred', fill_between=True)
+    # psth_pred.show()
+
+    # psth_pred = plot_raw_pair(cellid, contexts, probe, raster_fs=20)
     # psth_pred.show()
 
     # # population modulation

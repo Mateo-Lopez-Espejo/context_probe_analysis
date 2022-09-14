@@ -5,6 +5,7 @@ import nems.db as nd
 import nems.utils
 import nems.utils
 from src.metrics.consolidated_tstat import tstat_cluster_mass
+from src.data.tensor_loaders import tensor_loaders
 
 if 'QUEUEID' in os.environ:
     queueid = os.environ['QUEUEID']
@@ -30,6 +31,10 @@ raster_meta = {'reliability': 0.1,  # r value
                'stim_type': 'permutations'}
 
 print(f"running single_cell_dprimes for site {site} with threshold {cluster_threshold} and meta:{raster_meta} ")
+
+# ensures raster is recached
+trialR, goodcells = tensor_loaders[load_fn].call(site, recache_rec=True, **raster_meta)
+print(goodcells)
 
 # the call method, instead of normal function call, forces recache!
 _ = tstat_cluster_mass.call(site, cluster_threshold=cluster_threshold, montecarlo=montecarlo,

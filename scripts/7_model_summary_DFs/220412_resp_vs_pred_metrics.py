@@ -33,7 +33,7 @@ metrics = ['integral', 'mass_center', 'integral_trunc1.5', 'mass_center_trunc1.5
 
 #  ctxpr, prb, tme
 # asumes modelse with fr 100 and duration 1 second. assersion appear late
-big_time_bins = {'A': np.s_[:, :, :25],
+time_chunks = {'A': np.s_[:, :, :25],
                  'B': np.s_[:, :, 25:50],
                  'C': np.s_[:, :, 50:75],
                  'D': np.s_[:, :, 75:],
@@ -100,7 +100,7 @@ for cellid, nickname in tqdm(cells_models_todo(), total=total_iter):
     time = np.linspace(0, diff_resp.shape[-1] / fs, diff_resp.shape[-1],
                        endpoint=False) * 1000
 
-    for bin_name, slicer in big_time_bins.items():
+    for chunk_name, slicer in time_chunks.items():
         diff_resp_chunk = diff_resp[slicer][np.newaxis, ...]
         diff_pred_chunk = diff_pred[slicer][np.newaxis, ...]
 
@@ -122,12 +122,19 @@ for cellid, nickname in tqdm(cells_models_todo(), total=total_iter):
         df['site'] = site
         df['region'] = region_map[site]
         df['stim_count'] = len(probes)
-        df['time_bin'] = bin_name
+        df['chunk'] = bin_name
         to_concat.append(df)
 
 DF = pd.concat(to_concat, ignore_index=True, axis=0)
 
 print(f'###### {len(not_fitted)} not fitted: ######\n', not_fitted)
+
+for col in  ['id', 'context_pair', 'probe', 'metric', 'modelname', 'nickname', 'site',
+             'region', 'stim_count', 'chunk']:
+    DF[col] = DF[col].astype('category')
+
+for col in ['value', 'resp']:
+    DF[col] = pd.to_numeric(DF[col], downcast='float')
 
 dups = np.sum(DF.duplicated().values)
 if dups > 0:

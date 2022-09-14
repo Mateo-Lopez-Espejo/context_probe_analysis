@@ -154,6 +154,36 @@ def get_pop_eg_psth(cellid, batch, modelname, part='all'):
 
     return resp_raster, pop_raster
 
+### single neuron resp and pred
+def load_cell_formated_resp_pred(cellid, contexts='all', probes='all', part='probe', modelname=None, batch=None, **kwargs):
+
+    defaults = {'reliability': 0.1,
+            'smoothing_window': 0,
+            'stim_type': 'permutations',
+            'zscore': False}
+    meta = kwargs
+    meta.update(defaults)
+
+
+    ctx = load_model_xform_faster(cellid=cellid, batch=batch, modelname=modelname)
+
+    resp = ctx['val']['resp']
+    pred = ctx['val']['pred']
+    pred.chans = resp.chans
+
+    raster_resp = raster_from_sig(resp, probes=probes, channels=resp.chans[0], contexts=contexts,
+                                  smooth_window=0, raster_fs=resp.fs,
+                                  stim_type='permutations',
+                                  zscore=False, part=part)
+
+    raster_pred = raster_from_sig(pred, probes=probes, channels=pred.chans[0], contexts=contexts,
+                                  smooth_window=meta['smoothing_window'], raster_fs=pred.fs,
+                                  stim_type=meta['stim_type'],
+                                  zscore=meta['zscore'], part=part)
+
+
+    return raster_resp, raster_pred, [resp.chans[0]]
+
 #### more complex prediction comparisons ###
 
 def model_independence_comparison(cellid, batch, independent_models, dependent_model, part):
@@ -196,4 +226,5 @@ if __name__ == '__main__':
     # mean_pop_gain = get_strf(cellid=cellid, batch=batch, modelname=modelname)
     # mean_pop_gain = get_population_influence(cellid=cellid, batch=batch, modelname=modelname)
     # acc, diff_acc = get_pred_err(cellid, batch, modelname, part='probe')
-    out = get_pop_eg_psth(cellid, batch, modelname, part='all')
+    # out = get_pop_eg_psth(cellid, batch, modelname, part='all')
+    out = load_cell_formated_resp_pred(cellid, contexts='all', probes='all', part='probe', modelname=modelname, batch=batch)
