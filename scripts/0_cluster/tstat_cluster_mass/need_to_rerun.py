@@ -18,7 +18,24 @@ proc_cells = set(DF.query("analysis == 'SC'").id.unique())
 all_cells = set(get_batch_ids(316).query(f"siteid not in {list(bad_sites)}").cellid.unique())
 
 to_reprocess = all_cells.difference(proc_cells)
-
-to_reprocess = set(c.split('-')[0] for c in to_reprocess)
-
 print(to_reprocess)
+print(len(to_reprocess))
+
+to_reprocess_sites = set(c.split('-')[0] for c in to_reprocess)
+print(to_reprocess_sites)
+print(len(to_reprocess_sites))
+
+# check particularly bad ones
+longs= list()
+for bad in to_reprocess_sites:
+    bb = set([c for c in proc_cells if c.split('-')[0] == bad])
+    BB = set([c for c in all_cells if c.split('-')[0] == bad])
+
+    print(BB.difference(bb))
+    print(f"{len(BB.difference(bb))} of {len(BB)}")
+    if len(BB.difference(bb)) > 10:
+        longs.append(bad)
+
+print(f'sites with more than 10 neurons missing: {longs}')
+
+

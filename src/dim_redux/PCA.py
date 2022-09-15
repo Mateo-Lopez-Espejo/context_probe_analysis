@@ -95,6 +95,7 @@ def load_site_formated_PCs(site, part='probe', recache_rec=False, **kwargs):
     """
 
     # Load full raster but uses only the probe to fit the PCA.
+    _ = load_site_formated_raster.call(site, part='all', recache_rec=recache_rec, **kwargs)
     raster, goodcells = load_site_formated_raster(site, part='all', recache_rec=recache_rec, **kwargs)
 
     raster_fit = raster[...,int(raster.shape[-1]/2):]
