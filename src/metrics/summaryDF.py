@@ -135,6 +135,8 @@ def create_summary_DF(sites, loading_functions, cluster_thresholds, alpha, monte
                 'stim_count', 'diff_metric']:
             DF[col] = DF[col].astype('category')
 
+    DF['value'] = pd.to_numeric(DF['value'], downcast='float')
+
     print(DF.head(10))
     print(DF.shape)
     jl.dump(DF, DF_file)

@@ -194,7 +194,7 @@ def _plot_sample_details(SC_pic, PC_pic, raw_type):
     cellid, contexts, probe = callbacks_to_input(SC_pic, PC_pic, only_update_cp=True)
 
     fig = make_subplots(1, 2, subplot_titles=(f'contexts: {contexts}; probe: {probe}', 'significant regions p<0.05'))
-    psth = plot_raw_pair(cellid, contexts, probe, type=raw_type, raster_fs=meta['raster_fs'])
+    psth = plot_raw_pair(cellid, contexts, probe, mode=raw_type, raster_fs=meta['raster_fs'])
     quant_diff = plot_time_ser_quant(cellid, contexts, probe,
                                      multiple_comparisons_axis=[1, 2], cluster_threshold=0.05,
                                      meta=meta)
@@ -224,7 +224,7 @@ def _plot_PC_details(SC_pic, PCA_pic, sel_PC):
     cellid = f"{cellid.split('-')[0]}-PC-{sel_PC}"
 
     fig = make_subplots(1, 2, subplot_titles=(f'contexts: {contexts}; probe: {probe}', 'significant regions p<0.05'))
-    psth = plot_raw_pair(cellid, contexts, probe, type='psth', raster_fs=meta['raster_fs'])
+    psth = plot_raw_pair(cellid, contexts, probe, mode='psth', raster_fs=meta['raster_fs'])
     quant_diff = plot_time_ser_quant(cellid, contexts, probe,
                                      multiple_comparisons_axis=[1, 2], cluster_threshold=0.05,
                                      meta=meta)
