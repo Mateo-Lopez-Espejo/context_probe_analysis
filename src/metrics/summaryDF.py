@@ -15,8 +15,8 @@ from src.utils.dataframes import ndim_array_to_long_DF
 
 
 def create_summary_DF(sites, loading_functions, cluster_thresholds, alpha, montecarlo, raster_meta,
-                      metrics, sources, multiple_corrections, DF_file, recacheDF=True, diff_metrics=('T-score',),
-                      keep_pvalues=True):
+                      metrics, sources, multiple_corrections, DF_file, diff_metrics=('T-score',),
+                      keep_pvalues=True, recacheDF=True):
 
     print(f'all sites: \n{sites}\n')
     if DF_file.exists() and not recacheDF:
@@ -111,6 +111,7 @@ def create_summary_DF(sites, loading_functions, cluster_thresholds, alpha, monte
                     df = metrics_to_DF(masked_dprime, dim_labl_dict, metrics=metrics)
                     df['mult_comp_corr'] = corr_name
                     df['analysis'] = fname
+                    df['diff_metric'] = diff_met_name
                     df['site'] = site
                     df['region'] = region_map[site]
                     df['source'] = source
@@ -128,10 +129,11 @@ def create_summary_DF(sites, loading_functions, cluster_thresholds, alpha, monte
 
 
     # use categorical columns to save a ton of memory space
-    for col in ['id', 'context_pair', 'probe', 'metric', 'mult_comp_corr',
+    for col in DF.columns:
+        if col in ['id', 'context_pair', 'probe', 'metric', 'mult_comp_corr',
                 'analysis', 'site', 'region', 'source', 'cluster_threshold',
-                'stim_count']:
-        DF[col] = DF[col].astype('category')
+                'stim_count', 'diff_metric']:
+            DF[col] = DF[col].astype('category')
 
     print(DF.head(10))
     print(DF.shape)
