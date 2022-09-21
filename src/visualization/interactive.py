@@ -3,22 +3,20 @@ import re
 
 import numpy as np
 import pandas as pd
-from scipy.stats import sem
 import plotly.colors as pc
 import plotly.express as px
 import plotly.graph_objects as go
-from plotly.subplots import make_subplots
+from scipy.stats import sem
 from sklearn.decomposition import PCA
-from webcolors import hex_to_rgb
 
 import src.models.modelnames as mns
 from nems.db import batch_comp
 from src.data.load import get_batch_ids
-from src.data.rasters import load_site_formated_raster, load_site_formated_prediction
+from src.data.rasters import load_site_formated_raster
 from src.dim_redux.PCA import load_site_formated_PCs
 from src.metrics.consolidated_tstat import tstat_cluster_mass
-from src.metrics.significance import _significance
 from src.metrics.delta_fr import pairwise_delta_FR
+from src.metrics.significance import _significance
 from src.models.param_tools import get_population_weights, get_strf, get_population_influence, get_pred_err, \
     model_independence_comparison, load_cell_formated_resp_pred
 from src.visualization.fancy_plots import squarefy
@@ -26,7 +24,8 @@ from src.visualization.palette import *
 
 
 def plot_raw_pair(cellid, contexts, probe, mode='psth', raster_fs=30, colors=FOURCOLOR, errortype='std',
-                  pupil=False, simplify=False, part='all', mod_disp='both', fill_between=False, error_opacity=0.2, **kwargs):
+                  pupil=False, simplify=False, part='all', mod_disp='both', fill_between=False, error_opacity=0.2,
+                  **kwargs):
     prb_idx = probe - 1  # probe names start at 1 but we have zero idex
 
     if 'modelname' in kwargs.keys() and 'batch' in kwargs.keys():
@@ -34,12 +33,8 @@ def plot_raw_pair(cellid, contexts, probe, mode='psth', raster_fs=30, colors=FOU
         fs = int(re.findall('\.fs\d*\.', kwargs['modelname'])[0][3:-1])
         if raster_fs != fs: print("enforcing model raster_fs")
 
-        # LEGACY, uncoment if something breaks
-        # site_raster, goodcells = load_site_formated_prediction(cellid[:7], part='all', raster_fs=fs, cellid=cellid,
-        #                                                        **kwargs)
-
-        site_raster, pred_raster, goodcells = load_cell_formated_resp_pred(cellid, part='all', modelname=kwargs['modelname'],
-                                                                           batch=kwargs['batch'])
+        site_raster, pred_raster, goodcells = load_cell_formated_resp_pred(cellid, part='all',
+                                                                           **kwargs)
         # force PSTH
         if mode != 'psth':
             print('can only plot psth for predictions, forcing...')
@@ -150,7 +145,7 @@ def plot_raw_pair(cellid, contexts, probe, mode='psth', raster_fs=30, colors=FOU
                         yp = np.insert(yp, 0, mean_resp[halfs[0]][-1])
 
                     # fill the area between context effects to highlight difference!
-                    if fill_between and part =='probe' and cc == 1:
+                    if fill_between and part == 'probe' and cc == 1:
                         rgb = hex_to_rgb(Grey)  # tuple
                         fill_color = f'rgba({rgb[0]}, {rgb[1]}, {rgb[2]}, {error_opacity})'
                         _ = fig.add_trace(go.Scatter(x=xp, y=yp, mode='lines',
@@ -166,7 +161,7 @@ def plot_raw_pair(cellid, contexts, probe, mode='psth', raster_fs=30, colors=FOU
                     # shadow of confidence interval for data with multiple trials
                     rgb = hex_to_rgb(part_color[0])  # tuple
                     fill_color = f'rgba({rgb[0]}, {rgb[1]}, {rgb[2]}, {error_opacity})'
-                    line_color = 'rgba(0,0,0,0)' # transparent line in case its width is changed later outside this func
+                    line_color = 'rgba(0,0,0,0)'  # transparent line in case its width is changed later outside this func
 
                     _ = fig.add_trace(go.Scatter(x=x, y=y + ystd, mode='lines', line_color=line_color, line_width=0,
                                                  showlegend=False))
@@ -176,7 +171,7 @@ def plot_raw_pair(cellid, contexts, probe, mode='psth', raster_fs=30, colors=FOU
                 ## Main PSHT line ##
                 # set the mean lines second so they lie on top of the colored areas
 
-                if not(is_pred and mod_disp == 'pred'):
+                if not (is_pred and mod_disp == 'pred'):
 
                     # for the second half prepend the last sample of the first half to create a connector
                     if part == 'all' and nn == 1:
@@ -193,7 +188,7 @@ def plot_raw_pair(cellid, contexts, probe, mode='psth', raster_fs=30, colors=FOU
                                                      name='difference', showlegend=False))
 
                     _ = fig.add_trace(go.Scatter(x=x, y=y, mode='lines', line_color=color, line_width=3,
-                                              name=name, showlegend=True))
+                                                 name=name, showlegend=True))
 
 
 
@@ -221,14 +216,12 @@ def plot_raw_pair(cellid, contexts, probe, mode='psth', raster_fs=30, colors=FOU
             else:
                 raise ValueError("undefined plot type, choose psht or raster")
 
-
     if part == 'all':
         x_range = [0 - duration / 2, duration / 2]
     elif part == 'probe':
-        x_range = [0, duration/2]
+        x_range = [0, duration / 2]
     else:
         raise ValueError(f'undefined value for part paramete: {part}')
-
 
     _ = fig.update_xaxes(title_text='time from probe onset (s)', title_standoff=0,
                          range=x_range)
@@ -243,12 +236,10 @@ def plot_raw_pair(cellid, contexts, probe, mode='psth', raster_fs=30, colors=FOU
     return fig
 
 
-def plot_pupil_so_effects(cellid, contexts, probe, raster_fs=30, error_opacity=0.2,):
-
+def plot_pupil_so_effects(cellid, contexts, probe, raster_fs=30, error_opacity=0.2, ):
     prb_idx = probe - 1
     fs = raster_fs
     smoothing_window = 50
-
 
     site_raster, goodcells = load_site_formated_raster(cellid[:7], part='probe',
                                                        smoothing_window=smoothing_window, raster_fs=fs)
@@ -258,7 +249,6 @@ def plot_pupil_so_effects(cellid, contexts, probe, raster_fs=30, error_opacity=0
     pup_raster, _ = load_site_formated_raster(cellid[:7], part='all',
                                               smoothing_window=0, raster_fs=fs,
                                               pupil=True)
-
 
     # selects neuron, probe and pair of contexts to compare
     sel_raster = site_raster[:, goodcells.index(cellid), contexts, prb_idx, :]
@@ -277,14 +267,13 @@ def plot_pupil_so_effects(cellid, contexts, probe, raster_fs=30, error_opacity=0
     duration = nsamps / fs
     time = np.linspace(0, duration, nsamps, endpoint=False)
 
-
     fig = go.Figure()
 
     flipper = 1
 
-    for pp,(pup_size, dash, pup_mask) in enumerate(zip(['big', 'small'],
-                                                       ['solid', 'dot'],
-                                                       [big_mask, small_mask])):
+    for pp, (pup_size, dash, pup_mask) in enumerate(zip(['big', 'small'],
+                                                        ['solid', 'dot'],
+                                                        [big_mask, small_mask])):
 
         pup_raster = np.ma.masked_where(pup_mask, sel_raster, copy=False)
         PSTHs = np.mean(pup_raster, axis=0)
@@ -294,8 +283,8 @@ def plot_pupil_so_effects(cellid, contexts, probe, raster_fs=30, error_opacity=0
 
         # confidence interval: standard error of the difference
         std = np.sqrt(
-        (sem(np.ma.compress_nd(pup_raster[:,0,:],axis=0), axis=0)**2) +
-        (sem(np.ma.compress_nd(pup_raster[:,1,:],axis=0), axis=0)**2)
+            (sem(np.ma.compress_nd(pup_raster[:, 0, :], axis=0), axis=0) ** 2) +
+            (sem(np.ma.compress_nd(pup_raster[:, 1, :], axis=0), axis=0) ** 2)
         )
 
         # check if big pupil DFR is negative, and sets flipper
@@ -317,7 +306,6 @@ def plot_pupil_so_effects(cellid, contexts, probe, raster_fs=30, error_opacity=0
         _ = fig.add_trace(go.Scatter(x=x, y=y - yerr, mode='lines', line_color=line_color, line_width=0,
                                      fill='tonexty', fillcolor=fill_color, showlegend=False))
 
-
         # meand Delta firing rate
         _ = fig.add_trace(go.Scatter(x=x, y=y, mode='lines',
                                      line=dict(color='black',
@@ -325,12 +313,12 @@ def plot_pupil_so_effects(cellid, contexts, probe, raster_fs=30, error_opacity=0
                                                width=3),
                                      name=pup_size, showlegend=True))
 
-
     _ = fig.update_xaxes(title_text='time from probe onset (s)', title_standoff=0)
     _ = fig.update_yaxes(title_text='delta firing rate (z-score)', title_standoff=0)
     fig.update_layout(template='simple_white')
 
     return fig
+
 
 def plot_pop_modulation(cellid, modelname, batch, contexts, probe, **kwargs):
     fs = int(re.findall('\.fs\d*\.', modelname)[0][3:-1])
@@ -720,7 +708,6 @@ def plot_time_ser_quant(cellid, contexts, probe,
     else:
         raise ValueError('I dont know what to do with so many multiple_comparisons_axis')
 
-
     if type(goodcells) is dict:
         goodcells = list(goodcells.keys())
     cell_idx = goodcells.index(cellid)
@@ -771,10 +758,10 @@ def plot_time_ser_quant(cellid, contexts, probe,
         integral = np.sum(np.abs(to_quantify[signif_mask])) * np.mean(np.diff(t))
         print(f"integral: {integral * 1000:.2f} t-score*ms")
 
-        mass_center = np.sum(np.abs(to_quantify[signif_mask]) * t[signif_mask]) / np.sum(np.abs(to_quantify[signif_mask]))
+        mass_center = np.sum(np.abs(to_quantify[signif_mask]) * t[signif_mask]) / np.sum(
+            np.abs(to_quantify[signif_mask]))
         if np.isnan(mass_center): mass_center = 0
         print(f'center of mass: {mass_center * 1000:.2f} ms')
-
 
         if np.any(signif_mask):
             dt = np.mean(np.diff(t))
@@ -802,10 +789,10 @@ def plot_time_ser_quant(cellid, contexts, probe,
         linename = 'T-statistic'
 
     main_traces.append(go.Scatter(x=tt, y=mmdd, mode='lines', line_color='black', line_width=3,
-                                 name=linename))
+                                  name=linename))
     main_traces.append(go.Scatter(x=tt[[0, -1]], y=[CTT] * 2, mode='lines',
-                                 line=dict(color='Black', dash='dash', width=2),
-                                 name='T-stat thresold'))
+                                  line=dict(color='Black', dash='dash', width=2),
+                                  name='T-stat thresold'))
 
     if deltaFR:
         # here adds the T-score values as a dotted line
@@ -819,20 +806,21 @@ def plot_time_ser_quant(cellid, contexts, probe,
     ## significant area under the curve
     if not ignore_quant:
         _, smm = squarefy(t, signif_mask)
-        wmmdd = np.where(smm, mmdd, 0)# little hack to add gaps into the area, set y value to zero where no significance
+        wmmdd = np.where(smm, mmdd,
+                         0)  # little hack to add gaps into the area, set y value to zero where no significance
         rgb = hex_to_rgb(AMPCOLOR)
         rgba = f'rgba({rgb[0]}, {rgb[1]}, {rgb[2]}, 0.5)'
 
         main_traces.append(go.Scatter(x=tt, y=wmmdd, mode='none',
-                                     fill='tozeroy', fillcolor=rgba,
-                                     name='integral'))
+                                      fill='tozeroy', fillcolor=rgba,
+                                      name='integral'))
 
         ## center of mass indication: line fom zero to the time series value at that time point
         if not np.isnan(mass_center):
             ytop = DP[np.abs(t - mass_center).argmin()]
             main_traces.append(go.Scatter(x=[mass_center] * 2, y=[0, ytop], mode='lines',
-                                         line=dict(color=DURCOLOR, width=4),
-                                         name='center of mass'))
+                                          line=dict(color=DURCOLOR, width=4),
+                                          name='center of mass'))
 
         ## adds star at the last time bin position
         if last_bin > 0:
@@ -843,17 +831,16 @@ def plot_time_ser_quant(cellid, contexts, probe,
                                           name='last bin'))
 
     for trace in main_traces:
-        fig.add_trace(trace, secondary_y=False) # forces main traces to be on the primary y ax
-
+        fig.add_trace(trace, secondary_y=False)  # forces main traces to be on the primary y ax
 
     # cluster and corrected confidence interval of the shuffled clusters, this can be on a secondary y axis
     tt, mmcc = squarefy(t, CT)
     secondary_traces.append(go.Scatter(x=tt, y=mmcc, mode='lines',
-                                       line=dict(color=Green, dash='solid',width=3),
-                                 name='cluster sum'))
+                                       line=dict(color=Green, dash='solid', width=3),
+                                       name='cluster sum'))
     secondary_traces.append(go.Scatter(x=tt[[0, -1]], y=[CI] * 2, mode='lines',
-                                 line=dict(color=Green, dash='dash', width=2),
-                                 name='cluster threshold'))
+                                       line=dict(color=Green, dash='dash', width=2),
+                                       name='cluster threshold'))
 
     for trace in secondary_traces:
         fig.add_trace(trace, secondary_y=secondary_y)
@@ -868,10 +855,9 @@ def plot_time_ser_quant(cellid, contexts, probe,
     return fig, main_traces, secondary_traces
 
 
-
 def plot_simple_quant(cellid, contexts, probe,
-                        multiple_comparisons_axis, cluster_threshold,
-                        alpha=0.05, meta={}):
+                      multiple_comparisons_axis, cluster_threshold,
+                      alpha=0.05, meta={}):
     """
     plot shoing the quantification of time series differences (PSTHs) between context effects.
     it shows the difference metric (t-score), its threshold for cluster deffinition, the t-score sume for each cluster,
@@ -934,7 +920,6 @@ def plot_simple_quant(cellid, contexts, probe,
     if np.isnan(mass_center): mass_center = 0
     print(f'center of mass: {mass_center * 1000:.2f} ms')
 
-
     if np.any(signif_mask):
         dt = np.mean(np.diff(t))
         mt = t + dt
@@ -953,24 +938,24 @@ def plot_simple_quant(cellid, contexts, probe,
     main_traces.append(go.Scatter(x=tt, y=mmdd, mode='lines',
                                   line=dict(color='black',
                                             width=3),
-                                 name="delta FR"))
+                                  name="delta FR"))
 
     ## significant area under the curve
     _, smm = squarefy(t, signif_mask)
-    wmmdd = np.where(smm, mmdd, 0)# little hack to add gaps into the area, set y value to zero where no significance
+    wmmdd = np.where(smm, mmdd, 0)  # little hack to add gaps into the area, set y value to zero where no significance
     rgb = hex_to_rgb(AMPCOLOR)
     rgba = f'rgba({rgb[0]}, {rgb[1]}, {rgb[2]}, 0.5)'
 
     main_traces.append(go.Scatter(x=tt, y=wmmdd, mode='none',
-                                 fill='tozeroy', fillcolor=rgba,
-                                 name='integral'))
+                                  fill='tozeroy', fillcolor=rgba,
+                                  name='integral'))
 
     ## center of mass indication: line fom zero to the time series value at that time point
     if not np.isnan(mass_center):
         ytop = DFR[np.abs(t - mass_center).argmin()]
         main_traces.append(go.Scatter(x=[mass_center] * 2, y=[0, ytop], mode='lines',
-                                     line=dict(color=DURCOLOR, width=4),
-                                     name='center of mass'))
+                                      line=dict(color=DURCOLOR, width=4),
+                                      name='center of mass'))
 
     ## adds star at the last time bin position
     if last_bin > 0:
@@ -980,7 +965,7 @@ def plot_simple_quant(cellid, contexts, probe,
                                                   size=15),
                                       name='last bin'))
 
-    fig.add_traces(main_traces) # forces main traces to be on the primary y ax
+    fig.add_traces(main_traces)  # forces main traces to be on the primary y ax
 
     # formats axis, legend and so on.
     _ = fig.update_xaxes(title=dict(text='time from probe onset (s)', standoff=0))
@@ -1192,8 +1177,6 @@ if __name__ == '__main__':
     from configparser import ConfigParser
     from plotly.subplots import make_subplots
     from src.root_path import config_path
-    import joblib as jl
-    import pathlib as pl
 
     config = ConfigParser()
     config.read_file(open(config_path / 'settings.ini'))
@@ -1206,8 +1189,8 @@ if __name__ == '__main__':
 
     cellid, contexts, probe = 'TNC019a-042-5', (0, 3), 3
     cellid, contexts, probe = 'TNC019a-PC-1', (0, 3), 3
-    cellid, contexts, probe = 'ARM021b-36-8', (0,1), 3 # from paper figure examples
-    cellid, contexts, probe = 'TNC014a-22-2', (0, 8), 3 # form paper modeling figure
+    cellid, contexts, probe = 'ARM021b-36-8', (0, 1), 3  # from paper figure examples
+    cellid, contexts, probe = 'TNC014a-22-2', (0, 8), 3  # form paper modeling figure
 
     # # digested metric plots aka tile plots
     # df = jl.load(pl.Path(config['paths']['analysis_cache']) / f'220310_ctx_mod_metric_DF_tstat_cluster_mass_BS')
