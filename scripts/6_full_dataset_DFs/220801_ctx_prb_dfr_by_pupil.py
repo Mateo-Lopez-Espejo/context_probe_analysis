@@ -131,6 +131,12 @@ for site in tqdm(sites):
 
 DF = pd.concat(to_concat, ignore_index=True, axis=0)
 
+# enforces memory efficient typing
+for col in [c for c in DF.columns if c!='value']:
+    DF[col] = DF[col].astype('category')
+DF['value'] = pd.to_numeric(DF['value'], downcast='float')
+
+
 dups = np.sum(DF.duplicated().values)
 if dups > 0:
     print(f'{dups} duplicated rows, what is wrong?, dropping duplicates')

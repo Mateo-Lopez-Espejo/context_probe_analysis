@@ -74,7 +74,7 @@ def get_formated_DF():
     # pivots for parameter space plots
     pivoted = DF.pivot_table(
         index=['analysis', 'region', 'stim_count', 'context_pair', 'probe', 'id', 'site', 'PC'],
-        columns=['metric'], values='value', aggfunc='first', fill_value=0
+        columns=['metric'], values='value', aggfunc='first', fill_value=0, observed=True,
     ).reset_index().query('last_bin > 0')
 
     # adds a small amount of jitter to the last bin value to help visualization
@@ -106,7 +106,7 @@ print('done')
 #### dashboard general layout
 app = Dash(__name__)
 
-toplot = pivoted.query("analysis == 'SC'").groupby(['site', 'region']).agg('mean').reset_index()
+toplot = pivoted.query("analysis == 'SC'").groupby(['site', 'region'], observed=True).agg('mean').reset_index()
 
 dur_vs_amp = px.scatter(data_frame=toplot, x="last_bin", y="integral", color='region',
                         hover_name='site')

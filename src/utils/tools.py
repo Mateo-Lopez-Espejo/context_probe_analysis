@@ -94,30 +94,48 @@ def shuffle_along_axis(array, shuffle_axis, indie_axis=None, rng=None):
     return array
 
 
-def get_quantile_means(x, y, n_quantiles):
+def decimate_xy(x, y, end_num, by_quantiles=True):
     """
-    Decimates a set of x, y points by taking the mean of x quantiles, keepign the associated y values
+    Decimates a set of x, y points by a random subset or by the means of n quantiles
     :x: np.vector
     :y: np.vector same shape as x
-    :n_quantiles: int, number of quantiles to calcualte
+    :end_num: size of the output vectors
+    :by_quantiles: Bool (def. True). use quantiles instead of random subset.
     """
-    srtidx = np.argsort(x)
-    x = x[srtidx]
-    y = y[srtidx]
-    qntils = np.quantile(x, np.linspace(0, 1, n_quantiles + 1), interpolation='higher')
-    xm = np.empty((n_quantiles))
-    ym = np.empty((n_quantiles))
-    for rr in range(len(qntils) - 1):
-        if rr == 0:
-            mask = (x <= qntils[rr + 1])
-        else:
-            mask = (qntils[rr] < x) & (x <= qntils[rr + 1])
+    assert len(x) == len(y)
 
-        if np.sum(mask) == 0:
-            xm[rr] = np.nan
-            ym[rr] = np.nan
-        else:
-            xm[rr] = np.mean(x[mask])
-            ym[rr] = np.mean(y[mask])
+    if end_num >= len(x):
+        print('decimation end number greater than data, returning unchaged data')
+        return x, y
+
+    if by_quantiles:
+        srtidx = np.argsort(x)
+        x = x[srtidx]
+        y = y[srtidx]
+        qntils = np.quantile(x, np.linspace(0, 1, end_num + 1), interpolation='higher')
+        xm = np.empty((end_num))
+        ym = np.empty((end_num))
+        for rr in range(len(qntils) - 1):
+            if rr == 0:
+                mask = (x <= qntils[rr + 1])
+            else:
+                mask = (qntils[rr] < x) & (x <= qntils[rr + 1])
+
+            if np.sum(mask) == 0:
+                # empty quantil, place nan
+                xm[rr] = np.nan
+                ym[rr] = np.nan
+            else:
+                xm[rr] = np.mean(x[mask])
+                ym[rr] = np.mean(y[mask])
+
+        # remove nan quantiles
+        xm = xm[~ np.isnan(xm)]
+        ym = ym[~ np.isnan(ym)]
+
+
+    else:
+        decimator = np.random.choice(x.size, end_num, replace=False)
+        xm, ym = x[decimator], y[decimator]
 
     return xm, ym

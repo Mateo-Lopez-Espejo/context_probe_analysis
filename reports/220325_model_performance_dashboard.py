@@ -63,8 +63,8 @@ def get_formated_DF():
 
     pivoted_clust_mass = filtered.pivot_table(
         index=['region', 'stim_count', 'context_pair', 'probe', 'id', 'site'],
-        columns=['metric'], values='value', aggfunc='first', fill_value=0
-    ).reset_index().pivoted_clust_mass.query('last_bin > 0')
+        columns=['metric'], values='value', aggfunc='first', fill_value=0, observed=True,
+    ).reset_index().query('last_bin > 0')
 
     # adds a small amount of jitter to the last bin value to help visualization
     binsize = 1 / meta['raster_fs']
@@ -95,7 +95,7 @@ def get_formated_DF():
         validate='1:m'
     ).pivot_table(
         index=['id', 'site', 'region', 'context_pair', 'probe', 'stim_count', 'value_x', 'nickname_y'],
-        columns=['metric'], values='value_y'
+        columns=['metric'], values='value_y', observed=True,
     ).reset_index().rename(columns={'value_x': 'response', 'nickname_y': 'nickname'})
 
     # filter by the subset of instanceses with significant contextual modulateion as measured by cluster-mass
@@ -130,7 +130,7 @@ app = Dash(__name__)
 
 # plots response metric space per site
 
-toplot = pivoted_clust_mass.groupby(['site', 'region']).agg('mean').reset_index()
+toplot = pivoted_clust_mass.groupby(['site', 'region'], observed=True).agg('mean').reset_index()
 
 dur_vs_amp = px.scatter(data_frame=toplot, x="last_bin", y="integral", color='region',
                         hover_name='site')

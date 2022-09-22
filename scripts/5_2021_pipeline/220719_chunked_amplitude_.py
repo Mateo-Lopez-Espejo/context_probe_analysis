@@ -33,11 +33,12 @@ raster_meta = {'reliability': 0.1,  # r value
                'stim_type': 'permutations'}
 metrics = ['integral', 'integral_A', 'integral_B', 'integral_C', 'integral_D']
 sources = ['real']
+diff_metrics = ['delta_FR', ]
 multiple_corrections = {'bf_cp': [1, 2],
                         # 'bf_ncp': [0, 1, 2],
                         }
 
 summary_DF_file = pl.Path(config['paths']['analysis_cache']) / f'220719_chunked_amplitude_DF'
 create_summary_DF(sites, loading_functions, cluster_thresholds, alpha, montecarlo, raster_meta, metrics, sources,
-                  multiple_corrections, summary_DF_file, recacheDF=True)
+                  multiple_corrections, summary_DF_file, diff_metrics, keep_pvalues=False, recacheDF=True)
 
