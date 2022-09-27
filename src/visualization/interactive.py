@@ -6,6 +6,7 @@ import pandas as pd
 import plotly.colors as pc
 import plotly.express as px
 import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 from scipy.stats import sem
 from sklearn.decomposition import PCA
 
@@ -914,7 +915,7 @@ def plot_simple_quant(cellid, contexts, probe,
 
     # calculates center of mass and integral
     integral = np.sum(np.abs(DFR[signif_mask])) * np.mean(np.diff(t))
-    print(f"integral: {integral * 1000:.2f} t-score*ms")
+    print(f"integral: {integral:.3f} Z-score*s")
 
     mass_center = np.sum(np.abs(DFR[signif_mask]) * t[signif_mask]) / np.sum(np.abs(DFR[signif_mask]))
     if np.isnan(mass_center): mass_center = 0
@@ -1175,7 +1176,6 @@ def plot_model_fitness(cellids, modelnames, nicknames=None, stat='r_test', mode=
 
 if __name__ == '__main__':
     from configparser import ConfigParser
-    from plotly.subplots import make_subplots
     from src.root_path import config_path
 
     config = ConfigParser()
