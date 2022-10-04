@@ -94,7 +94,7 @@ def shuffle_along_axis(array, shuffle_axis, indie_axis=None, rng=None):
     return array
 
 
-def decimate_xy(x, y, end_num, by_quantiles=True):
+def decimate_xy(x, y, end_num, by_quantiles=True, rng=None):
     """
     Decimates a set of x, y points by a random subset or by the means of n quantiles
     :x: np.vector
@@ -135,6 +135,9 @@ def decimate_xy(x, y, end_num, by_quantiles=True):
 
 
     else:
+        if rng is None:
+            rng = np.random.default_rng()
+
         decimator = np.random.choice(x.size, end_num, replace=False)
         xm, ym = x[decimator], y[decimator]
 

@@ -23,6 +23,12 @@ Pink = '#FF9DA7'
 Brown = '#9C755F'
 Grey = '#BAB0AC'
 
+# extra colors
+Black = '#000000'
+DarkGray = '#A9A9A9'
+SteelBlue = '#4682B4'
+HardBlue = '#0000FF'
+
 ColorDict = dict(Blue=Blue, Green=Green, Orange=Orange, Yellow=Yellow, Purple=Purple, Red=Red, Pink=Pink, Grey=Grey,
                   Teal=Teal, Brown=Brown)
 ColorList = list(ColorDict.values())
@@ -37,6 +43,9 @@ TENCOLOR = ColorList
 A1_COLOR = Blue
 PEG_COLOR = Orange
 REGION_COLORMAP = {'A1': A1_COLOR, 'PEG': PEG_COLOR}
+
+# photo activated blue
+PHOTOACT = HardBlue
 
 # metric
 AMPCOLOR = Green
