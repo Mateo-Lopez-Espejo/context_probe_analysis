@@ -9,7 +9,7 @@ import nems.db as nd
 import nems_lbhb.baphy_io as io
 
 from src.root_path import config_path
-from src.data.cell_type import cluster_by_metrics, get_waveform_metrics, get_phototags
+from src.data.cell_type import cluster_by_metrics, get_waveform_metrics, get_optotag_DF
 from src.utils.subsets import all_cells as goodcells
 
 
@@ -76,7 +76,7 @@ celltype_DF = pd.concat(celltype_DF, ignore_index=True)
 celltype_DF = cluster_by_metrics(celltype_DF)
 
 # add phototags when possible
-pt = get_phototags()
+pt = get_optotag_DF()
 celltype_DF = pd.merge(celltype_DF, pt, on='cellid', how='left')
 
 
