@@ -7,7 +7,7 @@ from joblib import Memory
 import pathlib as pl
 
 from nems.db import pd_query, get_batch_cells
-from nems.xform_helper import find_model_xform_file
+# from nems.xform_helper import find_model_xform_file
 from nems.signal import RasterizedSignal
 from nems.recording import  Recording, load_recording
 
