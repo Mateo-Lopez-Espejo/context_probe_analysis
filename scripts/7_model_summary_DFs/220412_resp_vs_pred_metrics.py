@@ -122,7 +122,7 @@ for cellid, nickname in tqdm(cells_models_todo(), total=total_iter):
         df['site'] = site
         df['region'] = region_map[site]
         df['stim_count'] = len(probes)
-        df['chunk'] = bin_name
+        df['chunk'] = chunk_name
         to_concat.append(df)
 
 DF = pd.concat(to_concat, ignore_index=True, axis=0)
