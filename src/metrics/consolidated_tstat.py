@@ -125,7 +125,7 @@ def tstat_cluster_mass(site, cluster_threshold, montecarlo, raster_meta, load_fn
 if __name__ == "__main__":
     def test():
         import matplotlib.pyplot as plt
-        from src.visualization.fancy_plots import squarefy
+        from src.visualization.utils import squarefy
 
         raster_meta = {'reliability': 0.1,  # r value
                         'smoothing_window': 0,  # ms

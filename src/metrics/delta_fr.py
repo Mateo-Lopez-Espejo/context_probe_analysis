@@ -29,7 +29,7 @@ def pairwise_delta_FR(site, raster_meta, load_fn):
 if __name__ == "__main__":
     import plotly.express as px
     import plotly.graph_objects as go
-    from src.visualization.fancy_plots import squarefy
+    from src.visualization.utils import squarefy
 
     raster_meta = {'reliability': 0.1,  # r value
                    'smoothing_window': 0,  # ms

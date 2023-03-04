@@ -21,6 +21,7 @@ from src.utils.cpp_parameter_handlers import _epoch_name_handler, _channel_handl
 from src.utils import fits as fts
 from src.dim_redux.dPCA import variance_captured as var_capt
 from src.root_path import config_path
+from src.visualization.utils import squarefy
 
 config = ConfigParser()
 config.read_file(open(config_path / 'settings.ini'))
@@ -1240,22 +1241,6 @@ def weight_pdf(dpca, marginalization=None, axes=None, cellnames=None, only_first
                     axes[mm].set_xticklabels(tick_lables, rotation='vertical')
 
     return fig, axes
-
-
-def squarefy(t,y):
-    """
-    Takes a vector or 2d array meant to be plotted as lines, and transforms into a format what when plotted, displays
-    square time bins, like a histogram or PSTH.
-    :param y: vector, or 2d array
-    :param t:
-    :return:
-    """
-    # duplicates y values to define left and right edges of square
-    # duplicates and rolls t values so  y values are connected by either horizontal or vertical lines
-    yy = np.repeat(y,2, axis=0)
-    tt = np.roll(np.repeat(t, 2), -1)
-    tt[-1] = tt[-2] + t[-1] - t[-2]
-    return tt, yy
 
 
 def quantified_dprime(dprime, confidence_interval, significance, raster_fs, show_legend=True, ax=None):

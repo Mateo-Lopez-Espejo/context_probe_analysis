@@ -10,6 +10,8 @@ from plotly.subplots import make_subplots
 from scipy.stats import sem
 from sklearn.decomposition import PCA
 
+from IPython.display import Image
+
 import src.models.modelnames as mns
 from nems.db import batch_comp
 from src.data.load import get_batch_ids
@@ -20,13 +22,264 @@ from src.metrics.delta_fr import pairwise_delta_FR
 from src.metrics.significance import _significance
 from src.models.param_tools import get_population_weights, get_strf, get_population_influence, get_pred_err, \
     model_independence_comparison, load_cell_formated_resp_pred
-from src.visualization.fancy_plots import squarefy
+from src.visualization.utils import squarefy, square_rows_cols
 from src.visualization.palette import *
 
+def plot_PSTH(fnArr, time, y0=None, CI=None, CI_opacity=0.2, name=None, showlegend=True, fig=None, **line_kwargs):
+    """
+    fnArr: 2dim array with dims Trials x Time
+    """
+    line_defaults = dict(color="#000000",
+                         width=3)
+    line_defaults.update(line_kwargs)
 
-def plot_raw_pair(cellid, contexts, probe, mode='psth', raster_fs=30, colors=FOURCOLOR, errortype='std',
+    # expands dimensions to work with vectors, forces no CI
+    if fnArr.ndim == 1:
+        fnArr = fnArr[np.newaxis, :]
+        CI = None
+
+    if fig == None:
+        fig = go.Figure()
+
+    psth = np.mean(fnArr, axis=0)
+
+    # If trials available, plots CI first so it lays behind PSTH
+    if CI != None and fnArr.shape[0] > 1:
+        if CI == 'std':
+            err = np.std(fnArr, axis=0)
+        elif CI == 'sem':
+            err = sem(fnArr, axis=0)
+        else:
+            raise ValueError(f"Unknown CI value {CI}. Use None, 'std' or 'sem'")
+
+        # here without y0
+        x, y = squarefy(time, psth)
+        _, yerr = squarefy(time, err)
+
+        rgb = hex_to_rgb(line_defaults['color'])  # tuple
+        fill_color = f'rgba({rgb[0]}, {rgb[1]}, {rgb[2]}, {CI_opacity})'
+        line_color = 'rgba(0,0,0,0)'  # transparent line in case its width is changed later outside this func
+
+        _ = fig.add_trace(go.Scatter(x=x, y=y + yerr, mode='lines',
+                                     line=dict(color=line_color,
+                                               width=0),
+                                     showlegend=False))
+        _ = fig.add_trace(go.Scatter(x=x, y=y - yerr, mode='lines',
+                                     line=dict(color=line_color,
+                                               width=0),
+                                     fill='tonexty', fillcolor=fill_color, showlegend=False))
+
+    # plots PSTH second so it lays over CI
+    x, y = squarefy(time, psth, y0=y0)
+    _ = fig.add_trace(go.Scatter(x=x, y=y, mode='lines',
+                                 line=line_defaults,
+                                 name=name, showlegend=showlegend))
+
+    return fig
+
+
+def plot_raster(fnArr, time, y0=0, name=None, showlegend=True, fig=None, **marker_kwargs):
+    y, x = np.where(fnArr > 0)
+    fs = 1 / np.mean(np.diff(time))
+    x = (x / fs) + time[0]
+    y += y0
+
+    marker_defaults = dict(color='#000000',
+                           opacity=0.5,
+                           size=5)
+
+    marker_defaults.update(marker_kwargs)
+
+    if fig == None:
+        fig = go.Figure()
+
+    _ = fig.add_trace(
+        go.Scatter(x=x, y=y, mode='markers',
+                   marker=marker_defaults,
+                   name=name, showlegend=showlegend)
+    )
+
+    return fig
+
+
+def plot_raw_pair_array(fnArr, cellids, cellid, contexts, probe, raster_fs, part,
+                       prb_use_ctx_color=True,
+                       hightlight_difference=False,
+                       CI='sem', CI_opacity=0.5,
+                       mode='PSTH', dash='solid', showlegend=True):
+    eg_raster = fnArr[:, cellids.index(cellid), :, probe - 1, :]
+
+    nreps, _, nsamps = eg_raster.shape
+    duration = nsamps / raster_fs
+
+    if part == 'all':
+        time = np.linspace(0 - duration / 2, duration / 2, nsamps, endpoint=False)
+        halfs = [np.s_[:int(nsamps / 2)], np.s_[int(nsamps / 2):]]
+    elif part == 'probe':
+        # asumes the raste has already been sliced before passing
+        time = np.linspace(0, duration, nsamps, endpoint=False)
+        halfs = [np.s_[...]]
+    else:
+        raise ValueError(f'undefined value for part paramete: {part}')
+
+    fig = go.Figure()
+    for nn, half in enumerate(halfs):
+
+        if hightlight_difference and mode == 'PSTH':
+            # gray area between pair of contexts
+            rgb = hex_to_rgb(Grey)  # tuple
+            fill_color = f'rgba({rgb[0]}, {rgb[1]}, {rgb[2]}, {CI_opacity})'
+            x, y = squarefy(time[half], eg_raster[:, contexts[0], half].mean(axis=0))
+            _ = fig.add_trace(go.Scatter(x=x, y=y, mode='lines',
+                                         line=dict(color='rgba(0,0,0,0)'),
+                                         showlegend=False))
+            x, y = squarefy(time[half], eg_raster[:, contexts[1], half].mean(axis=0))
+            _ = fig.add_trace(go.Scatter(x=x, y=y, mode='lines',
+                                         line=dict(color='rgba(0,0,0,0)'),
+                                         fill='tonexty', fillcolor=fill_color,
+                                         showlegend=False))
+
+        for cc, ctx_idx in enumerate(contexts):
+
+            if prb_use_ctx_color:
+                # the color asociated with the context is also used for the probe tha follows
+                color = TENCOLOR[ctx_idx % len(TENCOLOR)]
+            elif not prb_use_ctx_color:
+                # different sounds have different colors,
+                # therefore the probe color can be different from its preceding context
+                color = TENCOLOR[ctx_idx % len(TENCOLOR)] if nn == 0 else TENCOLOR[probe % len(TENCOLOR)]
+
+            else:
+                raise ValueError(f'prb_use_ctx_color must be bool but is {prb_use_ctx_color}')
+
+            if nn == 0 and part == 'all':
+                name = f'context {ctx_idx}'
+            else:
+                name = f'probe {probe} after context {ctx_idx}'
+
+            if mode == 'PSTH':
+                # for the second half prepend the last sample of the first half to create a connector
+                if part == 'all' and nn == 1:
+                    y0 = np.mean(eg_raster[:, ctx_idx, halfs[0]], axis=0)[-1]
+                else:
+                    y0 = None
+
+                _ = plot_PSTH(eg_raster[:, ctx_idx, half], time[half], y0=y0, color=color, dash=dash,
+                              CI=CI, CI_opacity=CI_opacity,
+                              name=name, showlegend=showlegend,
+                              fig=fig)
+
+            elif mode == 'raster':
+                fig = plot_raster(eg_raster[:, ctx_idx, half], time[half], y0=nreps * cc, color=color,
+                                  name=name, showlegend=showlegend, fig=fig)
+            else:
+                raise ValueError("undefined plot type, chose PSTH or raster")
+
+    if part == 'all':
+        x_range = [0 - duration / 2, duration / 2]
+    elif part == 'probe':
+        x_range = [0, duration]
+    else:
+        raise ValueError(f'undefined value for part paramete: {part}')
+
+    _ = fig.update_xaxes(title_text='time from probe onset (s)', title_standoff=0,
+                         range=x_range)
+    _ = fig.add_vline(x=0, line_width=2, line_color='black', line_dash='dot', opacity=1)
+
+    if mode == 'psth':
+        _ = fig.update_yaxes(title_text='firing rate (z-score)', title_standoff=0)
+    elif mode == 'raster':
+        _ = fig.update_yaxes(title_text='trials', title_standoff=0, showticklabels=False, range=[0, nreps * 2])
+    fig.update_layout(template='simple_white')
+
+    return fig
+
+
+def plot_raw_pair(cellid, contexts, probe, mode='PSTH', raster_fs=20,
+                  CI='std', CI_opacity=0.5, hightlight_difference=False,
+                  prb_use_ctx_color=False, part='all', pupil=False, plot_pred=False,
+                  **kwargs):
+    # loads data, which can be responses or predictions
+    # in the case of predictions, it asumes no trial variability and forces PSTH with no confidence interval
+    if 'modelname' in kwargs.keys() and 'batch' in kwargs.keys():
+        fs = int(re.findall('\.fs\d*\.', kwargs['modelname'])[0][3:-1])
+        if raster_fs != fs: print("enforcing model raster_fs")
+
+        # note this is the model prediction, not the OG raster
+        resp, pred, goodcells = load_cell_formated_resp_pred(cellid, part=part,
+                                                             **kwargs)
+
+        # we might want to plot the model prediction or the exact data used to train the model
+        if plot_pred:
+            site_raster = pred
+            dash = 'dot'
+        else:
+            site_raster = resp
+            dash = 'solid'
+
+        # force PSTH
+        if mode != 'PSTH':
+            print('can only plot psth for predictions, forcing...')
+            mode = 'PSTH'
+        if pupil is not False:
+            raise NotImplementedError('cannot make pupil distinction for model predictions')
+
+    # in the case of responses, single trials can be plotted as a raster, or a PSHT wiht confidence interval
+    else:
+        dash = 'solid'
+        if mode == 'PSTH':
+            fs = raster_fs
+            # smoothing_window = 50
+            smoothing_window = 0
+        elif mode == 'raster':
+            if raster_fs < 100:
+                print(f'raster_fs={raster_fs} is too low for a good scatter. defaulting to 100hz')
+                fs = 100
+            else:
+                fs = raster_fs
+            smoothing_window = 0
+        else:
+            raise ValueError("undefined plot type, choose PSTH or raster")
+
+        if "-PC-" in cellid:
+            site_raster, goodcells = load_site_formated_PCs(cellid[:7], part=part,
+                                                            smoothing_window=smoothing_window, raster_fs=fs)
+            goodcells = list(goodcells.keys())
+        else:
+            site_raster, goodcells = load_site_formated_raster(cellid[:7], part=part,
+                                                               smoothing_window=smoothing_window, raster_fs=fs)
+
+        if pupil:
+            pup_raster, _ = load_site_formated_raster(cellid[:7], part='all',
+                                                      smoothing_window=0, raster_fs=fs,
+                                                      pupil=True)
+
+            pup_raster = np.mean(pup_raster, axis=-1, keepdims=True)
+            pup_thresh = np.median(pup_raster, axis=0, keepdims=True)
+
+            if pupil == 'big':
+                pupil_mask = np.broadcast_to(pup_raster < pup_thresh, site_raster.shape)
+            elif pupil == 'small':
+                pupil_mask = np.broadcast_to(pup_raster >= pup_thresh, site_raster.shape)
+            else:
+                raise ValueError(f"pupil parameter must be False, 'big' or 'small. receivede {pupil}")
+
+            site_raster = np.ma.masked_where(pupil_mask, site_raster, copy=False)
+
+    # the array loaded and formated, calls the actual plotting with parameters meaningful for the array source
+    # eg, we shoudl not try to plot a confidence interval with a deterministic model prediction
+    fig = plot_raw_pair_array(site_raster, goodcells, cellid, contexts, probe, raster_fs, part,
+                             prb_use_ctx_color, hightlight_difference,
+                             CI, CI_opacity,
+                             mode, dash=dash)
+    return fig
+
+
+def plot_raw_pair_old(cellid, contexts, probe, mode='psth', raster_fs=30, colors=FOURCOLOR, errortype='std',
                   pupil=False, simplify=False, part='all', mod_disp='both', fill_between=False, error_opacity=0.2,
                   **kwargs):
+    print("deprecated, use the plot_raw_pair_v2")
+
     prb_idx = probe - 1  # probe names start at 1 but we have zero idex
 
     if 'modelname' in kwargs.keys() and 'batch' in kwargs.keys():
@@ -41,7 +294,7 @@ def plot_raw_pair(cellid, contexts, probe, mode='psth', raster_fs=30, colors=FOU
             print('can only plot psth for predictions, forcing...')
             mode = 'psth'
         if pupil is not False:
-            raise NotImplementedError('cannot make pupil distinction for model predicitonse')
+            raise NotImplementedError('cannot make pupil distinction for model predictions')
 
     else:
         is_pred = False
@@ -1173,6 +1426,114 @@ def plot_model_fitness(cellids, modelnames, nicknames=None, stat='r_test', mode=
 
     return fig
 
+
+
+def plot_cell_coverage(IDF, cellid):
+    z = IDF.query(f"id == '{cellid}'"
+                  ).pivot(index='context_pair', columns='probe', values='value'
+                          ).values
+    # z[z == 0] = np.nan
+    heatmap = go.Figure(go.Heatmap(z=z, zmid=0, coloraxis='coloraxis', connectgaps=False))
+    try:
+        thismax = np.nanmax(z)
+    except:
+        thismax = 0
+
+    return heatmap, thismax
+
+
+def plot_site_coverages(fnDF, cells_toplot='all'):
+    if cells_toplot == 'all':
+        cells_toplot =  fnDF.id.unique()
+    else:
+        pass
+
+    rows, cols = square_rows_cols(len(cells_toplot))
+
+    max_vals = list()
+    fig = make_subplots(rows=rows, cols=cols,
+                        shared_xaxes='all', shared_yaxes='all',
+                        horizontal_spacing=0.01, vertical_spacing=0.05,
+                        subplot_titles=[cid[8:] for cid in cells_toplot],
+                        )
+
+    # individual neuron examples
+    for cc, cell_eg in enumerate(cells_toplot):
+        hmap, maxval = plot_cell_coverage(fnDF, cell_eg)
+        max_vals.append(maxval)
+        row, col = int(np.floor(cc / cols)) + 1, (cc % cols) + 1
+        hmap = hmap['data']
+        fig.add_traces(hmap, rows=[row] * len(hmap), cols=[col] * len(hmap))
+
+    ##### formating #######
+    # reduces size of subplot titles
+    fig.update_annotations(font_size=10)
+
+    # ensures spines, and no ticks or tick labels
+    fig.update_xaxes(scaleanchor='y',
+                     constrain='domain',
+                     showticklabels=False,
+                     ticks='',
+                     showline=True,
+                     mirror=True,
+                     )
+
+    fig.update_yaxes(constrain='domain',
+                     showticklabels=False,
+                     ticks='',
+                     showline=True,
+                     mirror=True,
+                     )
+
+    # labels on top left panel
+    df = fnDF.query(f"id == '{cells_toplot[0]}'").pivot(index='context_pair', columns='probe', values='value')
+    ctx_prs = [f"{int(pp.split('_')[0])}_{int(pp.split('_')[1])}"
+               for pp in df.index.to_list()]
+    prbs = df.columns.tolist()
+
+    # probes, x axis
+    fig.update_xaxes(title=dict(text='probe',
+                                standoff=0,
+                                font_size=10), showticklabels=True,
+                     tickmode='array',
+                     tickvals=list(range(len(prbs))),
+                     ticktext=prbs,
+                     tickfont_size=9,
+                     col=1, row=1)
+    # context pairs, y axis
+    fig.update_yaxes(title=dict(text='context_pair',
+                                standoff=0,
+                                font_size=10), showticklabels=True,
+                     tickmode='array',
+                     tickvals=list(range(len(ctx_prs))),
+                     ticktext=ctx_prs,
+                     tickangle=0,
+                     tickfont_size=9,
+                     col=1, row=1)
+
+    w, h = 4 * 96, 4.5 * 96
+    fig.update_layout(template="simple_white",
+                      width=w, height=h,
+                      margin=dict(l=10, r=10, t=30, b=10),
+                      coloraxis=dict(showscale=True,
+                                     colorscale='BrBg',
+                                     cmid=0,
+                                     colorbar=dict(
+                                         orientation='v',
+                                         thicknessmode='fraction',
+                                         thickness=0.02,
+                                         lenmode='fraction',
+                                         len=1,
+                                         title=dict(text='Amplitude (delta Z-Score)',
+                                                    side='right',
+                                                    font_size=10),
+                                         tickangle=-50,
+                                         tickfont_size=9,
+                                     ),
+                                     ),
+                      )
+
+    return fig
 
 if __name__ == '__main__':
     from configparser import ConfigParser

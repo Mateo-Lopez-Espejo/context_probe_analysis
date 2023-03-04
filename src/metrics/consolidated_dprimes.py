@@ -179,7 +179,7 @@ def single_cell_dprimes_cluster_mass(site, contexts, probes, cluster_threshold, 
             ncomp = prb * len(ctx_pairs)
             alpha_corr = alpha / ncomp
 
-            from src.visualization.fancy_plots import squarefy
+            from src.visualization.utils import squarefy
             eg_idx = np.s_[goodcells.index(cellid), ctx_pairs.index((0, 1)), 3 - 1, :]
             # eg_idx = np.s_[goodcells.index(cellid), 9, 3-1, :]
 
@@ -506,7 +506,7 @@ def full_dPCA_dprimes(site, contexts, probes, meta, load_fn=load_site_formated_r
 
 if __name__ == "__main__":
     import matplotlib.pyplot as plt
-    from src.visualization.fancy_plots import squarefy
+    from src.visualization.utils import squarefy
 
     meta = {'reliability': 0.1,  # r value
             'smoothing_window': 0,  # ms

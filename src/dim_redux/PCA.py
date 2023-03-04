@@ -4,7 +4,6 @@ from configparser import ConfigParser
 from sklearn.decomposition import PCA
 import numpy as np
 from joblib import Memory
-from nems.signal import SignalBase
 
 from src.data.rasters import load_site_formated_raster
 
@@ -14,68 +13,6 @@ config = ConfigParser()
 config.read_file(open(config_path / 'settings.ini'))
 PCA_memory = Memory(str(pl.Path(config['paths']['tensors_cache']) / 'PCA'))
 
-def PSTH_PCA(PSTH, center=True):
-    '''
-
-    :param PSTH: 2D array with shape Channel x TimeBin
-    :param center: Bool, if True, makes the mean response equal to 0
-    :return: projectoion of PSTH into PC space, PCA object
-    '''
-    if center is True:
-        PSTH = PSTH.T - np.mean(PSTH, axis=1)
-
-    pca = PCA()
-    pca.fit(PSTH) # takes the PCs over dimention 1
-    PSTH_PCs = pca.transform(PSTH).T
-
-    return PSTH_PCs, pca
-
-
-def signal_PCA(signal, center=True):
-    if not isinstance(signal, SignalBase):
-        raise TypeError('sig argument should be nems sig but is {}'.format(type(signal)))
-
-    matrix = signal.rasterize().as_continuous().T
-
-    # takes the mean of each cell and substracts from trace: mean response now is == 0
-    if center is True:
-        m = np.mean(matrix, axis=0)
-        matrix = matrix - m;
-
-    pca = PCA()
-    pca.fit(matrix)
-    principalComponents = pca.transform(matrix).T
-
-    new_signal = signal.rasterize()._modified_copy(data=principalComponents, epochs=signal.epochs)
-    new_signal.name = '{}_PCs'.format(signal.name)
-
-    return new_signal, pca
-
-
-def recording_PCA(recording, signal_names='all', inplace=False, center=True):
-
-    if signal_names == 'all':
-        # if 'all' makes PCA for all the sig that are not a product of PCA
-        signal_names = [sig_key for sig_key in recording.signals.keys() if sig_key.split('_')[-1] != 'PCs']
-    elif isinstance(signal_names, str):
-        signal_names = [signal_names]
-
-
-    pca_stats = dict.fromkeys(signal_names)
-
-    for signal_key in signal_names:
-        signal = recording[signal_key]
-
-        sig_PCs, pca = signal_PCA(signal, center=center)
-        pca_stats[signal_key] = pca
-
-        if inplace == True:
-            recording.add_signal(sig_PCs)
-        elif inplace == False:
-            recording = recording.copy()
-            recording.add_signal(sig_PCs)
-
-    return recording, pca_stats
 
 @PCA_memory.cache(ignore=['recache_rec'])
 def load_site_formated_PCs(site, part='probe', recache_rec=False, **kwargs):
@@ -130,6 +67,19 @@ def load_site_formated_PCs(site, part='probe', recache_rec=False, **kwargs):
     # saves PC names with asociated explained variance ratio
     PCs = {f"{site}-PC-{n+1}": var_rate for n, var_rate in enumerate(pca.explained_variance_ratio_)}
     return transformed, PCs
+
+
+# helper funtions to prepare canonical 5 dim arrays for and from PCA
+def unfold_for_PCA(arr):
+    rep, neu, ctx, prb, tme = arr.shape
+    return np.swapaxes(arr, 0, 1).reshape([neu, -1])
+
+def refold_from_PCA(arr, shape):
+    rep, neu, ctx, prb, tme = shape
+    # notice how the first two dimension are swapped during reshape
+    return np.swapaxes(arr.reshape([neu, rep, ctx, prb, tme]), 0,1)
+
+
 
 if __name__ == "__main__":
     cellid, contexts, probe = 'TNC024a-27-2', [1, 10], 3
