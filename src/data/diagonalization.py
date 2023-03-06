@@ -53,7 +53,7 @@ def fano(fnArr, axis=None, keepdims=False):
     return np.var(fnArr, axis=axis, keepdims=keepdims) / np.mean(fnArr, axis=axis, keepdims=keepdims)
 
 
-def diag_and_scale(fnArr, mode='fano_var', verbose=False):
+def diag_and_scale(fnArr, mode='fano_var', verbose=False, return_problem=False):
     diagArr = fnArr + get_diagonalizations(fnArr)
 
     #### DANGER !!! full neuron fano makes sense but might generate big artifacts (?)
@@ -94,7 +94,9 @@ def diag_and_scale(fnArr, mode='fano_var', verbose=False):
         Sc = np.sqrt((TarVar - (Sm ** 2 * MeanVar)) / ClustVar)
 
         # troubles with div0 and sqr(-n)
+        problem = []
         for S in [Sm, Sc]:
+            problem.append(~np.isfinite(S))
             S[~np.isfinite(S)] = 1
 
     elif mode == 'mean_var':
@@ -106,6 +108,8 @@ def diag_and_scale(fnArr, mode='fano_var', verbose=False):
 
         Sm = np.sqrt(TarVar / MeanVar)
         Sc = 1  # leave the clusters alone
+
+        problem = None # chill, there no problem man
 
     else:
         raise ValueError(f"unrecognized mode value {mode}, use 'fano_var' or 'mean_var'")
@@ -122,7 +126,10 @@ def diag_and_scale(fnArr, mode='fano_var', verbose=False):
               f' sum={fnArr.var(axis=(0, 2)).sum()}, fano={TarFano.squeeze()}')
         print(f'scaled var={scaled_var}, sum={scaled_var.sum()}, fano={scaled_fano}')
 
-    return diag_scaled
+    if return_problem:
+        return diag_scaled, problem
+    else:
+        return diag_scaled
 
 
 ######### plotting related to the diagonalizaiton #####
