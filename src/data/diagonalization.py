@@ -96,7 +96,8 @@ def diag_and_scale(fnArr, mode='fano_var', verbose=False, return_problem=False):
         # troubles with div0 and sqr(-n)
         problem = []
         for S in [Sm, Sc]:
-            problem.append(~np.isfinite(S))
+            # problem.append(~np.isfinite(S))
+            problem.append(S.copy())
             S[~np.isfinite(S)] = 1
 
     elif mode == 'mean_var':
@@ -135,7 +136,7 @@ def diag_and_scale(fnArr, mode='fano_var', verbose=False, return_problem=False):
 ######### plotting related to the diagonalizaiton #####
 
 
-def plot_ctx_clusters(fnArr):
+def plot_ctx_clusters(fnArr, jitter=0):
     rep, chn, ctx, prb, tme = fnArr.shape
     assert chn == 2  # can only plot two neurons in the plane
     assert prb == 1  # can only plot one probe
@@ -155,9 +156,10 @@ def plot_ctx_clusters(fnArr):
             nreps = x.shape[0]
             if nreps > 1:
                 # add some jitter to single trials
-                jitter = np.random.uniform(-0.3, 0.3, (nreps, 2))
-                x = x + jitter[:, 0]
-                y = y + jitter[:, 1]
+                if jitter !=0:
+                    jitarr = np.random.uniform(-jitter, jitter, (nreps, 2))
+                    x = x + jitarr[:, 0]
+                    y = y + jitarr[:, 1]
 
             _ = fig.add_trace(
                 go.Scatter(x=x, y=y,
@@ -170,7 +172,7 @@ def plot_ctx_clusters(fnArr):
     dd = np.asarray([np.min(fnArr[0, 0, :, 0, 0]), np.max(fnArr[0, 0, :, 0, 0])])
     _ = fig.add_trace(
         go.Scatter(x=dd, y=dd, mode='lines', line=dict(color='black', dash='dot'),
-                   name='sign threshold')
+                   name='sign threshold', showlegend=False)
     )
 
     # average acroos all contexts
@@ -191,11 +193,11 @@ def plot_ctx_clusters(fnArr):
     return fig
 
 
-def plot_eg_diag(fnArraList: list):
+def plot_eg_diag(fnArraList: list, jitter=0):
     fig = make_subplots(1, len(fnArraList), shared_xaxes='all', shared_yaxes='all')
 
     for cc, fnArr in enumerate(fnArraList):
-        traces = plot_ctx_clusters(fnArr)['data']
+        traces = plot_ctx_clusters(fnArr, jitter=jitter)['data']
         _ = fig.add_traces(traces, rows=[1] * len(traces), cols=[cc + 1] * len(traces))
 
     # zero lines
