@@ -45,6 +45,7 @@ def add_classified_contexts(DF):
     comp_name_arr = np.apply_along_axis('_'.join, 1, name_arr)
 
     DF['trans_pair'] = comp_name_arr
+    DF['trans_pair'] = DF['trans_pair'].astype('category')
     return DF
 
 
