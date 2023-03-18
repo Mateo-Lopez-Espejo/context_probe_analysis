@@ -43,7 +43,7 @@ def create_summary_DF(sites, loading_functions, cluster_thresholds, alpha, monte
             continue
 
         # for analysis with dimensionality reduction, changes the cellname to nan for proper dimension labeling.
-        if fname == 'SC':
+        if fname in ['SC', 'dense']:
             chan_name = goodcells
         elif fname == 'PCA':
             chan_name = list(goodcells.keys())

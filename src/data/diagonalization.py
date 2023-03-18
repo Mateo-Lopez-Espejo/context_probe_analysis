@@ -4,6 +4,7 @@ from plotly.subplots import make_subplots
 import plotly.graph_objects as go
 
 from src.visualization.palette import TENCOLOR
+from src.data.rasters import load_site_formated_raster
 
 
 def get_diagonalizations(fnArr, distance='L2'):
@@ -131,6 +132,19 @@ def diag_and_scale(fnArr, mode='fano_var', verbose=False, return_problem=False):
         return diag_scaled, problem
     else:
         return diag_scaled
+
+
+def load_site_dense_raster(site, part='probe', recache_rec=False, **kwargs):
+    """
+    wrapper of wrappers, loads raster and diagoanlizes it using only the mean variance constrain
+    """
+
+    # Load full raster but uses only the probe to fit the PCA.
+    # check for existing cache for good measure
+    if load_site_formated_raster.check_call_in_cache(site, part=part, recache_rec=recache_rec, **kwargs):
+        raster, goodcells = load_site_formated_raster(site, part=part, recache_rec=recache_rec, **kwargs)
+    raster = diag_and_scale(raster, mode='mean_var')
+    return raster, goodcells
 
 
 ######### plotting related to the diagonalizaiton #####
