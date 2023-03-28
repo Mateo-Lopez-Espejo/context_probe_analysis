@@ -6,6 +6,7 @@ import pandas as pd
 import plotly.colors as pc
 import plotly.express as px
 import plotly.graph_objects as go
+from plotly import graph_objects as go
 from plotly.subplots import make_subplots
 from scipy.stats import sem
 from sklearn.decomposition import PCA
@@ -22,6 +23,7 @@ from src.metrics.delta_fr import pairwise_delta_FR
 from src.metrics.significance import _significance
 from src.models.param_tools import get_population_weights, get_strf, get_population_influence, get_pred_err, \
     model_independence_comparison, load_cell_formated_resp_pred
+from src.visualization.palette import TENCOLOR
 from src.visualization.utils import squarefy, square_rows_cols
 from src.visualization.palette import *
 
@@ -102,11 +104,65 @@ def plot_raster(fnArr, time, y0=0, name=None, showlegend=True, fig=None, **marke
     return fig
 
 
+
+def confidence_ellipse(x, y, n_std=1.96, size=100, **kwargs):
+    """
+    Get the covariance confidence ellipse of *x* and *y*.
+    Parameters
+    ----------
+    x, y : array-like, shape (n, )
+        Input data.
+    n_std : float
+        The number of standard deviations to determine the ellipse's radiuses.
+    size : int
+        Number of points defining the ellipse
+    Returns
+    -------
+    plotly trace of the ellipse
+
+    References (H/T)
+    ----------------
+    https://gist.github.com/dpfoose/38ca2f5aee2aea175ecc6e599ca6e973
+    https://matplotlib.org/3.1.1/gallery/statistics/confidence_ellipse.html
+    """
+    if x.size != y.size:
+        raise ValueError("x and y must be the same size")
+
+    cov = np.cov(x, y)
+    pearson = cov[0, 1]/np.sqrt(cov[0, 0] * cov[1, 1])
+    # Using a special case to obtain the eigenvalues of this
+    # two-dimensionl dataset.
+    ell_radius_x = np.sqrt(1 + pearson)
+    ell_radius_y = np.sqrt(1 - pearson)
+    theta = np.linspace(0, 2 * np.pi, size)
+    ellipse_coords = np.column_stack([ell_radius_x * np.cos(theta), ell_radius_y * np.sin(theta)])
+    # Calculating the stdandard deviation of x from
+    # the squareroot of the variance and multiplying
+    # with the given number of standard deviations.
+    x_scale = np.sqrt(cov[0, 0]) * n_std
+    x_mean = np.mean(x)
+
+    # calculating the stdandard deviation of y ...
+    y_scale = np.sqrt(cov[1, 1]) * n_std
+    y_mean = np.mean(y)
+
+    translation_matrix = np.tile([x_mean, y_mean], (ellipse_coords.shape[0], 1))
+    rotation_matrix = np.array([[np.cos(np.pi / 4), np.sin(np.pi / 4)],
+                                [-np.sin(np.pi / 4), np.cos(np.pi / 4)]])
+    scale_matrix = np.array([[x_scale, 0],
+                            [0, y_scale]])
+    ellipse_coords = ellipse_coords.dot(rotation_matrix).dot(scale_matrix) + translation_matrix
+
+    trace = go.Scatter(x=ellipse_coords[:,0], y=ellipse_coords[:,1], mode='lines', **kwargs)
+    return trace
+
+
 def plot_raw_pair_array(fnArr, cellids, cellid, contexts, probe, raster_fs, part,
                        prb_use_ctx_color=True,
                        hightlight_difference=False,
                        CI='sem', CI_opacity=0.5,
-                       mode='PSTH', dash='solid', showlegend=True):
+                       mode='PSTH', dash='solid', showlegend=True,
+                       color_palette=FOURCOLOR):
     eg_raster = fnArr[:, cellids.index(cellid), :, probe - 1, :]
 
     nreps, _, nsamps = eg_raster.shape
@@ -143,11 +199,11 @@ def plot_raw_pair_array(fnArr, cellids, cellid, contexts, probe, raster_fs, part
 
             if prb_use_ctx_color:
                 # the color asociated with the context is also used for the probe tha follows
-                color = TENCOLOR[ctx_idx % len(TENCOLOR)]
+                color = color_palette[ctx_idx % len(color_palette)]
             elif not prb_use_ctx_color:
                 # different sounds have different colors,
                 # therefore the probe color can be different from its preceding context
-                color = TENCOLOR[ctx_idx % len(TENCOLOR)] if nn == 0 else TENCOLOR[probe % len(TENCOLOR)]
+                color = color_palette[ctx_idx % len(color_palette)] if nn == 0 else color_palette[probe % len(color_palette)]
 
             else:
                 raise ValueError(f'prb_use_ctx_color must be bool but is {prb_use_ctx_color}')
@@ -198,6 +254,7 @@ def plot_raw_pair_array(fnArr, cellids, cellid, contexts, probe, raster_fs, part
 def plot_raw_pair(cellid, contexts, probe, mode='PSTH', raster_fs=20,
                   CI='std', CI_opacity=0.5, hightlight_difference=False,
                   prb_use_ctx_color=False, part='all', pupil=False, plot_pred=False,
+                  color_palette=FOURCOLOR,
                   **kwargs):
     # loads data, which can be responses or predictions
     # in the case of predictions, it asumes no trial variability and forces PSTH with no confidence interval
@@ -271,222 +328,8 @@ def plot_raw_pair(cellid, contexts, probe, mode='PSTH', raster_fs=20,
     fig = plot_raw_pair_array(site_raster, goodcells, cellid, contexts, probe, raster_fs, part,
                              prb_use_ctx_color, hightlight_difference,
                              CI, CI_opacity,
-                             mode, dash=dash)
-    return fig
-
-
-def plot_raw_pair_old(cellid, contexts, probe, mode='psth', raster_fs=30, colors=FOURCOLOR, errortype='std',
-                  pupil=False, simplify=False, part='all', mod_disp='both', fill_between=False, error_opacity=0.2,
-                  **kwargs):
-    print("deprecated, use the plot_raw_pair_v2")
-
-    prb_idx = probe - 1  # probe names start at 1 but we have zero idex
-
-    if 'modelname' in kwargs.keys() and 'batch' in kwargs.keys():
-        is_pred = True
-        fs = int(re.findall('\.fs\d*\.', kwargs['modelname'])[0][3:-1])
-        if raster_fs != fs: print("enforcing model raster_fs")
-
-        site_raster, pred_raster, goodcells = load_cell_formated_resp_pred(cellid, part='all',
-                                                                           **kwargs)
-        # force PSTH
-        if mode != 'psth':
-            print('can only plot psth for predictions, forcing...')
-            mode = 'psth'
-        if pupil is not False:
-            raise NotImplementedError('cannot make pupil distinction for model predictions')
-
-    else:
-        is_pred = False
-        if mode == 'psth':
-            fs = raster_fs
-            smoothing_window = 50
-        elif mode == 'raster':
-            if raster_fs < 100:
-                print(f'raster_fs={raster_fs} is too low for a good scatter. defaulting to 100hz')
-                fs = 100
-            else:
-                fs = raster_fs
-            smoothing_window = 0
-        else:
-            raise ValueError("undefined plot type, choose psth or raster")
-
-        if "-PC-" in cellid:
-            site_raster, goodcells = load_site_formated_PCs(cellid[:7], part='all',
-                                                            smoothing_window=smoothing_window, raster_fs=fs)
-            goodcells = list(goodcells.keys())
-        else:
-            site_raster, goodcells = load_site_formated_raster(cellid[:7], part='all',
-                                                               smoothing_window=smoothing_window, raster_fs=fs)
-
-        if pupil:
-            pup_raster, _ = load_site_formated_raster(cellid[:7], part='all',
-                                                      smoothing_window=0, raster_fs=fs,
-                                                      pupil=True)
-
-            pup_raster = np.mean(pup_raster, axis=-1, keepdims=True)
-            pup_thresh = np.median(pup_raster, axis=0, keepdims=True)
-
-            if pupil == 'big':
-                pupil_mask = np.broadcast_to(pup_raster < pup_thresh, site_raster.shape)
-            elif pupil == 'small':
-                pupil_mask = np.broadcast_to(pup_raster >= pup_thresh, site_raster.shape)
-            else:
-                raise ValueError(f"pupil parameter must be False, 'big' or 'small. receivede {pupil}")
-
-            site_raster = np.ma.masked_where(pupil_mask, site_raster, copy=False)
-
-    eg_raster = site_raster[:, goodcells.index(cellid), :, prb_idx, :]
-    if is_pred:
-        eg_pred = pred_raster[:, goodcells.index(cellid), :, prb_idx, :]
-
-    nreps, _, nsamps = eg_raster.shape
-    duration = nsamps / fs
-    time = np.linspace(0 - duration / 2, duration / 2, nsamps, endpoint=False)
-
-    if part == 'all':
-        halfs = [np.s_[:int(nsamps / 2)], np.s_[int(nsamps / 2):]]
-    elif part == 'probe':
-        halfs = [np.s_[int(nsamps / 2):]]
-    else:
-        raise ValueError(f'undefined value for part paramete: {part}')
-
-    fig = go.Figure()
-    for cc, ctx_idx in enumerate(contexts):
-
-        if is_pred:
-            part_color = [colors[ctx_idx % len(colors)], colors[ctx_idx % len(colors)]]
-        else:
-            if simplify is False:
-                # probe and context lines have different colors since areas color help identify probes
-                part_color = [colors[ctx_idx % len(colors)], colors[probe % len(colors)]]
-            elif simplify is True:
-                # the color asociated with the context is also used for the probe
-                part_color = [colors[ctx_idx % len(colors)], colors[ctx_idx % len(colors)]]
-            else:
-                raise ValueError(f'simplify must be bool but is {simplify}')
-
-        for nn, (half, color) in enumerate(zip(halfs, part_color)):
-
-            if mode == 'psth':
-                # find mean and standard error of the mean for line and confidence interval
-                mean_resp = np.mean(eg_raster[:, ctx_idx, :], axis=0)
-                if errortype == 'std':
-                    err_resp = np.std(eg_raster[:, ctx_idx, :], axis=0)
-                elif errortype == 'sem':
-                    err_resp = sem(eg_raster[:, ctx_idx, :], axis=0)
-                else:
-                    raise ValueError(f"Unknown errortype value {errortype}. Use 'std' or 'sem'")
-
-                # Labels the line with
-                if nn == 0 and part == 'all':
-                    name = f'context {ctx_idx}'
-                else:
-                    name = f'probe {probe} after context {ctx_idx}'
-
-                x, y = squarefy(time[half], mean_resp[half])
-                _, ystd = squarefy(time[half], err_resp[half])
-
-                # confidence interval for real data, and prediciton for model fits
-                if is_pred and (mod_disp in ['pred', 'both']):
-                    mean_pred = np.mean(eg_pred[:, ctx_idx, :], axis=0)
-
-                    name = f'{name} prediction'
-                    xp, yp = squarefy(time[half], mean_pred[half])
-
-                    if part == 'all' and nn == 1:
-                        xp = np.insert(xp, 0, xp[0])
-                        yp = np.insert(yp, 0, mean_resp[halfs[0]][-1])
-
-                    # fill the area between context effects to highlight difference!
-                    if fill_between and part == 'probe' and cc == 1:
-                        rgb = hex_to_rgb(Grey)  # tuple
-                        fill_color = f'rgba({rgb[0]}, {rgb[1]}, {rgb[2]}, {error_opacity})'
-                        _ = fig.add_trace(go.Scatter(x=xp, y=yp, mode='lines',
-                                                     line=dict(color='rgba(0,0,0,0)'),
-                                                     fill='tonexty', fillcolor=fill_color,
-                                                     name='difference', showlegend=False))
-
-                    _ = fig.add_trace(go.Scatter(x=xp, y=yp, mode='lines',
-                                                 line=dict(color=color, width=3, dash='dot'),
-                                                 name=name, showlegend=True))
-
-                elif not is_pred and not fill_between:
-                    # shadow of confidence interval for data with multiple trials
-                    rgb = hex_to_rgb(part_color[0])  # tuple
-                    fill_color = f'rgba({rgb[0]}, {rgb[1]}, {rgb[2]}, {error_opacity})'
-                    line_color = 'rgba(0,0,0,0)'  # transparent line in case its width is changed later outside this func
-
-                    _ = fig.add_trace(go.Scatter(x=x, y=y + ystd, mode='lines', line_color=line_color, line_width=0,
-                                                 showlegend=False))
-                    _ = fig.add_trace(go.Scatter(x=x, y=y - ystd, mode='lines', line_color=line_color, line_width=0,
-                                                 fill='tonexty', fillcolor=fill_color, showlegend=False))
-
-                ## Main PSHT line ##
-                # set the mean lines second so they lie on top of the colored areas
-
-                if not (is_pred and mod_disp == 'pred'):
-
-                    # for the second half prepend the last sample of the first half to create a connector
-                    if part == 'all' and nn == 1:
-                        x = np.insert(x, 0, x[0])
-                        y = np.insert(y, 0, mean_resp[halfs[0]][-1])
-
-                    if fill_between and part == 'probe' and cc == 1:
-                        rgb = hex_to_rgb(Grey)  # tuple
-                        fill_color = f'rgba({rgb[0]}, {rgb[1]}, {rgb[2]}, {error_opacity})'
-                        _ = fig.add_trace(go.Scatter(x=x, y=y, mode='lines',
-                                                     # line=dict(color='rgba(0,0,0,0)'),
-                                                     line=dict(color='black'),
-                                                     fill='tonexty', fillcolor=fill_color,
-                                                     name='difference', showlegend=False))
-
-                    _ = fig.add_trace(go.Scatter(x=x, y=y, mode='lines', line_color=color, line_width=3,
-                                                 name=name, showlegend=True))
-
-
-
-            elif mode == 'raster':
-                y, x = np.where(eg_raster[:, ctx_idx, half] > 0)
-                x_offset = time[half][0]
-                x = (x / fs) + x_offset
-                y_offset = nreps * cc
-                y += y_offset
-
-                _ = fig.add_trace(
-                    go.Scatter(x=x, y=y, mode='markers',
-                               marker=dict(
-                                   color=color,
-                                   opacity=0.5,
-                                   size=5,
-                                   line=dict(
-                                       color=part_color[0],
-                                       width=0.5
-                                   )
-                               ),
-                               showlegend=False
-                               )
-                )
-            else:
-                raise ValueError("undefined plot type, choose psht or raster")
-
-    if part == 'all':
-        x_range = [0 - duration / 2, duration / 2]
-    elif part == 'probe':
-        x_range = [0, duration / 2]
-    else:
-        raise ValueError(f'undefined value for part paramete: {part}')
-
-    _ = fig.update_xaxes(title_text='time from probe onset (s)', title_standoff=0,
-                         range=x_range)
-    _ = fig.add_vline(x=0, line_width=2, line_color='black', line_dash='dot', opacity=1)
-
-    if mode == 'psth':
-        _ = fig.update_yaxes(title_text='firing rate (z-score)', title_standoff=0)
-    elif mode == 'raster':
-        _ = fig.update_yaxes(title_text='trials', title_standoff=0, showticklabels=False, range=[0, nreps * 2])
-    fig.update_layout(template='simple_white')
-
+                             mode,dash,
+                             color_palette=color_palette)
     return fig
 
 
@@ -1428,11 +1271,13 @@ def plot_model_fitness(cellids, modelnames, nicknames=None, stat='r_test', mode=
 
 
 
-def plot_cell_coverage(IDF, cellid):
-    z = IDF.query(f"id == '{cellid}'"
+def plot_cell_coverage(fnDF, cellid, zero_nan=True):
+    z = fnDF.query(f"id == '{cellid}'"
                   ).pivot(index='context_pair', columns='probe', values='value'
                           ).values
-    # z[z == 0] = np.nan
+
+    if zero_nan:
+        z[z == 0] = np.nan
     heatmap = go.Figure(go.Heatmap(z=z, zmid=0, coloraxis='coloraxis', connectgaps=False))
     try:
         thismax = np.nanmax(z)
@@ -1442,11 +1287,20 @@ def plot_cell_coverage(IDF, cellid):
     return heatmap, thismax
 
 
-def plot_site_coverages(fnDF, cells_toplot='all'):
+def plot_site_coverages(fnDF, cells_toplot='all', has_neg=False):
     if cells_toplot == 'all':
         cells_toplot =  fnDF.id.unique()
     else:
         pass
+
+    if has_neg:
+        zero_nan = False
+        colorscale = 'BrBg'
+        cmid = 0
+    else:
+        zero_nan = True
+        colorscale = 'inferno'
+        cmid = None
 
     rows, cols = square_rows_cols(len(cells_toplot))
 
@@ -1459,7 +1313,8 @@ def plot_site_coverages(fnDF, cells_toplot='all'):
 
     # individual neuron examples
     for cc, cell_eg in enumerate(cells_toplot):
-        hmap, maxval = plot_cell_coverage(fnDF, cell_eg)
+
+        hmap, maxval = plot_cell_coverage(fnDF, cell_eg, zero_nan=zero_nan)
         max_vals.append(maxval)
         row, col = int(np.floor(cc / cols)) + 1, (cc % cols) + 1
         hmap = hmap['data']
@@ -1516,8 +1371,8 @@ def plot_site_coverages(fnDF, cells_toplot='all'):
                       width=w, height=h,
                       margin=dict(l=10, r=10, t=30, b=10),
                       coloraxis=dict(showscale=True,
-                                     colorscale='BrBg',
-                                     cmid=0,
+                                     colorscale=colorscale,
+                                     cmid=cmid,
                                      colorbar=dict(
                                          orientation='v',
                                          thicknessmode='fraction',
@@ -1535,135 +1390,143 @@ def plot_site_coverages(fnDF, cells_toplot='all'):
 
     return fig
 
-if __name__ == '__main__':
-    from configparser import ConfigParser
-    from src.root_path import config_path
 
-    config = ConfigParser()
-    config.read_file(open(config_path / 'settings.ini'))
-    meta = {'reliability': 0.1,  # r value
-            'smoothing_window': 0,  # ms
-            'raster_fs': 30,
-            'montecarlo': 11000,
-            'zscore': True,
-            'stim_type': 'permutations'}
+def plot_ctx_clusters(fnArr: np.array,
+                      idxr: tuple[np.array],
+                      trial_mode: str = 'scatter',
+                      jitter: float = 0.0,
+                      n_std: float = 1.96,
+                      color_palette: list[str] = FOURCOLOR,
+                      showlegend: bool = False) -> go.Figure:
 
-    cellid, contexts, probe = 'TNC019a-042-5', (0, 3), 3
-    cellid, contexts, probe = 'TNC019a-PC-1', (0, 3), 3
-    cellid, contexts, probe = 'ARM021b-36-8', (0, 1), 3  # from paper figure examples
-    cellid, contexts, probe = 'TNC014a-22-2', (0, 8), 3  # form paper modeling figure
+    # select consisten marker sybols and line dashings depending on probe
+    all_symbols = ['square', 'diamond', 'circle', 'star-triangle-up']  # just 2 probes for clarity
+    all_dashings = ['dot', 'dash', 'solid', 'dashdot']
+    symbols = [all_symbols[pp] for pp in idxr[3].squeeze()]
+    dashings = [all_dashings[pp] for pp in idxr[3].squeeze()]
 
-    # # digested metric plots aka tile plots
-    # df = jl.load(pl.Path(config['paths']['analysis_cache']) / f'220310_ctx_mod_metric_DF_tstat_cluster_mass_BS')
-    # df = jl.load(pl.Path(config['paths']['analysis_cache']) / f'220520_minimal_DF')
-    # df.query("source == 'real' and mult_comp_corr ==  'bf_cp'  and metric in ['integral', 'last_bin']", inplace=True)
-    # tile = plot_tiling('ARM021b-36-8', df,
-    #                    time_metric='last_bin',
-    #                    show_coloraxis=False,
-    #                    # cscales={'integral': 'Greens',
-    #                    #          'last_bin': 'Purples'}
-    #                    )
-    # tile.show()
-    #
-    # tile = plot_tiling('ARM021b-36-8', df,
-    #                    time_metric='last_bin',
-    #                    show_coloraxis=False,
-    #                    cscales={'integral': 'Greens',
-    #                             'last_bin': 'Purples'}
-    #                    )
-    # tile.show()
-    #
-    # tile = plot_tiling('ARM021b-36-8', df,
-    #                    time_metric='last_bin',
-    #                    show_coloraxis=True,
-    #                    orientation='h',
-    #                    cscales={'integral': 'BuGn',
-    #                             'last_bin': 'BuPu'})
-    # tile.show()
+    # select consistent colors dependent on context
+    colors = [color_palette[ii % 10] for ii in idxr[2].squeeze()]
 
-    # # rawish data plots, aka psth, raster and quantification
-    # fig = make_subplots(1,4)
-    # raster = plot_raw_pair(cellid, contexts, probes, type='raster')
-    # psth = plot_raw_pair(cellid, contexts, probe, type='psth', raster_fs=20, pupil='big')
-    # psth.show()
-    # psth = plot_raw_pair(cellid, contexts, probe, type='psth', raster_fs=20, pupil='small',simplify=True, error_opacity=0.1)
-    # psth.show()
+    # slices the array into the desired data view
+    contexts = idxr[2].squeeze()
+    probes = idxr[3].squeeze()
+    slcArr = fnArr[idxr]
+    rep, chn, ctx, prb, tme = slcArr.shape
+    assert chn == 2  # can only plot two neurons in the plane
+    assert tme == 1  # can only plot one time point
 
-    # dfr = plot_pupil_so_effects(cellid, contexts, probe, raster_fs=30, error_opacity=0.2)
-    # dfr.show()
+    fig = go.Figure()
+    # single trials and means with different  marker sizes and opacioty
+    arrs = [slcArr, slcArr.mean(axis=0, keepdims=True)]
+    markersizes = [5, 10]
+    opacities = [0.8, 1]
 
-    # quant0,_,_ = plot_time_ser_quant(cellid, contexts, probe, source='real',
-    #                              multiple_comparisons_axis=[1, 2], cluster_threshold=0.05,secondary_y=True,
-    #                              meta=dict(raster_fs=20))
-    # quant0.show()
+    # save ellipses data to define range of plots
+    all_ellipses = list()
 
-    # quant0,_,_ = plot_time_ser_quant(cellid, contexts, probe, source='real',
-    #                              multiple_comparisons_axis=[1, 2], cluster_threshold=0.05,secondary_y=True,
-    #                              meta=dict(raster_fs=20), deltaFR=False, ignore_quant=True)
-    # quant0.show()
-    #
-    # quant0 = plot_simple_quant(cellid, contexts, probe,
-    #                              multiple_comparisons_axis=[1, 2], cluster_threshold=0.05,
-    #                              meta=dict(raster_fs=20))
-    #
-    # quant0.show()
+    for pp, prbidx in enumerate(probes):
 
-    # quant1 = plot_time_ser_quant(cellid, contexts, probe, source='real',
-    #                              multiple_comparisons_axis=[1,2], consecutive=0, cluster_threshold=0.05,
-    #                              fn_name='big_shuff', meta={'montecarlo': 11000})
-    # fig.add_traces(raster['data'],rows=[1]*len(raster['data']),cols=[1]*len(raster['data']))
-    # fig.add_traces(psth['data'],rows=[1]*len(psth['data']),cols=[2]*len(psth['data']))
-    # fig.add_traces(quant0['data'],rows=[1]*len(quant0['data']),cols=[3]*len(quant0['data']))
-    # fig.add_traces(quant1['data'],rows=[1]*len(quant1['data']),cols=[4]*len(quant1['data']))
-    # fig.show()
+        symbol = symbols[pp]
+        dashing = dashings[pp]
 
-    # model parameter plots, aka pop_stategain etc.
-    cellid = 'TNC014a-22-2'
-    batch = 326
-    modelname = "ozgf.fs100.ch18-ld.popstate-dline.15.15.1-norm-epcpn.seq-avgreps_" \
-                "dlog-wc.18x1.g-fir.1x15-lvl.1-dexp.1-stategain.S.d_" \
-                "jk.nf10-tfinit.n.lr1e3.et3.cont-newtf.n.lr1e4.cont-svpred"
-    # fig = plot_pop_stategain(cellid, modelname, batch)
-    # fig.show()
-    # fig = plot_strf(cellid, modelname, batch)
-    # fig.show()
+        for cc, ctxidx in enumerate(contexts):
+            for arr, ms, op in zip(arrs, markersizes, opacities):
+                x = arr[:, 0, cc, pp, 0]
+                y = arr[:, 1, cc, pp, 0]
+                nreps = x.shape[0]
 
-    # raw prediction plot
-    # psth_pred = plot_raw_pair(cellid, contexts, probe,
-    #                           modelname=modelname, batch=batch,
-    #                           part='probe', mod_disp='pred', fill_between=True)
-    # psth_pred.show()
+                name = f"ctx-{ctxidx} prb-{prbidx}"
+                if nreps > 1: # single trial handling
+                    # add some jitter to single trials
+                    if trial_mode == "scatter":
+                        if jitter != 0:
+                            jitarr = np.random.uniform(-jitter, jitter, (nreps, 2))
+                            x = x + jitarr[:, 0]
+                            y = y + jitarr[:, 1]
 
-    # psth_pred = plot_raw_pair(cellid, contexts, probe, raster_fs=20)
-    # psth_pred.show()
+                        _ = fig.add_trace(
+                            go.Scatter(x=x, y=y, mode='markers',
+                                       marker=dict(symbol=symbol,
+                                                   color=colors[cc],
+                                                   size=ms,
+                                                   opacity=op),
+                                       showlegend=False),
+                        )
 
-    # # population modulation
-    # pop_mod = plot_pop_modulation(cellid, modelname, batch, contexts, probe)
-    # pop_mod.show()
+                    elif trial_mode == "ellipse":
+                        trc = confidence_ellipse(x=x, y=y, n_std=n_std,
+                                               line=dict(color=colors[cc],
+                                                         dash=dashing),
+                                               name=name, showlegend=showlegend)
+                        all_ellipses.append(np.stack((trc['x'], trc['y']), axis=1))
+                        _ = fig.add_trace(trc)
+                    else:
+                        raise ValueError(f"trial_mode must be 'scatter' or 'ellipse' but is {trial_mode}")
 
-    # composite = go.Figure()
-    # composite.add_traces(psth_pred.data)
-    # composite.add_traces(pop_mod.data)
-    # composite.show()
+                else: # average
+                    _ = fig.add_trace(
+                        go.Scatter(x=x, y=y, mode='markers',
+                                   marker=dict(symbol=symbol,
+                                               size=ms, opacity=op,
+                                               color=colors[cc],
+                                               line=dict(color='black', width=1)),
+                                   name=name, showlegend=showlegend),
+                    )
 
-    # fig = plot_mod_full(cellid, modelname, batch, contexts, probe, orientation='v')
-    # fig.show()
+        # average acroos all contexts
+        grandmeam = slcArr[:,:,:,pp,:].mean(axis=(0, 2)).squeeze()
+        _ = fig.add_trace(
+            go.Scatter(x=[grandmeam[0]], y=[grandmeam[1]], mode='markers',
+                       marker=dict(color='black', symbol=symbol, size=12),
+                       name=f"probe {prbidx} average", showlegend=showlegend)
+        )
 
-    # fig = plot_errors_over_time(cellid, modelname, batch, contexts, probe, grand_mean=False)
-    # fig.show()
+    # diagonals
+    if trial_mode == 'scatter':
+        dd = np.asarray([np.min(slcArr), np.max(slcArr)])
+    elif trial_mode == 'ellipse':
+        all_ellipses = np.stack(all_ellipses, axis=0)
+        dd = np.asarray([np.min(all_ellipses), np.max(all_ellipses)])
+    _ = fig.add_trace(
+        go.Scatter(x=dd, y=dd, mode='lines', line=dict(color='black', dash='dot'), opacity=0.5,
+                   name='sign threshold', showlegend=False)
+    )
 
-    # fig = plot_multiple_errors_over_time(cellid, [mns.STRF_relu, mns.pop_mod_relu, mns.self_mod_relu],batch, contexts, probe,
-    #                                      part='probe', style='PCA', floor=mns.STRF_relu, nPCs=3)
-    # fig.show()
+    fig.add_vline(0, line_color='black', line_dash='dash')
+    fig.add_hline(0, line_color='black', line_dash='dash')
 
-    # fig  = plot_model_prediction_comparison(cellid, batch, [STRF_long_relu, pop_lone_relu], pop_mod_relu, contexts, probe,
-    #                                  part='probe', grand_mean=False)
-    # fig.show()
+    # axis labels
+    _ = fig.update_yaxes(scaleanchor='x', scaleratio=1, title=dict(text='neuron 2 activity (AU)', standoff=0))
+    _ = fig.update_xaxes(title=dict(text='neuron 1 activity (AU)', standoff=0))
 
-    # ###
-    # from src.models.modelnames import modelnames
-    # from src.utils.subsets import cellid_A1_fit_set, cellid_PEG_fit_set
-    # mnames = {nick:modelnames[nick] for nick in ['matchl_STRF', 'matchl_self', 'matchl_pop','matchl_full']}
-    # cellids = cellid_A1_fit_set.union(cellid_PEG_fit_set)
-    # fig = plot_model_fitness(cellids, mnames.values(), nicknames=mnames.keys())
-    # fig.show()
+    return fig
+
+
+def plot_eg_diag(fnArraList: list,
+                 idxr: tuple[np.array],
+                 trial_mode: str = 'scatter',
+                 jitter: float = 0.0,
+                 n_std: float = 1.96) -> go.Figure:
+    fig = make_subplots(1, len(fnArraList), shared_xaxes='all', shared_yaxes='all',
+                        horizontal_spacing=0.01, vertical_spacing=0.01)
+
+    for cc, fnArr in enumerate(fnArraList):
+        showlegend = True if cc == 0 else False
+        traces = plot_ctx_clusters(fnArr, idxr=idxr, trial_mode=trial_mode,
+                                   jitter=jitter, n_std=n_std,
+                                   showlegend=showlegend)['data']
+        _ = fig.add_traces(traces, rows=[1] * len(traces), cols=[cc + 1] * len(traces))
+
+    # zero lines
+    fig.update_layout(template="simple_white",)
+    # fig.add_vline(x=0, line_width=2, line_color='black', line_dash='dot', opacity=1)
+    fig.add_vline(0, line_width=2, line_color='black', line_dash='dash', opacity=0.5)
+    fig.add_hline(0, line_width=2, line_color='black', line_dash='dash', opacity=0.5)
+
+    # axis labels
+    _ = fig.update_yaxes(scaleanchor='x', scaleratio=1, title=dict(text='neuron 2 activity (AU)', standoff=0),
+                         row=1, col=1)
+    _ = fig.update_xaxes(title=dict(text='neuron 1 activity (AU)', standoff=0))
+
+    return fig

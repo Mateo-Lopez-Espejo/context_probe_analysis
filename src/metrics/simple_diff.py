@@ -4,7 +4,7 @@ import numpy as np
 import xarray as xr
 import pandas as pd
 
-def ctx_effects_as_DF(arr, cellids, fs):
+def ctx_effects_as_DF(arr, cellids, fs, abs=False):
     # replace context by context-pair derived difference
     rep, chn, ctx, prb, tme = arr.shape
     ctx_pairs = list(itt.combinations(range(ctx), 2))
@@ -12,7 +12,10 @@ def ctx_effects_as_DF(arr, cellids, fs):
     diff_arr = np.empty([rep, chn, len(ctx_pairs), prb, tme])
 
     for cpidx, (c0, c1) in enumerate(ctx_pairs):
-        diff_arr[:, :, cpidx, :, :] = arr[:, :, c0, :, :] - arr[:, :, c1, :, :]
+        if abs:
+            diff_arr[:, :, cpidx, :, :] = np.abs(arr[:, :, c0, :, :] - arr[:, :, c1, :, :])
+        else:
+            diff_arr[:, :, cpidx, :, :] = arr[:, :, c0, :, :] - arr[:, :, c1, :, :]
 
     #### turns into xarray for later transofmration into dataframe, consider the dimension names and coordinates
     # will be columns and col values in the dataframe

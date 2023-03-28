@@ -1,6 +1,6 @@
 import numpy as np
 
-def square_rows_cols(n):
+def square_rows_cols(n: int) -> tuple[int, int]:
     """
     for n items, organized is the most square arrangement of rows and columns. prioritizing increasing width over height.
     consider that the end array might have more slots than specified items

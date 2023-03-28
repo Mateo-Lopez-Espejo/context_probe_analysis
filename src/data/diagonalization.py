@@ -1,9 +1,5 @@
 import numpy as np
 
-from plotly.subplots import make_subplots
-import plotly.graph_objects as go
-
-from src.visualization.palette import TENCOLOR
 from src.data.rasters import load_site_formated_raster
 
 
@@ -111,7 +107,7 @@ def diag_and_scale(fnArr, mode='fano_var', verbose=False, return_problem=False):
         Sm = np.sqrt(TarVar / MeanVar)
         Sc = 1  # leave the clusters alone
 
-        problem = None # chill, there no problem man
+        problem = None  # chill, there no problem man
 
     else:
         raise ValueError(f"unrecognized mode value {mode}, use 'fano_var' or 'mean_var'")
@@ -145,82 +141,3 @@ def load_site_dense_raster(site, part='probe', recache_rec=False, **kwargs):
         raster, goodcells = load_site_formated_raster(site, part=part, recache_rec=recache_rec, **kwargs)
     raster = diag_and_scale(raster, mode='mean_var')
     return raster, goodcells
-
-
-######### plotting related to the diagonalizaiton #####
-
-
-def plot_ctx_clusters(fnArr, jitter=0):
-    rep, chn, ctx, prb, tme = fnArr.shape
-    assert chn == 2  # can only plot two neurons in the plane
-    assert prb == 1  # can only plot one probe
-    assert tme == 1  # can only plot one time point
-
-    fig = go.Figure()
-    colors = [TENCOLOR[ii % 10] for ii in range(ctx)]
-
-    arrs = [fnArr, fnArr.mean(axis=0, keepdims=True)]
-    markersizes = [5, 10]
-    opacities = [0.8, 1]
-
-    for arr, ms, op in zip(arrs, markersizes, opacities):
-        for cc in range(ctx):
-            x = arr[:, 0, cc, 0, 0]
-            y = arr[:, 1, cc, 0, 0]
-            nreps = x.shape[0]
-            if nreps > 1:
-                # add some jitter to single trials
-                if jitter !=0:
-                    jitarr = np.random.uniform(-jitter, jitter, (nreps, 2))
-                    x = x + jitarr[:, 0]
-                    y = y + jitarr[:, 1]
-
-            _ = fig.add_trace(
-                go.Scatter(x=x, y=y,
-                           mode='markers', marker=dict(color=colors[cc], size=ms,
-                                                       opacity=op),
-                           showlegend=False),
-            )
-
-    # diagonals
-    dd = np.asarray([np.min(fnArr[0, 0, :, 0, 0]), np.max(fnArr[0, 0, :, 0, 0])])
-    _ = fig.add_trace(
-        go.Scatter(x=dd, y=dd, mode='lines', line=dict(color='black', dash='dot'),
-                   name='sign threshold', showlegend=False)
-    )
-
-    # average acroos all contexts
-    grandmeam = fnArr.mean(axis=(0, 2)).squeeze()
-    _ = fig.add_trace(
-        go.Scatter(x=[grandmeam[0]], y=[grandmeam[1]], mode='markers',
-                   marker=dict(color='black', symbol="star-square", size=12),
-                   showlegend=False)
-    )
-
-    fig.add_vline(0, line_color='black', line_dash='dash')
-    fig.add_hline(0, line_color='black', line_dash='dash')
-
-    # axis labels
-    _ = fig.update_yaxes(scaleanchor='x', scaleratio=1, title=dict(text='neuron 2 activity (AU)', standoff=0))
-    _ = fig.update_xaxes(title=dict(text='neuron 1 activity (AU)', standoff=0))
-
-    return fig
-
-
-def plot_eg_diag(fnArraList: list, jitter=0):
-    fig = make_subplots(1, len(fnArraList), shared_xaxes='all', shared_yaxes='all')
-
-    for cc, fnArr in enumerate(fnArraList):
-        traces = plot_ctx_clusters(fnArr, jitter=jitter)['data']
-        _ = fig.add_traces(traces, rows=[1] * len(traces), cols=[cc + 1] * len(traces))
-
-    # zero lines
-    fig.add_vline(0, line_color='black', line_dash='dash')
-    fig.add_hline(0, line_color='black', line_dash='dash')
-
-    # axis labels
-    _ = fig.update_yaxes(scaleanchor='x', scaleratio=1, title=dict(text='neuron 2 activity (AU)', standoff=0),
-                         row=1, col=1)
-    _ = fig.update_xaxes(title=dict(text='neuron 1 activity (AU)', standoff=0))
-
-    return fig

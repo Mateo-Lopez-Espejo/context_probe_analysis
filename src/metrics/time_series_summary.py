@@ -25,6 +25,13 @@ def signif_abs_sum(array, label_dictionary):
     _ = updated_label_dict.pop('time')
     return metric, updated_label_dict
 
+def integral(array, label_dictionary):
+    t = label_dictionary['time']
+    metric = np.sum(array, axis=3) * np.mean(np.diff(t))
+    updated_label_dict = copy.deepcopy(label_dictionary)
+    _ = updated_label_dict.pop('time')
+    return metric, updated_label_dict
+
 
 def signif_abs_mass_center(array, label_dictionary):
     t = label_dictionary['time']
@@ -139,6 +146,7 @@ def integral_nosig_D(array, label_dictionary):
 
 all_metrics = {'mass_center': signif_abs_mass_center,
                'integral': signif_abs_sum,
+               'integral_no_abs': integral,
                'last_bin': signif_last_bin,
                'mass_center_trunc1.5': signif_abs_mass_center_truncated150,
                'integral_trunc1.5': signif_abs_sum_trucated150,
