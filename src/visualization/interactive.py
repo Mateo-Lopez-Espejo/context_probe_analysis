@@ -1272,13 +1272,24 @@ def plot_model_fitness(cellids, modelnames, nicknames=None, stat='r_test', mode=
 
 
 def plot_cell_coverage(fnDF, cellid, zero_nan=True):
-    z = fnDF.query(f"id == '{cellid}'"
-                  ).pivot(index='context_pair', columns='probe', values='value'
-                          ).values
+
+    celldf = fnDF.query(f"id == '{cellid}'")
+    z = celldf.pivot(index='context_pair', columns='probe', values='value')
 
     if zero_nan:
         z[z == 0] = np.nan
+
     heatmap = go.Figure(go.Heatmap(z=z, zmid=0, coloraxis='coloraxis', connectgaps=False))
+
+    # adds text if column present in dataframe and has something other than NaN
+    # %%
+    if "text" in celldf.columns:
+        if np.any(~celldf["text"].isna()):
+            # here text has to be passed as a DF with context and probes as indices and columns
+            text_df = celldf.pivot(index='context_pair', columns='probe', values='text')
+            heatmap.update_traces(text=text_df,
+                                  texttemplate='%{text}')
+
     try:
         thismax = np.nanmax(z)
     except:
@@ -1287,11 +1298,13 @@ def plot_cell_coverage(fnDF, cellid, zero_nan=True):
     return heatmap, thismax
 
 
-def plot_site_coverages(fnDF, cells_toplot='all', has_neg=False):
+def plot_site_coverages(fnDF, cells_toplot='all', has_neg=False, rows=None, cols=None):
     if cells_toplot == 'all':
         cells_toplot =  fnDF.id.unique()
     else:
         pass
+
+    print(cells_toplot)
 
     if has_neg:
         zero_nan = False
@@ -1302,13 +1315,15 @@ def plot_site_coverages(fnDF, cells_toplot='all', has_neg=False):
         colorscale = 'inferno'
         cmid = None
 
-    rows, cols = square_rows_cols(len(cells_toplot))
+    if rows == None and cols == None:
+        rows, cols = square_rows_cols(len(cells_toplot))
 
     max_vals = list()
     fig = make_subplots(rows=rows, cols=cols,
                         shared_xaxes='all', shared_yaxes='all',
                         horizontal_spacing=0.01, vertical_spacing=0.05,
-                        subplot_titles=[cid[8:] for cid in cells_toplot],
+                        subplot_titles=[cid[8:] if cid not in ["Union", "PC1", "dense"] else cid
+                                        for cid in cells_toplot],
                         )
 
     # individual neuron examples
