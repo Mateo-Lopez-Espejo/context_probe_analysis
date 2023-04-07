@@ -1424,8 +1424,10 @@ def plot_ctx_clusters(fnArr: np.array,
     colors = [color_palette[ii % 10] for ii in idxr[2].squeeze()]
 
     # slices the array into the desired data view
+    cells = idxr[1].squeeze()
     contexts = idxr[2].squeeze()
     probes = idxr[3].squeeze()
+    time = idxr[4].squeeze()
     slcArr = fnArr[idxr]
     rep, chn, ctx, prb, tme = slcArr.shape
     assert chn == 2  # can only plot two neurons in the plane
@@ -1451,7 +1453,7 @@ def plot_ctx_clusters(fnArr: np.array,
                 y = arr[:, 1, cc, pp, 0]
                 nreps = x.shape[0]
 
-                name = f"ctx-{ctxidx} prb-{prbidx}"
+                name = f"ctx-{ctxidx} prb-{prbidx+1}"
                 if nreps > 1: # single trial handling
                     # add some jitter to single trials
                     if trial_mode == "scatter":
@@ -1472,7 +1474,8 @@ def plot_ctx_clusters(fnArr: np.array,
                     elif trial_mode == "ellipse":
                         trc = confidence_ellipse(x=x, y=y, n_std=n_std,
                                                line=dict(color=colors[cc],
-                                                         dash=dashing),
+                                                         dash=dashing,
+                                                         width=3),
                                                name=name, showlegend=showlegend)
                         all_ellipses.append(np.stack((trc['x'], trc['y']), axis=1))
                         _ = fig.add_trace(trc)
@@ -1489,8 +1492,15 @@ def plot_ctx_clusters(fnArr: np.array,
                                    name=name, showlegend=showlegend),
                     )
 
-        # average acroos all contexts
-        grandmeam = slcArr[:,:,:,pp,:].mean(axis=(0, 2)).squeeze()
+        # average acros all contexts. even those not being displayed
+        # to do this creates a new indexer that selects the desired neurons and probes
+        avgidxr = np.ix_(np.arange(fnArr.shape[0]),
+                         cells,
+                         np.arange(fnArr.shape[2]),
+                         [prbidx],
+                         [time])
+        # grandmeam = slcArr[:,:,:,pp,:].mean(axis=(0, 2)).squeeze() # old, mean of the context subset. looks odd for the diagonalized (full) data
+        grandmeam = fnArr[avgidxr].mean(axis=(0, 2)).squeeze()
         _ = fig.add_trace(
             go.Scatter(x=[grandmeam[0]], y=[grandmeam[1]], mode='markers',
                        marker=dict(color='black', symbol=symbol, size=12),
@@ -1522,16 +1532,31 @@ def plot_eg_diag(fnArraList: list,
                  idxr: tuple[np.array],
                  trial_mode: str = 'scatter',
                  jitter: float = 0.0,
-                 n_std: float = 1.96) -> go.Figure:
-    fig = make_subplots(1, len(fnArraList), shared_xaxes='all', shared_yaxes='all',
-                        horizontal_spacing=0.01, vertical_spacing=0.01)
+                 n_std: float = 1.96,
+                 orientation: str = 'h') -> go.Figure:
+
+    if orientation == 'h':
+        fig = make_subplots(1, len(fnArraList), shared_xaxes='all', shared_yaxes='all',
+                            horizontal_spacing=0.01, vertical_spacing=0.01)
+    elif orientation == 'v':
+        fig = make_subplots(len(fnArraList), 1, shared_xaxes='all', shared_yaxes='all',
+                            horizontal_spacing=0.01, vertical_spacing=0.01)
+    else:
+        raise ValueError(f"orientation must be 'v' or 'h' but is {orientation}")
 
     for cc, fnArr in enumerate(fnArraList):
         showlegend = True if cc == 0 else False
         traces = plot_ctx_clusters(fnArr, idxr=idxr, trial_mode=trial_mode,
                                    jitter=jitter, n_std=n_std,
                                    showlegend=showlegend)['data']
-        _ = fig.add_traces(traces, rows=[1] * len(traces), cols=[cc + 1] * len(traces))
+        if orientation == 'h':
+            rows = [1] * len(traces)
+            cols = [cc + 1] * len(traces)
+        elif orientation == 'v':
+            rows = [cc + 1] * len(traces)
+            cols = [1] * len(traces)
+
+        _ = fig.add_traces(traces, rows=rows, cols=cols)
 
     # zero lines
     fig.update_layout(template="simple_white",)
@@ -1540,8 +1565,16 @@ def plot_eg_diag(fnArraList: list,
     fig.add_hline(0, line_width=2, line_color='black', line_dash='dash', opacity=0.5)
 
     # axis labels
+    if orientation == 'h':
+        xrow, xcol = None, None
+        yrow, ycol = 1, 1
+    elif orientation == 'v':
+        xrow, xcol = len(fnArraList), 1
+        yrow, ycol = None, None
+
+    _ = fig.update_xaxes(title=dict(text='neuron 1 activity (AU)', standoff=0),
+                         row=xrow, col=xcol)
     _ = fig.update_yaxes(scaleanchor='x', scaleratio=1, title=dict(text='neuron 2 activity (AU)', standoff=0),
-                         row=1, col=1)
-    _ = fig.update_xaxes(title=dict(text='neuron 1 activity (AU)', standoff=0))
+                         row=yrow, col=ycol)
 
     return fig
