@@ -15,7 +15,7 @@ This is a superfluous tool to embed recorded sounds in the main paper of my PhD.
 On runtime it launches a monitor that displays the current sound input of the default mic of the system
 On pressing enter it saves a 1s waveform inmediatly after the key press
 after 4 Sounds have been stored it asks to close the monitor window to continue, or to press Enter again to overwrite
-the firts wave recorded (working as a blackbox) 
+the first wave recorded (working as a blackbox) 
 """
 
 # output folder, change me!
@@ -318,6 +318,5 @@ pan = all_figs[1]['data']
 fig.add_traces(pan, cols=[2] * len(pan), rows=[1] * len(pan))
 
 filename = folder / 'fig1_composite_order'
-fig.write_image(filename.with_suffix('.png'), scale=3)
 fig.write_image(filename.with_suffix('.svg'))
-fig.show()
+fig.show(renderer='browser', scale=2)
