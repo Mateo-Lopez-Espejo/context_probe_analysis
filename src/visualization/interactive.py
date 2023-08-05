@@ -1417,8 +1417,8 @@ def plot_ctx_clusters(fnArr: np.array,
     # select consisten marker sybols and line dashings depending on probe
     all_symbols = ['square', 'diamond', 'circle', 'star-triangle-up']  # just 2 probes for clarity
     all_dashings = ['dot', 'dash', 'solid', 'dashdot']
-    symbols = [all_symbols[pp] for pp in idxr[3].squeeze()]
-    dashings = [all_dashings[pp] for pp in idxr[3].squeeze()]
+    # symbols = [all_symbols[pp] for pp in idxr[3].squeeze()]
+    # dashings = [all_dashings[pp] for pp in idxr[3].squeeze()]
 
     # select consistent colors dependent on context
     colors = [color_palette[ii % 10] for ii in idxr[2].squeeze()]
@@ -1432,6 +1432,12 @@ def plot_ctx_clusters(fnArr: np.array,
     rep, chn, ctx, prb, tme = slcArr.shape
     assert chn == 2  # can only plot two neurons in the plane
     assert tme == 1  # can only plot one time point
+
+    # handle single probe examples
+    if probes.ndim == 0:
+        probes = probes[None]
+    symbols = [all_symbols[pp] for pp in probes]
+    dashings = [all_dashings[pp] for pp in probes]
 
     fig = go.Figure()
     # single trials and means with different  marker sizes and opacioty
