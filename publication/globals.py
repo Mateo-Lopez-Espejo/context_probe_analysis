@@ -17,12 +17,15 @@ config = ConfigParser()
 config.read_file(open(config_path / 'settings.ini'))
 meta = {'reliability': 0.1,  # r value
         'smoothing_window': 0,  # ms
-        'raster_fs': 20, 'zscore': True, 'stim_type': 'permutations', }
+        'raster_fs': 20,
+        'zscore': True,
+        'stim_type': 'permutations'}
 alpha = 0.05
 montecarlos = 11000
 summary_DF_file = pl.Path(
     config['paths']['analysis_cache']) / '220520_minimal_DF'
 metrics = ['integral', 'last_bin']
+
 DF = jl.load(summary_DF_file).query(
     f"source == 'real' and metric in {metrics} and "
     f"cluster_threshold == 0.05 and mult_comp_corr == 'bf_cp' and "
@@ -86,5 +89,17 @@ toplot = pd.concat(toplot)
 
 ferret_df = add_ctx_type_voc(ferret_df)
 
-###################### figure 2 ###################################
+###################### figure 3 ###################################
+
+# ToDo bring stuff over here and perhaps merge with DFs above
+
+###################### figure 4 ###################################
+
+# Baseline minimal parameters
+raster_meta = {'reliability': 0.1,  # r value
+               'smoothing_window': 0,  # ms
+               'raster_fs': 20,
+               'zscore': True,
+               'stim_type': 'permutations'}
+
 
