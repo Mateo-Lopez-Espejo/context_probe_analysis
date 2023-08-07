@@ -22,8 +22,7 @@ from publication.globals import raster_meta
 # good looking examples
 eg_site = 'ARM021b'
 # The second neuron is the same used in fig 1 and 2
-eg_neurons = [f'{eg_site}-{ci}' + ci for ci in ['43-8',
-                                                '36-8']]
+eg_neurons = [f'{eg_site}-{ci}' for ci in ['43-8', '36-8']]
 eg_probes = [3, 4]
 eg_ctxs = [1, 2, 3]
 eg_ctx_pairs = list(combinations(eg_ctxs, 2))

@@ -11,8 +11,10 @@ import plotly.graph_objs as go
 from plotly.subplots import make_subplots
 import plotly.colors as pc
 
-from publication.globals import summary_DF_file, pivoted, toplot, toregress, \
-    ferret_df
+from publication.globals import (
+    summary_DF_file, pivoted_f2 as pivoted, toplot_f2 as toplot,
+    toregress_f2 as toregress, ferret_df
+)
 
 from src.utils.dataframes import kruskal_with_posthoc
 from src.utils.tools import decimate_xy

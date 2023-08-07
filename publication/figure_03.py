@@ -2,46 +2,23 @@
 Figure 3 all panels
 """
 import itertools as itt
-import pathlib as pl
-from configparser import ConfigParser
 
-import joblib as jl
 import pandas as pd
 import numpy as np
 from scipy.stats import sem, wilcoxon, mannwhitneyu
 import plotly.graph_objects as go
 
-from src.root_path import config_path, root_path
 from src.visualization.palette import A1_COLOR, PEG_COLOR
 from src.visualization.interactive import plot_site_coverages
-
-config = ConfigParser()
-config.read_file(open(config_path / 'settings.ini'))
-
-figfolder = root_path / 'reports' / 'figures' / 'paper'
-figfolder.mkdir(parents=True, exist_ok=True)
-
-mass_cluster_DF_file = pl.Path(config['paths']['analysis_cache']) / f'220520_minimal_DF'
-if 'DF' in locals(): del(locals()['DF'])
-DF = jl.load(mass_cluster_DF_file)
-
-DF.query("source == 'real' and mult_comp_corr in ['bf_cp', 'bf_ncp']  and "
-         "metric in ['integral']", inplace=True)
-
-DF.loc[DF.analysis == 'PCA', 'PC'] = DF.loc[DF.analysis == 'PCA', 'id'].apply(lambda x: int(x.split('-')[-1]))
-DF.loc[DF.metric == 'integral', 'value'] = DF.loc[DF.metric == 'integral', 'value'] / 1000
-
-SC_DF = DF.query("analysis == 'SC' and mult_comp_corr == 'bf_cp'"
-                 " and metric == 'integral'")
-PCA_DF = DF.query("analysis == 'PCA' and mult_comp_corr == 'bf_cp'"
-                  " and metric == 'integral'").copy()
+from publication.globals import SC_DF, PCA_DF, DF_f3 as DF
 
 def plot_example_site_coverage():
     """
-    Coverage plots showing all context instances (a context pair and a probe)
-    on a 2d plane, with a color map showing the context effects amplitude for
-    each instance. The same heatmap is plot for multiple example neurons in a
-    site, and for the first PC and Union heuristics of site coverage.
+    Figure 3 panels A and B. Coverage plots showing all context instances
+    (a context pair and a probe) on a 2d plane, with a color map showing the
+    context effects amplitude for each instance. The same heatmap is plot for
+    multiple example neurons in a site, and for the first PC and Union
+    heuristics of site coverage.
 
     Returns: Plotly figure
 
@@ -93,13 +70,14 @@ def plot_example_site_coverage():
 
 def plot_neuron_and_site_coverage_summary():
     """
-    Violin plots summarizing the context coverage for single neurons, the best
-    neuron in the site, the first PC and the Union. Further categorization is
-    done by different cortical regions. Additionally prints the nonparametric
-    statistical tests comparing between cortical regions for each category, and
-    between categories. For the category comparisons, either a matched sample
-    statistic is used between site coverages, or an unmatched sample stat is
-    used when comparing sites with single neurons.
+    Figure 3 panel C. Violin plots summarizing the context coverage for single
+    neurons, the best neuron in the site, the first PC and the Union.
+    Further categorization is done by different cortical regions. Additionally
+    prints the nonparametric statistical tests comparing between cortical
+    regions for each category, and between categories.
+    For the category comparisons, either a matched sample statistic is used
+    between site coverages, or an unmatched sample stat is used when comparing
+    sites with single neurons.
 
     Returns: Plotly figure
 
