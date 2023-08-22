@@ -7,9 +7,13 @@ import pandas as pd
 import scipy.stats as sst
 import scipy.signal as snl
 
+from nems.db import batch_comp
+
 from src.utils.dataframes import add_classified_contexts, norm_by_mean, \
     simplify_classified_contexts, add_ctx_type_voc
 from src.root_path import config_path
+from src.utils.subsets import cellid_A1_fit_set, cellid_PEG_fit_set
+from src.models.modelnames import modelnames as all_modelnames
 
 config = ConfigParser()
 config.read_file(open(config_path / 'settings.ini'))
@@ -221,3 +225,67 @@ toplot_f5 = toregress_f5.query(f"triple in {categories} "
                                "and metric in ['integral', 'last_bin']"
                                "and significant"
                                ).copy()
+
+
+###################### figure 6 ###################################
+
+
+summary_DF_file = pl.Path(config['paths']['analysis_cache']) / f'220520_minimal_DF'
+model_df_file = pl.Path(config['paths']['analysis_cache']) / f'220412_resp_pred_metrics_by_chunks'
+working_DF_file = pl.Path(config['paths']['analysis_cache']) / f'220531_fig6_wdf'
+
+recache_wdf = False
+
+if working_DF_file.exists() and not recache_wdf:
+    MODEL_CTX_QUANT_DF = jl.load(working_DF_file)
+    print("found and loaded working data fram from cache")
+else:
+    print('creating working dataframe ...')
+
+    filter = jl.load(summary_DF_file).query(
+        f"mult_comp_corr == 'bf_cp' and source == 'real' and cluster_threshold == 0.05 and "
+        f"metric == 'integral' and analysis == 'SC'"
+        f"and value > 0 "
+        ).loc[:,
+             ['id', 'context_pair', 'probe']]  # these are the minimum columns to define an individual instance
+
+    MODEL_CTX_QUANT_DF = jl.load(model_df_file)
+
+    MODEL_CTX_QUANT_DF = pd.merge(
+        filter, MODEL_CTX_QUANT_DF, on=['id', 'context_pair', 'probe'], validate='1:m'
+    ).query("metric in ['integral', 'mass_center']").rename(columns={'resp': 'response'})
+
+    # del (DF, filter)
+    jl.dump(MODEL_CTX_QUANT_DF, working_DF_file)
+    print('done')
+
+
+DISPLAY_NAME_MAP = {'matchl_STRF': 'STRF',
+                    'matchl_self': 'Self',
+                    'matchl_pop': 'Pop',
+                    'matchl_full': 'Full'}
+
+
+MODEL_STATISTIC = 'r_test'
+cellids = cellid_A1_fit_set.union(cellid_PEG_fit_set)
+MODEL_NICKNAMES = ['matchl_STRF', 'matchl_self', 'matchl_pop', 'matchl_full']
+modelnames = [mod for key, mod in all_modelnames.items() if
+              key in MODEL_NICKNAMES]
+
+DF = batch_comp(batch=[326, 327], modelnames=modelnames, cellids=cellids,
+                stat=MODEL_STATISTIC)
+DFfloor = batch_comp(batch=[326, 327], modelnames=modelnames,
+                     cellids=cellids, stat='r_floor')
+
+# nan out prediciton values smaller than r-floor,
+# arr is a view of the DF data, the replacement is in place
+arr = DF.values
+arr[DF.values <= DFfloor.values] = np.nan
+
+MODEL_DISPLAY_NAMES = [DISPLAY_NAME_MAP[nknm] for nknm in MODEL_NICKNAMES]
+DF.columns = MODEL_DISPLAY_NAMES
+DFfloor.columns = MODEL_DISPLAY_NAMES
+DF.reset_index(inplace=True)
+DFfloor.reset_index(inplace=True)
+MODEL_PERFORMANCE_WIDE_DF = DF.dropna().rename(columns={'cellid': 'id', 'siteid': 'site'}),
+

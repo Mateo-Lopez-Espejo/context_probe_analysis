@@ -18,6 +18,24 @@ from publication.globals import (
 )
 
 
+def jknf(x, njacks=20, fn=np.mean):
+    pred = x
+    chunksize = int(np.ceil(len(pred) / njacks / 10))
+    chunkcount = int(np.ceil(len(pred) / chunksize / njacks))
+    idx = np.zeros((chunkcount, njacks, chunksize))
+    for jj in range(njacks):
+        idx[:, jj, :] = jj
+    idx = np.reshape(idx, [-1])[:len(pred)]
+    jc = np.zeros(njacks)
+    for jj in range(njacks):
+        ff = (idx != jj)
+        jc[jj] = fn(pred[ff])
+
+    stat = np.nanmean(jc)
+    error = np.nanstd(jc) * np.sqrt(njacks - 1)
+
+    return stat, error
+
 def plot_cell_type_distributions():
     """
     Figure 5 panel C. Shows a histogram of number of neurons per spike width
@@ -345,26 +363,6 @@ def plot_metric_cumulative_histograms():
                                  group_col='triple', val_col='value')
 
     return fig
-
-
-def jknf(x, njacks=20, fn=np.mean):
-    pred = x
-    chunksize = int(np.ceil(len(pred) / njacks / 10))
-    chunkcount = int(np.ceil(len(pred) / chunksize / njacks))
-    idx = np.zeros((chunkcount, njacks, chunksize))
-    for jj in range(njacks):
-        idx[:, jj, :] = jj
-    idx = np.reshape(idx, [-1])[:len(pred)]
-    jc = np.zeros(njacks)
-    for jj in range(njacks):
-        ff = (idx != jj)
-        jc[jj] = fn(pred[ff])
-
-    stat = np.nanmean(jc)
-    error = np.nanstd(jc) * np.sqrt(njacks - 1)
-
-    return stat, error
-
 
 def plot_metric_insets():
     """

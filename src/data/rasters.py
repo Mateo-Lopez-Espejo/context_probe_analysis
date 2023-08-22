@@ -73,7 +73,8 @@ def _make_full_array(signal, channels='all', smooth_window=None, raster_fs=None,
     # gaussian window smooth
     if smooth_window is not None and smooth_window != 0:
         print(
-            'warning: smooting the data so early might lead to questionable results. Preferably smooth before plotting')
+            'Warning: smoothing the data. '
+            'Smooth only for display and not for analysis')
         full_array = raster_smooth(full_array, signal.fs, smooth_window, axis=4)
 
     return full_array, invalid_cp, valid_cp, context_names, probe_names
