@@ -15,6 +15,13 @@ from src.root_path import config_path
 from src.utils.subsets import cellid_A1_fit_set, cellid_PEG_fit_set
 from src.models.modelnames import modelnames as all_modelnames
 
+from src.pupil.dataframes import (
+    _calculate_pupil_first_order_coefficient,
+    _calculate_delta_firing_rates,
+    _calculate_pupil_second_order_coefficient,
+    _filter_by_instance_significance
+)
+
 config = ConfigParser()
 config.read_file(open(config_path / 'settings.ini'))
 
@@ -288,4 +295,45 @@ DFfloor.columns = MODEL_DISPLAY_NAMES
 DF.reset_index(inplace=True)
 DFfloor.reset_index(inplace=True)
 MODEL_PERFORMANCE_WIDE_DF = DF.dropna().rename(columns={'cellid': 'id', 'siteid': 'site'}),
+
+###################### Suplementary figure 3 ##################################
+
+
+sup_fig3_wdf_file = pl.Path(
+    config['paths']['analysis_cache']
+) / f'230829_sup_fig3_wdf'
+
+recache_pupil_wdf = False
+
+if sup_fig3_wdf_file.exists() and not recache_pupil_wdf:
+    SUP_FIG3_WDF = jl.load(sup_fig3_wdf_file)
+    print("found and loaded pupil effects working data frame from cache")
+else:
+    print('creating working dataframe for pupil effects ...')
+
+    fr_DF_file = pl.Path(
+        config['paths']['analysis_cache']) / f'220808_pupil_fr_by_instance'
+
+    filter_DF_file = pl.Path(
+        config['paths']['analysis_cache']) / f'220719_chunked_amplitude_DF'
+
+    pivoted_fo = _calculate_pupil_first_order_coefficient(
+        jl.load(fr_DF_file)
+    )
+
+    second_ord_DF = _calculate_delta_firing_rates(
+        jl.load(fr_DF_file)
+    )
+
+    pivoted_so = _calculate_pupil_second_order_coefficient(second_ord_DF)
+
+    SUP_FIG3_WDF = _filter_by_instance_significance(
+        pd.merge(pivoted_fo, pivoted_so, on=['id', 'site', 'probe'],
+                 suffixes=('_fo', '_so'), validate='1:m'),
+        jl.load(filter_DF_file)
+    )
+
+
+    jl.dump(SUP_FIG3_WDF, sup_fig3_wdf_file)
+    print('done')
 

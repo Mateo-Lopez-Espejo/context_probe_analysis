@@ -20,6 +20,8 @@ dataframe can be made by skipping the delta FR, and just calculating the firing 
 Also in hindsight, the absolute delta FR is a questionable metric, so we can drop it and save us some time/memory e
 """
 
+# ToDo streamline since this is fundamental for the pupil analysis.
+
 config = ConfigParser()
 config.read_file(open(config_path / 'settings.ini'))
 
@@ -29,7 +31,7 @@ raster_meta = {'reliability': 0.1,  # r value
                'zscore': True,
                'stim_type': 'permutations'}
 
-fr_DF_file = pl.Path(config['paths']['analysis_cache']) / f'220801_pupil_delta_firerates'  # OG
+# fr_DF_file = pl.Path(config['paths']['analysis_cache']) / f'220801_pupil_delta_firerates'  # OG
 fr_DF_file = pl.Path(config['paths']['analysis_cache']) / f'220808_pupil_fr_by_instance'  # pupil split calculated by instance
 # fr_DF_file = pl.Path(config['paths']['analysis_cache']) / f'220901_raw_fr_by_instance'  # newest version without zscoring firing rates
 fr_DF_file.parent.mkdir(parents=True, exist_ok=True)
