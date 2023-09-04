@@ -17,7 +17,7 @@ from src.visualization.interactive import plot_site_coverages, plot_eg_diag, \
     plot_simple_psths
 
 from publication.diagonalization_dataframe import accuracy_df
-from publication.globals import raster_meta
+from publication.globals import RASTER_META
 
 # good looking examples
 eg_site = 'ARM021b'
@@ -29,23 +29,23 @@ eg_ctx_pairs = list(combinations(eg_ctxs, 2))
 eg_times = [5]
 
 # load cache of sigle cell rasters for this example site
-if load_site_formated_raster.check_call_in_cache(eg_site, **raster_meta):
-    raster, cellids = load_site_formated_raster(eg_site, **raster_meta)
+if load_site_formated_raster.check_call_in_cache(eg_site, **RASTER_META):
+    raster, cellids = load_site_formated_raster(eg_site, **RASTER_META)
     print(f'####\n'
           f'found and loaded cache for {eg_site}')
 else:
-    print(f"cant load load_site_formated_raster with {raster_meta}."
+    print(f"cant load load_site_formated_raster with {RASTER_META}."
           f"\n this should be cached, why is it failing? ")
 
 # also loads full raster including context section for the graphical abstract
 if load_site_formated_raster.check_call_in_cache(eg_site, part='all',
-                                                 **raster_meta):
+                                                 **RASTER_META):
     fullraster, _ = load_site_formated_raster(eg_site, part='all',
-                                              **raster_meta)
+                                              **RASTER_META)
     print(f'####\n'
           f'found and loaded cache for {eg_site}')
 else:
-    print(f"cant load load_site_formated_raster with {raster_meta}."
+    print(f"cant load load_site_formated_raster with {RASTER_META}."
           f"\n this should be cached, why is it failing? ")
 
 
@@ -59,7 +59,7 @@ def plot_diagonalization_geometric_example():
     Returns: Plotly Figure
 
     """
-    dense_raster, _ = load_site_dense_raster(eg_site, **raster_meta)
+    dense_raster, _ = load_site_dense_raster(eg_site, **RASTER_META)
     rep, chn, ctx, prb, tme = raster.shape
     # smart index to select all reps for 2 neurons, all contexts,
     # two probes and one time point
@@ -99,15 +99,15 @@ def plot_example_coverage_with_diagonalization():
     Returns: Plolty figure
 
     """
-    dense_raster, _ = load_site_dense_raster(eg_site, **raster_meta)
+    dense_raster, _ = load_site_dense_raster(eg_site, **RASTER_META)
 
-    sparse_df = ctx_effects_as_DF(raster, cellids, raster_meta['raster_fs'],
+    sparse_df = ctx_effects_as_DF(raster, cellids, RASTER_META['raster_fs'],
                                   abs=False).query(
         f"chunk == 'Full' and id in {eg_neurons}")  # simple diff
 
     # hack appende dense converage
     dense_df = ctx_effects_as_DF(dense_raster, cellids,
-                                 raster_meta['raster_fs'], abs=False).query(
+                                 RASTER_META['raster_fs'], abs=False).query(
         f"chunk == 'Full' and id == '{eg_neurons[0]}'")
     dense_df['id'] = 'dense'
 

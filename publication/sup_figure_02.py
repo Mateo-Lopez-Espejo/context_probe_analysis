@@ -12,7 +12,7 @@ from src.visualization.palette import *
 
 def plot_exmaple_pupil_psths():
     """
-    Supplementary figure 3, panels A and B. Shows an example neuron response to
+    Supplementary figure 2, panels A and B. Shows an example neuron response to
     a probe after two different contexts, split for trials in which the pupil
     was small or large. Also shows the context effect as the delta firing rate
     split for large and small pupil.
@@ -104,7 +104,7 @@ def plot_exmaple_pupil_psths():
 
 def plot_first_vs_second_order_effects():
     """
-    Supplementary figure 3 panel C. Shows a scatter plot of  instances
+    Supplementary figure 2 panel C. Shows a scatter plot of  instances
     first order (firing rate) vs second order (context effects)
     pupil modulation index, split by 250ms time intervals. Displays the
     regression line between the MI and prints statistical tests for the

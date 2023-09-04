@@ -25,27 +25,49 @@ from src.pupil.dataframes import (
 config = ConfigParser()
 config.read_file(open(config_path / 'settings.ini'))
 
+
+
+# Baseline minimal parameters
+RASTER_META = {'reliability': 0.1,  # r value
+               'smoothing_window': 0,  # ms
+               'raster_fs': 20,
+               'zscore': True,
+               'stim_type': 'permutations'}
+
+
+
+MINIMAL_DF_FILE = pl.Path(
+    config['paths']['analysis_cache']) / '220520_minimal_DF'
+
+
+# attempt at filtering out a common minimal dataframe. It turns out the
+# existing dataframe is already pretty minimal and this is a superfluous step
+commonDF = jl.load(MINIMAL_DF_FILE).query(
+    f"source == 'real' "
+    f"and cluster_threshold == 0.05 "
+    f"and diff_metric == 'delta_FR' "
+).drop(columns=['source', 'cluster_threshold', 'diff_metric'])
+
+# integral values in seconds rather than ms for readability
+commonDF.loc[
+    commonDF.metric == 'integral', 'value'
+] = commonDF.loc[
+        commonDF.metric == 'integral', 'value'
+    ] / 1000
+
+
 # ToDo Start simplifying this mess of dataframes
 ###################### figure 2 ###################################
 
-
-meta = {'reliability': 0.1,  # r value
-        'smoothing_window': 0,  # ms
-        'raster_fs': 20,
-        'zscore': True,
-        'stim_type': 'permutations'}
-alpha = 0.05
-montecarlos = 11000
-summary_DF_file = pl.Path(
-    config['paths']['analysis_cache']) / '220520_minimal_DF'
-metrics = ['integral', 'last_bin']
-
-DF_f2 = jl.load(summary_DF_file).query(
-    f"source == 'real' and metric in {metrics} and "
-    f"cluster_threshold == 0.05 and mult_comp_corr == 'bf_cp' and "
-    f"analysis == 'SC' and "
-    f"diff_metric == 'delta_FR' and "
-    f"value > 0")
+DF_f2 = jl.load(MINIMAL_DF_FILE).query(
+    f"source == 'real' "
+    f"and metric in ['integral', 'last_bin'] "
+    f"and cluster_threshold == 0.05 "
+    f"and mult_comp_corr == 'bf_cp' "
+    f"and analysis == 'SC' "
+    f"and diff_metric == 'delta_FR' "
+    f"and value > 0"
+)
 
 DF_f2.loc[
     DF_f2.metric == 'integral', 'value'
@@ -72,7 +94,7 @@ pivoted_f2 = DF_f2.pivot_table(
     observed=True).reset_index()
 
 # adds a small amount of jitter to the last bin value to help visualization
-binsize = 1 / meta['raster_fs']
+binsize = 1 / RASTER_META['raster_fs']
 jitter = (np.random.random(pivoted_f2.shape[0]) * binsize * 0.8 - (
         binsize * 0.8 / 2)) * 1000  # in ms
 pivoted_f2['last_bin_jittered'] = pivoted_f2['last_bin'] + jitter
@@ -109,9 +131,7 @@ ferret_df = add_ctx_type_voc(ferret_df)
 ###################### figure 3 ###################################
 
 
-mass_cluster_DF_file = pl.Path(
-    config['paths']['analysis_cache']) / f'220520_minimal_DF'
-DF_f3 = jl.load(mass_cluster_DF_file)
+DF_f3 = jl.load(MINIMAL_DF_FILE)
 
 DF_f3.query("source == 'real' and mult_comp_corr in ['bf_cp', 'bf_ncp']  and "
             "metric in ['integral']", inplace=True)
@@ -133,18 +153,9 @@ PCA_DF = DF_f3.query("analysis == 'PCA' and mult_comp_corr == 'bf_cp'"
 
 # ToDo bring stuff over here and perhaps merge with DFs above
 
-###################### figure 4 ###################################
-
-# Baseline minimal parameters
-raster_meta = {'reliability': 0.1,  # r value
-               'smoothing_window': 0,  # ms
-               'raster_fs': 20,
-               'zscore': True,
-               'stim_type': 'permutations'}
-
 ###################### figure 5 ###################################
 
-# todo cleanup and organize these classifications to hold just the necesary
+# todo cleanup and organize these classifications to hold just the necessary
 
 type_DF_file = pl.Path(
     config['paths']['analysis_cache']) / '220816_CPN_celltype_DF'
@@ -237,7 +248,6 @@ toplot_f5 = toregress_f5.query(f"triple in {categories} "
 ###################### figure 6 ###################################
 
 
-summary_DF_file = pl.Path(config['paths']['analysis_cache']) / f'220520_minimal_DF'
 model_df_file = pl.Path(config['paths']['analysis_cache']) / f'220412_resp_pred_metrics_by_chunks'
 working_DF_file = pl.Path(config['paths']['analysis_cache']) / f'220531_fig6_wdf'
 
@@ -249,7 +259,7 @@ if working_DF_file.exists() and not recache_wdf:
 else:
     print('creating working dataframe ...')
 
-    filter = jl.load(summary_DF_file).query(
+    filter = jl.load(MINIMAL_DF_FILE).query(
         f"mult_comp_corr == 'bf_cp' and source == 'real' and cluster_threshold == 0.05 and "
         f"metric == 'integral' and analysis == 'SC'"
         f"and value > 0 "
@@ -311,9 +321,11 @@ if sup_fig3_wdf_file.exists() and not recache_pupil_wdf:
 else:
     print('creating working dataframe for pupil effects ...')
 
+    # dataframe containing firing rates for isntances and time intervals
     fr_DF_file = pl.Path(
         config['paths']['analysis_cache']) / f'220808_pupil_fr_by_instance'
 
+    # dataframe containing cluster mass context effects values by integral.
     filter_DF_file = pl.Path(
         config['paths']['analysis_cache']) / f'220719_chunked_amplitude_DF'
 
@@ -336,4 +348,3 @@ else:
 
     jl.dump(SUP_FIG3_WDF, sup_fig3_wdf_file)
     print('done')
-

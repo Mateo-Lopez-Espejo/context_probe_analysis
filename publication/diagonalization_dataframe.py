@@ -12,7 +12,7 @@ from src.models.decoder import unfold_rep_ctx_prb, get_svm_accuracy
 from src.data.diagonalization import diag_and_scale
 from src.data.region_map import region_map
 
-from publication.globals import raster_meta
+from publication.globals import RASTER_META
 
 
 # todo standirize dataframe generating code
@@ -37,11 +37,11 @@ elif (not acc_df_file.exists()) or recache_acc:
     for site in good_sites:
         # for site in [eg_site]:
         fn = load_site_formated_raster
-        if fn.check_call_in_cache(site, **raster_meta):
+        if fn.check_call_in_cache(site, **RASTER_META):
             print(f'cache found for {site}')
-            raster, _ = fn(site, **raster_meta)
+            raster, _ = fn(site, **RASTER_META)
         else:
-            print(f"cant load {fn} with {raster_meta}."
+            print(f"cant load {fn} with {RASTER_META}."
                   f"\n this should be cached, why is it failing? ")
 
         nsounds = raster.shape[3]
