@@ -815,11 +815,12 @@ def plot_time_ser_quant(cellid, contexts, probe, multiple_comparisons_axis,
                         secondary_y=False, deltaFR=False, ignore_quant=False,
                         meta={}):
     """
-    plot shoing the quantification of time series differences (PSTHs) between context effects.
-    it shows the difference metric (t-score), its threshold for cluster deffinition, the t-score sume for each cluster,
-    and the threshold for cluster significance based on the spermutation distribution.
-    It also displays the are of time bins in clusters that are significant, alongside the center of mass of this
-    significant area.
+    plot showing the quantification of time series differences (PSTHs) between
+    context effects. It shows the difference metric (t-score), its threshold
+    for cluster deffinition, the t-score sume for each cluster, and the
+    threshold for cluster significance based on the spermutation distribution.
+    It also displays the area of time bins in clusters that are significant,
+    alongside the center of mass of this significant area.
     """
     raster_meta = {'montecarlo': 11000, 'raster_fs': 30, 'reliability': 0.1,
                    'smoothing_window': 0, 'stim_type': 'permutations',
@@ -865,10 +866,10 @@ def plot_time_ser_quant(cellid, contexts, probe, multiple_comparisons_axis,
     if multiple_comparisons_axis is None:
         mult_comp = 'none'
     elif len(multiple_comparisons_axis) == 2:
-        # asumes correction acros context and probes
+        # asumes correction across context and probes
         mult_comp = 'bf_cp'
     elif len(multiple_comparisons_axis) == 3:
-        # asumes correction acros neurons, context and probes
+        # asumes correction across neurons, context and probes
         mult_comp = 'bf_ncp'
     else:
         raise ValueError(

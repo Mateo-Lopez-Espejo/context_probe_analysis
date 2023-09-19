@@ -55,6 +55,7 @@ def create_summary_DF(sites, loading_functions, cluster_thresholds, alpha, monte
         probes = list(range(1, tstat.shape[2] + 1))
 
         # creates label dictionary
+        # todo translate into x-array
         dim_labl_dict = {'id': chan_name,
                          'context_pair': [f'{c1:02d}_{c2:02d}' for c1, c2 in itt.combinations(contexts, 2)],
                          'probe': probes,
@@ -62,6 +63,7 @@ def create_summary_DF(sites, loading_functions, cluster_thresholds, alpha, monte
                                              endpoint=False) * 1000}
 
         # iterates over real data and shuffled example
+        # todo remove unused shuffle source
         for source in sources:
             # saves the raw p values  independent of the different  metrics, but for both real and shuffled calculations
             if source == 'real':
@@ -92,6 +94,7 @@ def create_summary_DF(sites, loading_functions, cluster_thresholds, alpha, monte
                 significance = _significance(pvals, corr, alpha=alpha)
 
                 # Use delta FR as an alternative metric of difference
+                # todo remove unused t-score as difference metric
                 for diff_met_name in diff_metrics:
                     if diff_met_name == 'T-score':
                         if source == 'real':

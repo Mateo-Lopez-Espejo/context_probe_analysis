@@ -34,8 +34,7 @@ multiple_corrections = {'bf_cp': [1, 2],
                         'bf_ncp': [0, 1, 2],
                         }
 
-summary_DF_file = pl.Path(config['paths']['analysis_cache']) / f'220520_minimal_DF_bak' # old version with T-scores
-summary_DF_file = pl.Path(config['paths']['analysis_cache']) / f'220520_minimal_DF' # refresshed neurons
+summary_DF_file = pl.Path(config['paths']['analysis_cache']) / f'220520_minimal_DF' # refreshed neurons
 create_summary_DF(sites, loading_functions, cluster_thresholds, alpha, montecarlo, raster_meta, metrics, sources,
                   multiple_corrections, summary_DF_file, diff_metrics, keep_pvalues=False, recacheDF=True)
 

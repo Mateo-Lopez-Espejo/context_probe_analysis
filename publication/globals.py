@@ -59,33 +59,19 @@ commonDF.loc[
 # ToDo Start simplifying this mess of dataframes
 ###################### figure 2 ###################################
 
-DF_f2 = jl.load(MINIMAL_DF_FILE).query(
-    f"source == 'real' "
-    f"and metric in ['integral', 'last_bin'] "
-    f"and cluster_threshold == 0.05 "
+DF_f2 = commonDF.query(
+    f"metric in ['integral', 'last_bin'] "
     f"and mult_comp_corr == 'bf_cp' "
     f"and analysis == 'SC' "
-    f"and diff_metric == 'delta_FR' "
-    f"and value > 0"
+    f"and value > 0 "
+).drop(
+    columns=['mult_comp_corr', 'analysis', 'stim_count']
+).reset_index(
+    drop=True
 )
 
-DF_f2.loc[
-    DF_f2.metric == 'integral', 'value'
-] = DF_f2.loc[
-        DF_f2.metric == 'integral', 'value'
-    ] / 1000  # ms to s for better display
-
-DF_f2.drop(
-    columns=['source', 'cluster_threshold', 'mult_comp_corr', 'analysis',
-             'stim_count', ], inplace=True)
-DF_f2.reset_index(drop=True, inplace=True)
 DF_f2 = add_classified_contexts(DF_f2)
 
-for col in ['id', 'context_pair', 'probe', 'site', 'region', 'metric',
-            'trans_pair']:
-    DF_f2[col] = DF_f2[col].astype('category')
-
-DF_f2['value'] = pd.to_numeric(DF_f2.value, downcast='float')
 
 # pivots for the scatter
 pivoted_f2 = DF_f2.pivot_table(
