@@ -14,7 +14,25 @@ from src.metrics.delta_fr import pairwise_delta_FR
 from src.utils.subsets import good_sites
 
 
-def calculate_site_shuffled_time_metrics(siteid, n_shuffles=100):
+def calculate_site_shuffled_time_metrics(
+        siteid: str, n_shuffles: int = 100
+) -> pd.DataFrame:
+    """
+    Loads a site context difference metric (delta FR) and the associated
+    significance of said difference (cluster mass analysis). This contains
+    information for all neurons in the site and all context instances for
+    each neuron.
+    Then shuffles together the difference and significance in time n_shuffles
+    times, calculates the "last_bin" duration metric and returns a formated
+    dataframe containing all the shuffled metrics for significant instances
+    in the site.
+    Args:
+        siteid: str, site name
+        n_shuffles: int, number of shuffles to perform
+
+    Returns: pandas dataframe
+
+    """
     # hardcodes some of the variables to ignore unused variations
     # todo some of these might become global project wide variables
     load_fn = 'SC'
@@ -86,7 +104,6 @@ def calculate_site_shuffled_time_metrics(siteid, n_shuffles=100):
     )
 
     for ns in range(n_shuffles):
-
         np.random.shuffle(rind)
         masked_dprime = np.ma.array(diff_metric[..., rind],
                                     mask=significance[..., rind] == 0)
@@ -104,8 +121,26 @@ def calculate_site_shuffled_time_metrics(siteid, n_shuffles=100):
 
 
 def calculate_metric_correlation_null_distribution(
-        sites=good_sites, n_shuffles=100
-):
+        sites:set[str]=good_sites, n_shuffles=100
+)->tuple[float, np.array, float]:
+    """
+    Runs the time shuffling and context duration metric calculation for all
+    sites specified, organizes in a dataframe and matches with the
+    context amplitude metric, which is not recalcuated since its invariant to
+    time shuffling. Then, calculates the context effect metrics correlation
+    for all the shuffles, and the real metric correlation, and finally,
+    calculates the p-value from the null distribution and the correlation.
+
+    Args:
+        sites: set of site names
+        n_shuffles: int
+
+    Returns:
+        calc_r_value: float, real Pearson's R
+        null_r_distr: 1d np.array, null distribution
+        pvalue: float
+
+    """
     calc_r_value = pearsonr(pivoted['integral'], pivoted['last_bin'])[0]
     print(
         f"Pearson's R between context effect"
