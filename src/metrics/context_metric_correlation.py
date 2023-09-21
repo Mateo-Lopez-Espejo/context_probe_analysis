@@ -45,6 +45,7 @@ def calculate_site_shuffled_time_metrics(siteid, n_shuffles=100):
         )
     else:
         print(f"{siteid} cluster mass not found in cache, skipping")
+        return None
 
     pvalues = clust_quant_pval['pvalue']
 
@@ -52,19 +53,26 @@ def calculate_site_shuffled_time_metrics(siteid, n_shuffles=100):
     diff_metric = pairwise_delta_FR(siteid, raster_meta=RASTER_META,
                                     load_fn=load_fn)
 
-    # defines a dictionary to label a dataframe cause I am too lase to translate this into x-array
+    # defines a dictionary to label a dataframe
     # todo translate into x-array
 
     contexts = list(range(0, pvalues.shape[2] + 1))
     probes = list(range(1, pvalues.shape[2] + 1))
 
-    dim_labl_dict = {'id': goodcells,
-                     'context_pair': [f'{c1:02d}_{c2:02d}' for c1, c2 in
-                                      itt.combinations(contexts, 2)],
-                     'probe': probes,
-                     'time': np.linspace(0, pvalues.shape[-1] / RASTER_META[
-                         'raster_fs'], pvalues.shape[-1],
-                                         endpoint=False) * 1000}
+    dim_labl_dict = {
+        'id': goodcells,
+        'context_pair': [
+            f'{c1:02d}_{c2:02d}' for c1, c2 in
+            itt.combinations(contexts, 2)
+        ],
+        'probe': probes,
+        'time': np.linspace(
+            0,
+            pvalues.shape[-1] / RASTER_META['raster_fs'],
+            pvalues.shape[-1],
+            endpoint=False
+        ) * 1000
+    }
 
     # randomly shuffles in time the difference and the significance,
     # since they must be coordinated, uses the same random indexer
