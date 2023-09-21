@@ -3,7 +3,25 @@ import numpy as np
 from scipy.io import wavfile
 from nems.analysis.gammatone.gtgram import gtgram
 
+
 def calculate_sound_metrics(soundfile):
+    """
+    Calculates a set of spectro-temporal metrics out of the first second of a
+    .wav file.
+    The metrics calculated are:
+    1. Bandwidth, containing the 70% of the spectral power of the sound.
+    2. Spectral Correlations, averaged across all spectral bin correlations
+    3. Temporal Stationarity, the average standard deviation over time.
+    Args:
+        soundfile: Path to a .wav file
+
+    Returns:
+        bandwidth: Float
+        average_spectral_correlation: Float
+        temporal_stationarity: Float
+        spectrogram: 2d numpy array
+
+    """
     # filtering parameters
     lfreq, hfreq, bins = 100, 24000, 48
 
@@ -60,4 +78,3 @@ def calculate_sound_metrics(soundfile):
         temporal_stationarity,
         spectrogram
     )
-

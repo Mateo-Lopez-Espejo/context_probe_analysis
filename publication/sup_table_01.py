@@ -4,12 +4,22 @@ import numpy as np
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import pandas as pd
-from tqdm import tqdm
 
 from src.metrics.sound_spectrotemporal_analysis import calculate_sound_metrics
 from src.root_path import root_path
 
+
 def plot_simple_spectrogram(spectrogram):
+    """
+    Generates a spectrogram filling the whole figure space, with not axis ticks
+    or extra information. These minimal spectrograms are used in the sound
+    metrics table.
+    Args:
+        spectrogram: 2d numpy array
+
+    Returns: Plotly figure
+
+    """
     fig = go.Figure()
     fig.add_trace(
         go.Heatmap(z=spectrogram, coloraxis='coloraxis')
@@ -38,15 +48,21 @@ def plot_simple_spectrogram(spectrogram):
 
 def create_sound_analysis_table():
     """
+    This function generates the data to create the supplementary table 1
+    describing the characteristics of the sounds used in the experiments.
+    Pulls .wav files from folder, calculates spectro-temporal metrics, organizes
+    in a pandas dataframe and stores in a csv file in the output file.
+    Also generate figures for each sound spectrogram and store in the same
+    folder. Finally, outputs a summary figure with all the spectrograms, just
+    for display and reference.
 
-    Returns:
+    Returns: Plotly figure
 
     """
 
     in_folder = root_path / 'data' / 'sound_files'
     out_folder = root_path / 'data' / 'sound_quantifications'
     out_folder.mkdir(parents=True, exist_ok=True)
-
 
     sound_metrics_DF = list()
     panels = list()
@@ -78,7 +94,6 @@ def create_sound_analysis_table():
         # saves a small spectrogram that can be added to a table
         fig = plot_simple_spectrogram(spectrogram)
         panels.append(fig.data[0])
-        # fig.show(renderer='jpeg')
         filename = out_folder / sound_name
         fig.write_image(filename.with_suffix('.png'))
 
@@ -86,19 +101,18 @@ def create_sound_analysis_table():
         sound_metrics_DF
     ).sort_values(by='name').reset_index(drop=True)
 
-
     # saves the table to csv for easy edition into word file
     print(sound_metrics_DF)
     sound_metrics_DF.to_csv(out_folder / 'metric_table.csv')
 
-    # places all spectrograms into a single multi pannel figure
+    # places all spectrograms into a single multi panel figure
     # this is for reference only as the used figures are saved above.
 
     fig = make_subplots(rows=4, cols=4, subplot_titles=subtitles,
                         horizontal_spacing=0.01, vertical_spacing=0.05)
 
     for pp, pan in enumerate(panels):
-        fig.add_trace(pan, row=int(np.floor(pp/4)+1), col=(pp%4) + 1)
+        fig.add_trace(pan, row=int(np.floor(pp / 4) + 1), col=(pp % 4) + 1)
 
     # set color map and margins
     fig.update_layout(
@@ -112,8 +126,8 @@ def create_sound_analysis_table():
     )
 
     # remove ticks for cleanliness
-    fig.update_xaxes(ticks='',showticklabels=False,)
-    fig.update_yaxes(ticks='',showticklabels=False,)
+    fig.update_xaxes(ticks='', showticklabels=False, )
+    fig.update_yaxes(ticks='', showticklabels=False, )
 
     # reduces panel titles sizes
     fig.update_annotations(font_size=11)
