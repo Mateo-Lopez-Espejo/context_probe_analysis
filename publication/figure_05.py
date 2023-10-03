@@ -8,7 +8,7 @@ from nems import db as nd
 from nems_lbhb.baphy_experiment import BAPHYExperiment
 
 from src.visualization.palette import (
-    add_opacity, PHOTOACT, Black, DarkGray, AMPCOLOR, DURCOLOR
+    add_opacity, PHOTOACT, NAROWSPIKE, BROADSPIKE, AMPCOLOR, DURCOLOR
 )
 
 from src.utils.dataframes import kruskal_with_posthoc
@@ -56,9 +56,9 @@ def plot_cell_type_distributions():
                            "unclass": "x", "broad": ""},
         barmode='stack',
         color_discrete_map={'activated': PHOTOACT,
-                            'narrow': 'darkgray',
+                            'narrow': NAROWSPIKE,
                             "unclass": 'lightgray',
-                            "broad": 'black'},
+                            "broad": BROADSPIKE},
         category_orders={'triple': ['activated', 'narrow', 'unclass', 'broad']}
     )
     fig.update_traces(marker_line_width=0)
@@ -125,7 +125,7 @@ def plot_classified_waveforms():
 
     fig = go.Figure()
     for clss, color in zip(['broad', 'narrow', 'activated'],
-                           [Black, DarkGray, PHOTOACT]):
+                           [BROADSPIKE, NAROWSPIKE, PHOTOACT]):
         lines, t = get_aligned_waveforms(toclust.query(f"triple == '{clss}'"))
 
         # Single waveform examples, decimated,
@@ -147,7 +147,7 @@ def plot_classified_waveforms():
 
     # Average for the group, have to do it second so they are on top
     for clss, color in zip(['broad', 'narrow', 'activated'],
-                           [Black, DarkGray, PHOTOACT]):
+                           [BROADSPIKE, NAROWSPIKE, PHOTOACT]):
         lines, t = get_aligned_waveforms(toclust.query(f"triple == '{clss}'"))
         _ = fig.add_trace(
             go.Scatter(x=t, y=lines.mean(axis=0), mode='lines',
@@ -328,7 +328,8 @@ def plot_metric_cumulative_histograms():
     fig = px.ecdf(
         toplot, x='value', color='triple', facet_col='metric',
         color_discrete_map={'activated': PHOTOACT,
-                            'narrow': 'darkgray', 'broad': 'black'},
+                            'narrow': NAROWSPIKE,
+                            'broad': BROADSPIKE},
         category_orders={'triple': ['activated', 'narrow', 'broad']},
         render_mode='svg'
     )
@@ -408,7 +409,7 @@ def plot_metric_insets():
         fig.add_trace(
             go.Scatter(x=stat, y=names, mode='markers', opacity=1,
                        showlegend=False,
-                       marker=dict(color=[PHOTOACT, DarkGray, Black],
+                       marker=dict(color=[PHOTOACT, NAROWSPIKE, BROADSPIKE],
                                    symbol='square', size=5,
                                    line=dict(color='black',
                                              width=1)),
@@ -462,7 +463,8 @@ def plot_coverage_cumulative_histogram():
     fig = px.ecdf(
         coverage_prop, x='coverage', color='triple',
         color_discrete_map={'activated': PHOTOACT,
-                            'narrow': 'darkgray', 'broad': 'black'},
+                            'narrow': NAROWSPIKE,
+                            'broad': BROADSPIKE},
         category_orders={'triple': ['activated', 'narrow', 'broad']},
         render_mode='svg')
     _ = fig.update_traces(line_width=1)
@@ -512,7 +514,9 @@ def plot_coverage_inset():
     # added line to this single call, make sure it actually works
     fig.add_trace(go.Scatter(x=stat, y=names, mode='markers', opacity=1,
                              showlegend=False,
-                             marker=dict(color=[PHOTOACT, DarkGray, Black],
+                             marker=dict(color=[PHOTOACT,
+                                                NAROWSPIKE,
+                                                BROADSPIKE],
                                          symbol='square', size=5,
                                          line=dict(color='black', width=1)),
                              error_x=dict(array=err, color='black',

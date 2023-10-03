@@ -31,7 +31,7 @@ from src.visualization.utils import squarefy, square_rows_cols
 
 
 def plot_PSTH(fnArr, time, y0=None, CI=None, CI_opacity=0.2, name=None,
-              showlegend=True, fig=None, **line_kwargs):
+              showlegend=True, fig=None, hist=True, **line_kwargs):
     """
     fnArr: 2dim array with dims Trials x Time
     """
@@ -59,8 +59,11 @@ def plot_PSTH(fnArr, time, y0=None, CI=None, CI_opacity=0.2, name=None,
                 f"Unknown CI value {CI}. Use None, 'std' or 'sem'")
 
         # here without y0
-        x, y = squarefy(time, psth)
-        _, yerr = squarefy(time, err)
+        if hist:
+            x, y = squarefy(time, psth)
+            _, yerr = squarefy(time, err)
+        else:
+            x, y, yerr = time, psth, err
 
         rgb = hex_to_rgb(line_defaults['color'])  # tuple
         fill_color = f'rgba({rgb[0]}, {rgb[1]}, {rgb[2]}, {CI_opacity})'
@@ -76,7 +79,11 @@ def plot_PSTH(fnArr, time, y0=None, CI=None, CI_opacity=0.2, name=None,
                                      showlegend=False))
 
     # plots PSTH second so it lays over CI
-    x, y = squarefy(time, psth, y0=y0)
+    if hist:
+        x, y = squarefy(time, psth, y0=y0)
+    else:
+        x, y = time, psth
+
     _ = fig.add_trace(
         go.Scatter(x=x, y=y, mode='lines', line=line_defaults, name=name,
                    showlegend=showlegend))

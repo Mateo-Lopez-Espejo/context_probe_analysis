@@ -46,6 +46,12 @@ REGION_COLORMAP = {'A1': A1_COLOR, 'PEG': PEG_COLOR}
 
 # photo activated blue
 PHOTOACT = HardBlue
+NAROWSPIKE = DarkGray
+BROADSPIKE = Black
+CELLTYPE_COLORMAP = {
+    'activated': PHOTOACT, 'narrow': NAROWSPIKE, 'broad': BROADSPIKE,
+    'unclass': Yellow
+}
 
 # metric
 AMPCOLOR = Green

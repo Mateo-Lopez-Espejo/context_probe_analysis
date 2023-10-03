@@ -15,6 +15,7 @@ from src.models.param_tools import get_pred_err
 from src.root_path import config_path
 from src.utils.subsets import cellid_A1_fit_set, cellid_PEG_fit_set, batch_map
 
+# ToDo clean for publication, move to figure 6 scripts
 """
 calculates metrics (integral and center of mass) on the delta firing rate of model predictions and real responses.
 This in lieu of the more complicated cluster mass analyssi which requieres multiple trials (unavailable for model

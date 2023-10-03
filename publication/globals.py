@@ -42,24 +42,24 @@ MINIMAL_DF_FILE = pl.Path(
 
 # attempt at filtering out a common minimal dataframe. It turns out the
 # existing dataframe is already pretty minimal and this is a superfluous step
-commonDF = jl.load(MINIMAL_DF_FILE).query(
+MINIMAL_DF = jl.load(MINIMAL_DF_FILE).query(
     f"source == 'real' "
     f"and cluster_threshold == 0.05 "
     f"and diff_metric == 'delta_FR' "
 ).drop(columns=['source', 'cluster_threshold', 'diff_metric'])
 
 # integral values in seconds rather than ms for readability
-commonDF.loc[
-    commonDF.metric == 'integral', 'value'
-] = commonDF.loc[
-        commonDF.metric == 'integral', 'value'
+MINIMAL_DF.loc[
+    MINIMAL_DF.metric == 'integral', 'value'
+] = MINIMAL_DF.loc[
+        MINIMAL_DF.metric == 'integral', 'value'
     ] / 1000
 
 
 # ToDo Start simplifying this mess of dataframes
 ###################### figure 2 ###################################
 
-DF_f2 = commonDF.query(
+DF_f2 = MINIMAL_DF.query(
     f"metric in ['integral', 'last_bin'] "
     f"and mult_comp_corr == 'bf_cp' "
     f"and analysis == 'SC' "
@@ -241,7 +241,7 @@ recache_wdf = False
 
 if working_DF_file.exists() and not recache_wdf:
     MODEL_CTX_QUANT_DF = jl.load(working_DF_file)
-    print("found and loaded working data fram from cache")
+    print("found and loaded working data frame from cache")
 else:
     print('creating working dataframe ...')
 
