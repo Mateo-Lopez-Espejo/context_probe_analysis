@@ -2,6 +2,7 @@ import numpy as np
 
 from src.data.rasters import load_site_formated_raster
 
+# ToDo format, and document all functions
 
 def get_diagonalizations(fnArr, distance='L2'):
     psth = fnArr.mean(axis=0, keepdims=True)
@@ -132,7 +133,7 @@ def diag_and_scale(fnArr, mode='fano_var', verbose=False, return_problem=False):
 
 def load_site_dense_raster(site, part='probe', recache_rec=False, **kwargs):
     """
-    wrapper of wrappers, loads raster and diagoanlizes it using only the mean variance constrain
+    wrapper of wrappers, loads raster and diagonalizes it using only the mean variance constrain
     """
 
     # Load full raster but uses only the probe to fit the PCA.

@@ -4,6 +4,9 @@ import pathlib as pl
 import plotly.graph_objects as go
 import joblib as jl
 
+import numpy as np
+import scipy.stats as sst
+
 from publication.globals import config
 from src.metrics.context_metric_correlation import (
     calculate_metric_correlation_null_distribution
@@ -58,6 +61,13 @@ def plot_context_metric_correlation_significance():
     Returns: Plotly Figure.
 
     """
+
+    # prints the mean of the null distribution and of the calculated value
+    # for record keeping and parsing into paper.
+    print("##### R null distribution mean and SEM #####\n",
+          np.mean(null_r_distr), sst.sem(null_r_distr))
+    print("##### Measured R value #####\n", calc_r_value)
+
     fig = go.Figure()
 
     fig.add_trace(

@@ -3,6 +3,7 @@ from src.dim_redux.PCA import load_site_formated_PCs
 from src.dim_redux.dPCA import load_site_formated_dPCs
 from src.data.diagonalization import load_site_dense_raster
 
+# ToDo edit docs and remove unused loaders
 """
 One cannot pass a cached function as a parameter to another cached function.
 dirtbag hack to have a simple name for all loader/preprocesors that output a tensor of shape  rep x neu x ctx x prb x tme

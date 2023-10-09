@@ -245,12 +245,13 @@ conn_DF, strf_DF = get_full_dataset_weights_DF(recache=False)
 
 
 def plot_connection_weigths_by_cell_type():
+    # ToDo edit docs
     """
-    Supplemental Figure M. Shows the meand and SEM for the model weight
+    Supplemental Figure M. Shows the mean and SEM for the model weight
     corresponding to putative neuronal connection (do not confuse with
     synapses).
-    The weigths are classified by the neuron type of the "pre" and
-    "postsynaptic" neurons.
+    The weigths are classified by the neuron type of the sending and
+    receiving neurons.
 
     Returns: Plotly Figure.
 
@@ -323,6 +324,22 @@ def plot_connection_weigths_by_cell_type():
 
 
 def plot_strf_average_weights_over_time():
+    #ToDo edit docs
+    """
+    Supplementary figure M pannel N. Displays a time series of the STRF
+    weights, achieved by taking the average across all spectral channels.
+    It uses me mean of the raw values and of the absolute values, to avoid
+    possitive and negative weights canceling each other. Finaly performs this
+    for all neurons used for model fit, and displays the neuron average and
+    Standard error of the mean. The figure shows how there are only relevant
+    weights close to the neurons responses, confirming the lack of 'linear
+    information' at earlier time points and the validity of the longer STRF.
+
+    Returns: Plotly Figure
+
+    """
+    print(f"Plotting weights for {strf_DF.shape[0]} model fits")
+
     fig = go.Figure()
 
     for ts, color in zip(
@@ -363,3 +380,29 @@ def plot_strf_average_weights_over_time():
                       )
 
     return fig
+
+def print_self_weights_statistics():
+    #ToDo write docs
+    """
+    Supplementary information. Having seen the differences in connection
+    weights depending on neuron type, it follows to see if neuron type also
+    affects a neuron connection to itself, i.e., its adaptation pattern.
+    The answer is no, there is no significant difference.
+
+    Returns: (summary metrics, kruskal wallis, post hoc dun) objects
+
+    """
+
+    func_df = conn_DF.query("sender == receiver "
+                            "and sender_type != 'unclass' "
+                            "and receiver_type != 'unclass' ")
+
+    kruskal, dunn = kruskal_with_posthoc(func_df, group_col='receiver_type',
+                             val_col='weight')
+    func_df = func_df.groupby('receiver_type').agg(count=('weight', 'count'),
+                                             stat=('weight', np.mean),
+                                             err=('weight', sst.sem))
+
+    print("\nSummary statistics\n", func_df)
+
+    return func_df, kruskal, dunn

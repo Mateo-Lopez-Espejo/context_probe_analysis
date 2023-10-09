@@ -1393,11 +1393,11 @@ def plot_cell_coverage(fnDF, cellid, zero_nan=True):
 def plot_site_coverages(fnDF, cells_toplot='all', has_neg=False, rows=None,
                         cols=None):
     if cells_toplot == 'all':
-        cells_toplot = fnDF.id.unique()
+        cells_toplot = list(fnDF.id.unique())
     else:
         pass
 
-    print(cells_toplot)
+    print("Plotted neurons:\n", cells_toplot)
 
     if has_neg:
         zero_nan = False
@@ -1449,12 +1449,12 @@ def plot_site_coverages(fnDF, cells_toplot='all', has_neg=False, rows=None,
     fig.update_xaxes(title=dict(text='probe', standoff=0, font_size=10),
                      showticklabels=True, tickmode='array',
                      tickvals=list(range(len(prbs))), ticktext=prbs,
-                     tickfont_size=9, col=1, row=1)
+                     tickfont_size=9, col=1, row=rows)
     # context pairs, y axis
     fig.update_yaxes(title=dict(text='context_pair', standoff=0, font_size=10),
                      showticklabels=True, tickmode='array',
                      tickvals=list(range(len(ctx_prs))), ticktext=ctx_prs,
-                     tickangle=0, tickfont_size=9, col=1, row=1)
+                     tickangle=0, tickfont_size=9, col=1, row=rows)
 
     w, h = 4 * 96, 4.5 * 96
     fig.update_layout(
