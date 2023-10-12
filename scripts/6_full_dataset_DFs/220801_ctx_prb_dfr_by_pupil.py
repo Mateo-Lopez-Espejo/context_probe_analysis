@@ -20,7 +20,7 @@ dataframe can be made by skipping the delta FR, and just calculating the firing 
 Also in hindsight, the absolute delta FR is a questionable metric, so we can drop it and save us some time/memory e
 """
 
-# ToDo streamline since this is fundamental for the pupil analysis.
+# ToDo publication streamline since this is fundamental for the pupil analysis.
 
 config = ConfigParser()
 config.read_file(open(config_path / 'settings.ini'))

@@ -89,6 +89,8 @@ pivoted_f2['last_bin_jittered'] = pivoted_f2['last_bin'] + jitter
 relevant_cols = ['id', 'region', 'named_ctx_0', 'named_ctx_1', 'named_probe',
                  'context_pair', 'probe', 'voc_ctx', 'voc_prb', 'metric',
                  'value']
+# todo clean up the code that generates this,
+# variable 'merged' in 221205_ferret_vocalization_effects.ipynb
 ferret_df = pd.read_csv(
     pl.Path(config['paths']['analysis_cache']) / "230308_ferret_voc.csv",
     usecols=relevant_cols,
@@ -293,7 +295,7 @@ DFfloor.reset_index(inplace=True)
 MODEL_PERFORMANCE_WIDE_DF = DF.dropna().rename(columns={'cellid': 'id', 'siteid': 'site'}),
 
 ###################### Suplementary figure 3 ##################################
-
+# todo rename variables to coincide with final figure numeration
 
 sup_fig3_wdf_file = pl.Path(
     config['paths']['analysis_cache']

@@ -10,7 +10,7 @@ import plotly.graph_objects as go
 
 from src.visualization.palette import A1_COLOR, PEG_COLOR
 from src.visualization.interactive import plot_site_coverages
-from publication.globals import SC_DF, PCA_DF, DF_f3 as DF
+from publication.globals import SC_DF, PCA_DF, DF_f3 as DF, ferret_df
 
 def plot_example_site_coverage():
     """
@@ -26,6 +26,16 @@ def plot_example_site_coverage():
     eg_site = 'ARM021b' # site from the example cells in figure 2
     eg_neurons = ['06-3', '10-4', '36-8', '40-6', '43-8', '53-1']
     eg_neurons = [f"{eg_site}-{cid}" for cid in eg_neurons]
+
+    # print sound names associated with numbers
+    print("names of sounds used:\n",
+        ferret_df.query(
+            f"id == '{eg_neurons[0]}'"
+        ).loc[
+                    :, ('probe', 'named_probe')
+                    ].drop_duplicates().reset_index(drop=True)
+    )
+
 
     eg_site_df = SC_DF.query(f"site == '{eg_site}'"
                              f" and metric == 'integral'"
@@ -98,38 +108,42 @@ def plot_neuron_and_site_coverage_summary():
 
     # all single neuron coverages
     by_neuron = DF.query(
-        "analysis == 'SC' and mult_comp_corr == 'bf_cp' and metric == 'integral'"
-    ).groupby(['region', 'site', 'id'], observed=True).agg(value=('value', lambda x: np.sum(x>0)/x.size *100))
+        "analysis == 'SC' and mult_comp_corr == 'bf_cp' "
+        "and metric == 'integral'"
+    ).groupby(
+        ['region', 'site', 'id'], observed=True
+    ).agg(
+        value=('value', lambda x: np.sum(x>0)/x.size *100)
+    )
 
     # best neuron in site
     by_best =  DF.query(
-        "analysis == 'SC' and mult_comp_corr == 'bf_cp' and metric == 'integral'"
+        "analysis == 'SC' and mult_comp_corr == 'bf_cp' "
+        "and metric == 'integral'"
     ).groupby(['region', 'site'], observed=True).apply(best_neuron)
     by_best.name = 'value'
 
     # Union of single neurons, note the more strict bonferroni
     by_union =  DF.query(
-        "analysis == 'SC' and mult_comp_corr == 'bf_ncp' and metric == 'integral'"
+        "analysis == 'SC' and mult_comp_corr == 'bf_ncp' "
+        "and metric == 'integral'"
     ).groupby(['region', 'site'], observed=True).apply(union_cover)
     by_union.name = 'value'
 
     # First PC coverage
     by_PC1 = DF.query(
-        "analysis == 'PCA' and PC == 1 and mult_comp_corr == 'bf_cp' and metric == 'integral'"
-    ).groupby(['region', 'site'], observed=True).agg(value=('value', lambda x: np.sum(x>0)/x.size *100))
+        "analysis == 'PCA' and PC == 1 and "
+        "mult_comp_corr == 'bf_cp' and metric == 'integral'"
+    ).groupby(
+        ['region', 'site'], observed=True
+    ).agg(
+        value=('value', lambda x: np.sum(x>0)/x.size *100)
+    )
 
-
-    to_concat = {'SC':by_neuron, 'best_SC':by_best ,'union': by_union, 'PC1':by_PC1,}
-    toplot = list()
-    for name, df in to_concat.items():
-        df = df.reset_index()
-        df['quant'] = name
-        toplot.append(df)
-    toplot = pd.concat(toplot)
-
-
-    # concatenate
-    to_concat = {'SC':by_neuron, 'best_SC':by_best ,'union': by_union, 'PC1':by_PC1}
+    # concatenate dissimilar data in single DF for quicker plotly express
+    to_concat = {
+        'SC':by_neuron, 'best_SC':by_best ,'union': by_union, 'PC1':by_PC1
+    }
     toplot = list()
     for name, df in to_concat.items():
         df = df.reset_index()
@@ -154,9 +168,11 @@ def plot_neuron_and_site_coverage_summary():
             out = mannwhitneyu(x, y)
             stat = 'mannwhitneyu'
         else:
-            ddd = toplot.query(f"quant in {[q0, q1]}").pivot(index='site',
-                                                             columns='quant',
-                                                             values='value')
+            ddd = toplot.query(
+                f"quant in {[q0, q1]}"
+            ).pivot(
+                index='site', columns='quant', values='value'
+            )
             x = ddd[q0].values
             y = ddd[q1].values
             assert np.all(~np.isnan(x))
@@ -210,32 +226,36 @@ def plot_neuron_and_site_coverage_summary():
 
     # violins plust pointplots
     for qq, quant in enumerate(['SC', 'PC1', 'best_SC', 'union']):
-        fig.add_trace(go.Violin(x=toplot['quant'][(toplot['region'] == 'A1') &
-                                                  (toplot['quant'] == quant)],
-                                y=toplot['value'][(toplot['region'] == 'A1') &
-                                                  (toplot['quant'] == quant)],
-                                legendgroup='A1', scalegroup=f'', name='A1',
-                                side='negative',
-                                pointpos=-0.3,  # where to position points
-                                line=dict(color=A1_COLOR,
-                                          width=1),
-                                showlegend=False,
-                                meanline=dict(width=1,
-                                              ))
-                      )
-        fig.add_trace(go.Violin(x=toplot['quant'][(toplot['region'] == 'PEG') &
-                                                  (toplot['quant'] == quant)],
-                                y=toplot['value'][(toplot['region'] == 'PEG') &
-                                                  (toplot['quant'] == quant)],
-                                legendgroup='PEG', scalegroup=f'', name='PEG',
-                                side='positive',
-                                pointpos=0.3,
-                                line=dict(color=PEG_COLOR,
-                                          width=1),
-                                showlegend=False,
-                                meanline=dict(width=1,
-                                              ))
-                      )
+        fig.add_trace(
+            go.Violin(
+                x=toplot['quant'][(toplot['region'] == 'A1') &
+                                  (toplot['quant'] == quant)],
+                y=toplot['value'][(toplot['region'] == 'A1') &
+                                  (toplot['quant'] == quant)],
+                legendgroup='A1', scalegroup=f'', name='A1',
+                side='negative',
+                pointpos=-0.3,  # where to position points
+                line=dict(color=A1_COLOR,
+                          width=1),
+                showlegend=False,
+                meanline=dict(width=1, )
+            )
+        )
+        fig.add_trace(
+            go.Violin(
+                x=toplot['quant'][(toplot['region'] == 'PEG') &
+                                  (toplot['quant'] == quant)],
+                y=toplot['value'][(toplot['region'] == 'PEG') &
+                                  (toplot['quant'] == quant)],
+                legendgroup='PEG', scalegroup=f'', name='PEG',
+                side='positive',
+                pointpos=0.3,
+                line=dict(color=PEG_COLOR,
+                          width=1),
+                showlegend=False,
+                meanline=dict(width=1, )
+            )
+        )
 
     # update characteristics shared by all traces
     fig.update_traces(meanline_visible=True,
