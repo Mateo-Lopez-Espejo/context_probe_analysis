@@ -212,7 +212,7 @@ def plot_summary_decoder_accuracies():
 
 def plot_decoder_analysis_by_nsounds_and_region():
     """
-    Supplementary figure 3 panels A to D. shows the decoder accuracy over time
+    Supplementary figure 4 panels A to D. shows the decoder accuracy over time
     at predicting the context information (but not the probe info) from the
     original sparse, or the diagonalized dense site responses. Sites are split
     by cortical field.

@@ -11,7 +11,7 @@ from nems.db import batch_comp
 
 from src.utils.dataframes import add_classified_contexts, norm_by_mean, \
     simplify_classified_contexts, add_ctx_type_voc
-from src.root_path import config_path
+from src.root_path import config_path, root_path
 from src.utils.subsets import cellid_A1_fit_set, cellid_PEG_fit_set
 from src.models.modelnames import modelnames as all_modelnames
 
@@ -292,7 +292,9 @@ DF.columns = MODEL_DISPLAY_NAMES
 DFfloor.columns = MODEL_DISPLAY_NAMES
 DF.reset_index(inplace=True)
 DFfloor.reset_index(inplace=True)
-MODEL_PERFORMANCE_WIDE_DF = DF.dropna().rename(columns={'cellid': 'id', 'siteid': 'site'}),
+MODEL_PERFORMANCE_WIDE_DF = DF.dropna().rename(
+    columns={'cellid': 'id', 'siteid': 'site'}
+)
 
 ###################### Suplementary figure 3 ##################################
 # todo rename variables to coincide with final figure numeration

@@ -1,17 +1,23 @@
-# todo change file name once order in paper is defined
+# ToDo document functions
 
 import pathlib as pl
-import plotly.graph_objects as go
 import joblib as jl
 
+import pandas as pd
 import numpy as np
 import scipy.stats as sst
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 
-from publication.globals import config
+from publication.globals import config, MINIMAL_DF
+
+from src.visualization.palette import DURCOLOR, AMPCOLOR
+from src.utils.dataframes import kruskal_with_posthoc
 from src.metrics.context_metric_correlation import (
     calculate_metric_correlation_null_distribution
 )
 
+#### generates time shuffles fo the metric correlation analysis  ####
 # Runs the shuffles, and caches results, or loads from cache
 cache_file = pl.Path(
     config['paths']['analysis_cache']) / '230921_metric_correlations'
@@ -43,6 +49,29 @@ else:
         cache_file
     )
     print('...done')
+
+#### Formats layer and context effects together ####
+# loads cellid layer information and merges to minimal context effect dataframe
+
+csvpath = pl.Path(
+    config['paths']['analysis_cache']
+) / '231026_depth_info.csv'
+
+depth_df = pd.read_csv(csvpath)
+depth_df.rename(columns={"Unnamed: 0": 'id'}, inplace=True)
+
+layer_ctx_effect_DF = pd.merge(
+    left=depth_df.loc[:, ('id', 'layer')],
+    right=MINIMAL_DF,
+    on="id",
+    validate="1:m"
+).replace(
+    {'layer': {56: '5-6',
+               4: '4',
+               13: '1-3'}},
+).query(
+    "value > 0 and analysis == 'SC'"
+).dropna()
 
 
 def plot_context_metric_correlation_significance():
@@ -107,5 +136,68 @@ def plot_context_metric_correlation_significance():
         legend=dict(xanchor='right', x=1, yanchor='top', y=1,
                     font_size=8, title=dict(text=''))
     )
+
+    return fig
+
+
+def plot_layer_effect_on_context_metrics():
+    """
+
+    Returns:
+
+    """
+    fig = make_subplots(rows=1, cols=2, horizontal_spacing=0.2,
+                        shared_xaxes=False, shared_yaxes=False)
+
+    print(f"{len(layer_ctx_effect_DF.id.unique())} neurons labeled by layer")
+    print(
+        layer_ctx_effect_DF.loc[:, ('id', 'layer')].drop_duplicates().groupby(
+            'layer'
+        ).agg(count=('id', 'count'))
+    )
+
+    for rr, met in enumerate(['integral', 'last_bin']):
+        print(f"\n#### {met} ####")
+        func_df = layer_ctx_effect_DF.query(f"metric == '{met}'")
+
+        _ = kruskal_with_posthoc(func_df, group_col='layer',
+                                 val_col='value')
+        func_df = func_df.groupby('layer').agg(count=('value', 'count'),
+                                               stat=('value', np.mean),
+                                               err=('value', sst.sem))
+        print('summary stats\n', func_df, '\n')
+
+        x = ['1-3', '4', '5-6']
+        y = [func_df.at[cat, 'stat'] for cat in x]
+        yerr = [func_df.at[cat, 'err'] for cat in x]
+        fig.add_trace(
+            go.Scatter(
+                x=x, y=y, mode='markers',
+                marker=dict(color='black', size=4),
+                error_y=dict(array=yerr, color='black',
+                             thickness=1, width=5),
+                showlegend=False
+            ),
+            col=rr + 1, row=1
+        )
+
+    h, w = 1.3, 2.5
+    fig.update_layout(
+        template='simple_white', width=96 * w, height=96 * h,
+        margin=dict(l=10, r=10, t=10, b=10), showlegend=False,
+        font_family='Arial',
+
+        xaxis=dict(title=dict(text="cortical layer")),
+
+        yaxis=dict(matches=None, autorange=True,
+                   title=dict(text='amplitude<br>(Delta Z-score*s)',
+                              font_color=AMPCOLOR)),
+        yaxis2=dict(matches=None, autorange=True,
+                    title=dict(text='duration (ms)',
+                               font_color=DURCOLOR)),
+    )
+
+    fig.update_xaxes(title_font_size=10, title_standoff=0, tickfont_size=9)
+    fig.update_yaxes(title_font_size=10, title_standoff=0, tickfont_size=9)
 
     return fig

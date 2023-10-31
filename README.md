@@ -1,29 +1,35 @@
 Context Probe Analysis
 ==============================
+This is the code base asociated with the publication
+[A sparse code for natural sound context in auditory cortex](https://doi.org/10.1101/2023.06.14.544866)
 
-Collection of functions and metrics to calculate the duration and amplitude of effects caused
-by different contextualizing sound on a probe sound played right after.
+## Ongoing beautification effort
+The functions of this code base are already cristalized since the analysis they
+perform has been tested, and the output of this analysis is published. However,
+this is the ongoing work of many years, and as such it has accumulated detritus
+and code smells (the code works, its just ugly). There is an ongoing effort to 
+beautify the code (without altering its function) to make it more accessible.
+
+In order to run the code you need some data which is too big to have published
+on github. Do not hesitate on reaching out and asking for this data.
+
+In the near future, I hope to simplify and compress the data required, so it
+can be published alongside the code.
 
 Project Organization
 ------------
 
     ├── LICENSE
-    ├── README.md          <- The top-level README for developers using this project.
+    ├── README.md
     ├── data
-    │   ├── external       <- Data from third party sources.
-    │   ├── interim        <- Intermediate data that has been transformed.
-    │   ├── processed      <- The final, canonical data sets for modeling.
-    │   └── raw            <- The original, immutable data dump.
+    │   ├── consolidated_tstat      <- joblib cache for the t statistic significance analysis. One file per site
+    │   ├── sound_files             <- .wav files used for stim generation
+    │   ├── sound_quantification    <- sound spectrograms and metric table
+    │   └── tensors                 <- joblib cache for site raster, folded into 5 dim arrays
+    │                                        Rep * Neuron * Context * Probe * Time 
     │
-    ├── docs               <- A default Sphinx project; see sphinx-doc.org for details
-    │
-    ├── models             <- Trained and serialized models, model predictions, or model summaries
-    │
-    ├── notebooks          <- Jupyter notebooks. Naming convention is a number (for ordering),
-    │                         the creator's initials, and a short `-` delimited description, e.g.
-    │                         `1.0-jqp-initial-data-exploration`.
-    │
-    ├── references         <- Data dictionaries, manuals, and all other explanatory materials.
+    ├── notebooks          <- Exploratory Jupyter notebooks. Naming convention 
+    │                         is <dateYYMMDD>_<name> Naming convention is a number (for ordering),
     │
     ├── reports            <- Generated analysis as HTML, PDF, LaTeX, etc.
     │   └── figures        <- Generated graphics and figures to be used in reporting
@@ -31,27 +37,26 @@ Project Organization
     ├── requirements.txt   <- The requirements file for reproducing the analysis environment, e.g.
     │                         generated with `pip freeze > requirements.txt`
     │
-    ├── setup.py           <- makes project pip installable (pip install -e .) so src can be imported
-    ├── src                <- Source code for use in this project.
-    │   ├── __init__.py    <- Makes src a Python module
-    │   │
-    │   ├── data           <- Scripts to download or generate data
-    │   │   └── make_dataset.py
-    │   │
-    │   ├── features       <- Scripts to turn raw data into features for modeling
-    │   │   └── build_features.py
-    │   │
-    │   ├── models         <- Scripts to train models and then use trained models to make
-    │   │   │                 predictions
-    │   │   ├── predict_model.py
-    │   │   └── train_model.py
-    │   │
-    │   └── visualization  <- Scripts to create exploratory and results oriented visualizations
-    │       └── visualize.py
+    ├── scripts            <- Collection of (old) scripts to enqueue jobs in the lab cluster
     │
-    └── tox.ini            <- tox file with settings for running tox; see tox.readthedocs.io
-
+    ├── setup.py           <- makes project pip installable (pip install -e .) so src can be imported
+    └── src                <- Source code for use in this project.
+        ├── __init__.py    <- Makes src a Python module
+        │
+        ├── data           <- Scripts / functions to loand and preprocess data
+        │   └── make_dataset.py
+        │
+        ├── dim_redux      <- Scripts / functions to reduce (neuron) dimensionality of recording sites
+        │
+        ├── metrics        <- Scripts / functions calculate contex effect and other metrics
+        │
+        ├── models         <- Scripts / functions to describe and run model trainings.
+        │
+        ├── pupil          <- Scripts / functions process pupil information 
+        │
+        ├── utils          <- mixed bag of usefull Scripts / functions. 
+        │
+        └── visualization  <- Plotting functions.
+            └── visualize.py
 
 --------
-
-<p><small>Project based on the <a target="_blank" href="https://drivendata.github.io/cookiecutter-data-science/">cookiecutter data science project template</a>. #cookiecutterdatascience</small></p>

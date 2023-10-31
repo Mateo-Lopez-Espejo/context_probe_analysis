@@ -382,7 +382,6 @@ def plot_strf_average_weights_over_time():
     return fig
 
 def print_self_weights_statistics():
-    #ToDo write docs
     """
     Supplementary information. Having seen the differences in connection
     weights depending on neuron type, it follows to see if neuron type also

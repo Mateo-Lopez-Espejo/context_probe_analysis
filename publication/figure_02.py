@@ -494,7 +494,7 @@ def print_multivariate_linear_regressions():
 
 def plot_metric_by_probe_vocalization():
     """
-    Supplementary Figure 1 panels A and B. Point and wiskers plots showing
+    Supplementary Figure 1 panels B and C. Point and wiskers plots showing
     meand and SEM for the Amplitude and Duration discriminated by
     whether the probe was a vocalization or not.
 

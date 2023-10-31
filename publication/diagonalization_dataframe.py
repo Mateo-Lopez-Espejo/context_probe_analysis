@@ -15,7 +15,7 @@ from src.data.region_map import region_map
 from publication.globals import RASTER_META
 
 
-# todo standirize dataframe generating code
+# todo standarize dataframe generating code
 
 # run decoder analysis for all sites and caches on dataframe
 config = ConfigParser()
